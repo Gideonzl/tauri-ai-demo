@@ -58,7 +58,7 @@
     </div>
 
     <!-- 终端内容区 -->
-    <div class="terminal-body" @click="focusInput" @contextmenu.prevent="onTerminalContextMenu">
+    <div class="terminal-body" @click="onTerminalBodyClick" @contextmenu.prevent="onTerminalContextMenu">
       <div class="terminal-output" ref="outputRef">
         <div v-for="(line, i) in outputLines" :key="i" class="output-line">
           <span v-if="line.type === 'cmd'" class="prompt">{{ line.promptAtTime || cwdPrompt }} </span>
@@ -80,23 +80,54 @@
 
     <!-- 终端右键菜单 -->
     <div v-if="termContextMenu.visible" class="term-context-menu" :style="{ left: termContextMenu.x + 'px', top: termContextMenu.y + 'px' }" @click.stop>
-      <div class="tmenu-item" @click.stop="termAction('copy'); termContextMenu.visible = false">
-        <el-icon :size="13"><DocumentCopy /></el-icon><span>Copy</span>
-      </div>
-      <div class="tmenu-item" @click.stop="termAction('paste'); termContextMenu.visible = false">
-        <el-icon :size="13"><CopyDocument /></el-icon><span>Paste</span>
-      </div>
-      <div class="tmenu-sep"></div>
-      <div class="tmenu-item" @click.stop="termAction('selectAll'); termContextMenu.visible = false">
-        <el-icon :size="13"><FullScreen /></el-icon><span>Select All</span>
-      </div>
-      <div class="tmenu-item" @click.stop="termAction('clear'); termContextMenu.visible = false">
-        <el-icon :size="13"><Delete /></el-icon><span>Clear</span>
-      </div>
-      <div class="tmenu-sep"></div>
-      <div class="tmenu-item" @click.stop="termAction('copyCommand'); termContextMenu.visible = false">
-        <el-icon :size="13"><Document /></el-icon><span>Copy Cmd</span>
-      </div>
+      <!-- 有选中文字时的菜单 -->
+      <template v-if="selectedText">
+        <div class="tmenu-header">Selected: {{ selectedText.length > 40 ? selectedText.slice(0, 40) + '...' : selectedText }}</div>
+        <div class="tmenu-item" @click.stop="termAction('copySelection'); termContextMenu.visible = false">
+          <el-icon :size="13"><DocumentCopy /></el-icon><span>Copy</span>
+          <span class="tmenu-shortcut">Ctrl+C</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('sendToAI'); termContextMenu.visible = false">
+          <el-icon :size="13"><ChatDotSquare /></el-icon><span>Send to AI</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('executeAsCommand'); termContextMenu.visible = false">
+          <el-icon :size="13"><Promotion /></el-icon><span>Execute as Command</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('searchWeb'); termContextMenu.visible = false">
+          <el-icon :size="13"><Search /></el-icon><span>Search Web</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('saveAsQuickCommand'); termContextMenu.visible = false">
+          <el-icon :size="13"><Star /></el-icon><span>Save as Quick Cmd</span>
+        </div>
+        <div class="tmenu-sep"></div>
+        <div class="tmenu-item" @click.stop="termAction('selectAll'); termContextMenu.visible = false">
+          <el-icon :size="13"><FullScreen /></el-icon><span>Select All</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('clear'); termContextMenu.visible = false">
+          <el-icon :size="13"><Delete /></el-icon><span>Clear</span>
+        </div>
+      </template>
+      <!-- 无选中文字时的菜单 -->
+      <template v-else>
+        <div class="tmenu-item" @click.stop="termAction('copy'); termContextMenu.visible = false">
+          <el-icon :size="13"><DocumentCopy /></el-icon><span>Copy All</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('paste'); termContextMenu.visible = false">
+          <el-icon :size="13"><CopyDocument /></el-icon><span>Paste</span>
+          <span class="tmenu-shortcut">Ctrl+V</span>
+        </div>
+        <div class="tmenu-sep"></div>
+        <div class="tmenu-item" @click.stop="termAction('selectAll'); termContextMenu.visible = false">
+          <el-icon :size="13"><FullScreen /></el-icon><span>Select All</span>
+        </div>
+        <div class="tmenu-item" @click.stop="termAction('clear'); termContextMenu.visible = false">
+          <el-icon :size="13"><Delete /></el-icon><span>Clear</span>
+        </div>
+        <div class="tmenu-sep"></div>
+        <div class="tmenu-item" @click.stop="termAction('copyCommand'); termContextMenu.visible = false">
+          <el-icon :size="13"><Document /></el-icon><span>Copy Last Cmd</span>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -105,7 +136,7 @@
 import { ref, reactive, nextTick, onMounted, onBeforeUnmount, watch, computed, inject, type Ref } from 'vue'
 import { useSshStore } from '@/stores/ssh'
 import { ElMessage } from 'element-plus'
-import { Delete, DocumentCopy, SwitchButton, RefreshRight, CopyDocument, Document, FullScreen, ChatDotSquare, DataAnalysis } from '@element-plus/icons-vue'
+import { Delete, DocumentCopy, SwitchButton, RefreshRight, CopyDocument, Document, FullScreen, ChatDotSquare, DataAnalysis, Search, Promotion, Star } from '@element-plus/icons-vue'
 import type { SshSession } from '@/stores/ssh'
 
 const props = defineProps<{ session: SshSession }>()
@@ -336,6 +367,17 @@ function closeTermContextMenu() {
 
 function focusInput() {
   inputRef.value?.focus()
+}
+
+/** 点击终端内容区：如果有选中文字则保留选中，否则聚焦输入框 */
+function onTerminalBodyClick(e: MouseEvent) {
+  const selection = window.getSelection()
+  const selected = selection?.toString().trim()
+  if (selected && selected.length > 0) {
+    // 有选中文字时不聚焦输入框，保留选中状态方便右键操作
+    return
+  }
+  focusInput()
 }
 
 function handleHistoryUp() {
@@ -669,8 +711,14 @@ function handleAnalyzeOutput() {
 }
 
 // 终端右键菜单
+const selectedText = ref('')
+
 function onTerminalContextMenu(e: MouseEvent) {
   e.preventDefault()
+  // 检测当前是否有选中文字
+  const selection = window.getSelection()
+  const text = selection?.toString().trim() || ''
+  selectedText.value = text
   termContextMenu.visible = true
   termContextMenu.x = e.clientX
   termContextMenu.y = e.clientY
@@ -681,142 +729,34 @@ function onTerminalContextMenu(e: MouseEvent) {
 
 async function termAction(action: string) {
   switch (action) {
-    case 'copy': {
-      const selection = window.getSelection()
-      const selectedText = selection?.toString().trim()
-      if (selectedText && selectedText.length > 0) {
-        await navigator.clipboard.writeText(selectedText)
-        selection?.removeAllRanges()
-        ElMessage.success('Copied selection')
-      } else {
-        const text = outputLines.value.map(l => l.text).join('\n')
+    case 'copySelection': {
+      // 复制选中文字
+      const text = selectedText.value
+      if (text) {
         await navigator.clipboard.writeText(text)
-        ElMessage.success('Copied all output')
+        window.getSelection()?.removeAllRanges()
+        ElMessage.success(`Copied ${text.length} chars`)
       }
       break
     }
-    case 'paste': {
-      try {
-        const text = await navigator.clipboard.readText()
-        inputText.value += text
-        focusInput()
-      } catch {
-        // Fallback: use execCommand for older browsers
-        try {
-          const textarea = document.createElement('textarea')
-          textarea.style.position = 'fixed'
-          textarea.style.opacity = '0'
-          document.body.appendChild(textarea)
-          textarea.focus()
-          document.execCommand('paste')
-          const pasted = textarea.value
-          document.body.removeChild(textarea)
-          if (pasted) {
-            inputText.value += pasted
-            focusInput()
-          }
-        } catch {
-          ElMessage.warning('Paste not available. Try Ctrl+Shift+V')
-        }
-      }
+    case 'sendToAI': {
+      // 将选中文字发送给AI分析
+      const text = selectedText.value
+      if (!text) { ElMessage.info('No text selected'); break }
+      if (!injectFilePathToAI) { ElMessage.warning('AI panel not ready'); break }
+      const serverInfo = props.session.serverName
+      injectFilePathToAI(
+        `[Terminal Selection] ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}`,
+        'file',
+        serverInfo
+      )
+      // 同时将完整选中内容注入到AI对话
+      const { useChatStore } = await import('@/stores/chat')
+      const { useAgentStore } = await import('@/stores/agent')
+      const chatStore = useChatStore()
+      const agentStore = useAgentStore()
+      chatStore.addUserMessage(agentStore.activeAgentId, `[Terminal Output from ${serverInfo}]\n\`\`\`\n${text}\n\`\`\`\nPlease analyze this terminal output.`)
+      ElMessage.success('Sent to AI for analysis')
       break
     }
-    case 'selectAll':
-      // Select all output text
-      if (outputRef.value) {
-        const range = document.createRange()
-        range.selectNodeContents(outputRef.value)
-        const sel = window.getSelection()
-        sel?.removeAllRanges()
-        sel?.addRange(range)
-        ElMessage.success('All output selected')
-      }
-      break
-    case 'clear':
-      handleClear()
-      break
-    case 'copyCommand': {
-      const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-      if (lastCmd) {
-        await navigator.clipboard.writeText(lastCmd.text)
-        ElMessage.success('Last command copied')
-      } else {
-        ElMessage.info('No command to copy')
-      }
-      break
-    }
-  }
-}
-</script>
-
-<style lang="scss" scoped>
-.terminal-body { user-select: text; -webkit-user-select: text; }
-.terminal-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-.terminal-toolbar {
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: $spacing-xs;
-  padding: 0 $spacing-sm;
-  height: 26px;
-}
-
-.output-line {
-  white-space: pre;
-
-  .prompt { color: $color-success; font-weight: 600; user-select: none; }
-  .cmd { color: $color-text-primary; }
-  .output { color: $color-text-regular; white-space: pre; display: block; }
-  .error { color: $color-danger; }
-  .info { color: $color-primary; }
-}
-
-.input-line {
-  display: flex;
-  align-items: center;
-  line-height: 1.5;
-}
-
-.terminal-input {
-  background: transparent !important;
-  border: none !important;
-  outline: none !important;
-  color: $color-text-primary;
-  font-family: $font-family-mono;
-  font-size: $font-size-sm;
-  flex: 1;
-  caret-color: $color-primary;
-  padding: 0;
-  margin: 0;
-}
-::selection {
-  background-color: rgba(91, 141, 239, 0.4);
-  color: #fff;
-}
-
-.term-context-menu {
-  position: fixed; z-index: 9999;
-  background-color: $color-bg-toolbar;
-  border: 1px solid $color-border;
-  border-radius: $border-radius-md;
-  padding: $spacing-xs 0;
-  min-width: 160px;
-  box-shadow: $shadow-lg;
-}
-
-.tmenu-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 14px; cursor: pointer;
-  color: $color-text-regular; font-size: $font-size-sm;
-  transition: all $transition-fast; user-select: none;
-  &:hover { background-color: $color-bg-hover; color: $color-text-primary; }
-}
-
-.tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
-</style>
+    c

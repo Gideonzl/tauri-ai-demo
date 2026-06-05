@@ -1015,8 +1015,8 @@ body {
 
 
 
-// 终端文本选中高亮
-.terminal-body ::selection, .terminal-body ::-moz-selection {
-  background-color: rgba(91, 141, 239, 0.4) !important;
-  color: #ffffff !important;
-}
+// 终端/文件查看器文本选中高亮 — 明显蓝色背景
+.terminal-body ::selection,
+.terminal-output ::selection,
+.fv-content ::selection,
+.file-preview ::selection {
