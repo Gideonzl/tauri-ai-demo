@@ -1,0 +1,80 @@
+// ============================================================
+// SCSS 全局变量 — 严格对齐 TERMIUS_UI_SPEC.md 规范
+// Termius 冷灰蓝系，低饱和度，高质感商务桌面端
+// ============================================================
+
+// 品牌色 — 冷蓝 #5b8def
+$color-primary: #5b8def;
+$color-primary-light: #7ba4f2;
+$color-primary-dark: #4a7de0;
+
+// 低饱和功能色 — 对齐规范
+$color-success: #4caf7d;
+$color-warning: #d4a24e;
+$color-danger: #d45454;
+$color-info: #7a8a9e;
+
+// 文字颜色 — 冷灰调三级
+$color-text-primary: #e8e8f0;
+$color-text-regular: #8888a0;
+$color-text-secondary: #555570;
+$color-text-placeholder: #444460;
+$color-text-muted: #333350;
+
+// 背景色 — Termius冷灰蓝系
+$color-bg-app: #1b1b2f;          // 应用最底层（规范主背景）
+$color-bg-primary: #1b1b2f;      // 主背景
+$color-bg-sidebar: #1b1b2f;      // 左侧菜单栏
+$color-bg-surface: #22223a;      // 表面色
+$color-bg-toolbar: #2a2a45;      // 抬起色/工具栏
+$color-bg-panel: #1b1b2f;        // 面板背景
+$color-bg-input: #2a2a45;        // 输入框背景
+$color-bg-hover: rgba(91, 141, 239, 0.08);
+$color-bg-active: rgba(91, 141, 239, 0.15);
+$color-bg-message-user: #2a2a4a;
+$color-bg-message-ai: #22223a;
+
+// 边框
+$color-border: #333355;
+$color-border-light: #2a2a45;
+$color-border-focus: #5b8def;
+
+// 尺寸 — 严格对齐规范
+$sidebar-width: 56px;            // 左侧菜单栏默认宽度（可拖拽伸缩 48~200px）
+$ai-panel-width: 320px;          // 右侧AI面板默认宽度（可拖拽伸缩 200~600px）
+$ai-panel-collapsed: 40px;       // 收起触发条（规范40px）
+$workspace-min-width: 200px;     // 中间工作区最小宽度
+$header-height: 40px;
+$status-bar-height: 24px;
+
+// 圆角
+$border-radius-sm: 3px;
+$border-radius-md: 6px;
+$border-radius-lg: 8px;
+
+// 阴影
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+$shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4);
+$shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+// 过渡
+$transition-fast: 0.12s ease;
+$transition-normal: 0.25s ease;   // 规范0.25s
+$transition-slow: 0.3s ease;
+
+// 字体
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+$font-family-mono: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Consolas', monospace;
+$font-size-xs: 11px;
+$font-size-sm: 12px;
+$font-size-md: 13px;
+$font-size-lg: 14px;
+$font-size-xl: 16px;
+$font-size-xxl: 18px;
+
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 24px;

@@ -1,0 +1,1022 @@
+// ============================================================
+
+
+
+// 全局样式入口 — Termius 深色极简商务风格
+
+
+
+// ============================================================
+
+
+
+
+
+
+
+@use 'variables' as *;
+
+
+
+
+
+
+
+// Reset
+
+
+
+*,
+
+
+
+*::before,
+
+
+
+*::after {
+
+
+
+  box-sizing: border-box;
+
+
+
+  margin: 0;
+
+
+
+  padding: 0;
+
+
+
+}
+
+
+
+
+
+
+
+html,
+
+
+
+body {
+
+
+
+  width: 100%;
+
+
+
+  height: 100%;
+
+
+
+  font-family: $font-family;
+
+
+
+  font-size: $font-size-md;
+
+
+
+  color: $color-text-primary;
+
+
+
+  background-color: $color-bg-app;
+
+
+
+  -webkit-font-smoothing: antialiased;
+
+
+
+  -moz-osx-font-smoothing: grayscale;
+
+
+
+  overflow: hidden;
+
+
+
+}
+
+
+
+
+
+
+
+#app {
+
+
+
+  width: 100%;
+
+
+
+  height: 100%;
+
+
+
+}
+
+
+
+
+
+
+
+// 滚动条 — Termius极细冷灰
+
+
+
+::-webkit-scrollbar {
+
+
+
+  width: 5px;
+
+
+
+  height: 5px;
+
+
+
+}
+
+
+
+
+
+
+
+::-webkit-scrollbar-track {
+
+
+
+  background: transparent;
+
+
+
+}
+
+
+
+
+
+
+
+::-webkit-scrollbar-thumb {
+
+
+
+  background: rgba(255, 255, 255, 0.1);
+
+
+
+  border-radius: 3px;
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    background: rgba(255, 255, 255, 0.18);
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+// ============================================================
+
+
+
+// Element Plus 深色主题覆盖 — Termius风格
+
+
+
+// ============================================================
+
+
+
+
+
+
+
+// 输入框
+
+
+
+.el-input__wrapper,
+
+
+
+.el-textarea__inner {
+
+
+
+  background-color: $color-bg-input !important;
+
+
+
+  box-shadow: 0 0 0 1px $color-border inset !important;
+
+
+
+  color: $color-text-primary !important;
+
+
+
+  border-radius: $border-radius-sm !important;
+
+
+
+}
+
+
+
+
+
+
+
+.el-input__inner::placeholder,
+
+
+
+.el-textarea__inner::placeholder {
+
+
+
+  color: $color-text-placeholder !important;
+
+
+
+}
+
+
+
+
+
+
+
+.el-input--small .el-input__wrapper {
+
+
+
+  padding: 1px 8px !important;
+
+
+
+}
+
+
+
+
+
+
+
+// 选择器
+
+
+
+.el-select .el-input__wrapper {
+
+
+
+  background-color: $color-bg-input !important;
+
+
+
+}
+
+
+
+
+
+
+
+.el-select-dropdown {
+
+
+
+  background-color: $color-bg-toolbar !important;
+
+
+
+  border-color: $color-border !important;
+
+
+
+}
+
+
+
+
+
+
+
+.el-select-dropdown__item {
+
+
+
+  color: $color-text-regular !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &.is-selected {
+
+
+
+    color: $color-primary !important;
+
+
+
+  }
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    background-color: $color-bg-hover !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+// 按钮 — 全部深色背景，冷蓝为强调色
+
+
+
+.el-button--default {
+
+
+
+  background-color: $color-bg-input !important;
+
+
+
+  border-color: $color-border !important;
+
+
+
+  color: $color-text-regular !important;
+
+
+
+  border-radius: $border-radius-sm !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    border-color: $color-primary !important;
+
+
+
+    color: $color-primary !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+.el-button--primary {
+
+
+
+  background-color: $color-bg-toolbar !important;
+
+
+
+  border-color: $color-primary !important;
+
+
+
+  color: $color-primary !important;
+
+
+
+  border-radius: $border-radius-sm !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    background-color: rgba(91, 141, 239, 0.12) !important;
+
+
+
+    color: $color-primary-light !important;
+
+
+
+    border-color: $color-primary-light !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+.el-button--success {
+
+
+
+  background-color: $color-bg-toolbar !important;
+
+
+
+  border-color: $color-success !important;
+
+
+
+  color: $color-success !important;
+
+
+
+  border-radius: $border-radius-sm !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    background-color: rgba(76, 175, 125, 0.12) !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+.el-button--warning {
+
+
+
+  background-color: $color-bg-toolbar !important;
+
+
+
+  border-color: $color-warning !important;
+
+
+
+  color: $color-warning !important;
+
+
+
+  border-radius: $border-radius-sm !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    background-color: rgba(212, 162, 78, 0.12) !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+.el-button--danger {
+
+
+
+  background-color: $color-bg-toolbar !important;
+
+
+
+  border-color: $color-danger !important;
+
+
+
+  color: $color-danger !important;
+
+
+
+  border-radius: $border-radius-sm !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &:hover {
+
+
+
+    background-color: rgba(212, 84, 84, 0.12) !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+.el-button--small {
+
+
+
+  height: 26px !important;
+
+
+
+  padding: 0 10px !important;
+
+
+
+}
+
+
+
+
+
+
+
+// 弹出层
+
+
+
+.el-popover {
+
+
+
+  background-color: $color-bg-toolbar !important;
+
+
+
+  border-color: $color-border !important;
+
+
+
+  border-radius: $border-radius-md !important;
+
+
+
+
+
+
+
+  .el-popover__title {
+
+
+
+    color: $color-text-primary !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+// 对话框弹窗 — 深色背景
+
+.el-dialog {
+
+  background-color: $color-bg-surface !important;
+
+  border: 1px solid $color-border !important;
+
+  border-radius: $border-radius-lg !important;
+
+
+
+  .el-dialog__header {
+
+    border-bottom: 1px solid $color-border-light !important;
+
+    padding: 12px 16px !important;
+
+  }
+
+
+
+  .el-dialog__title {
+
+    color: $color-text-primary !important;
+
+    font-size: $font-size-lg !important;
+
+    font-weight: 600 !important;
+
+  }
+
+
+
+  .el-dialog__headerbtn .el-dialog__close {
+
+    color: $color-text-secondary !important;
+
+    &:hover { color: $color-primary !important; }
+
+  }
+
+
+
+  .el-dialog__body {
+
+    padding: 16px !important;
+
+    color: $color-text-regular !important;
+
+  }
+
+
+
+  .el-dialog__footer {
+
+    border-top: 1px solid $color-border-light !important;
+
+    padding: 10px 16px !important;
+
+  }
+
+}
+
+
+
+// 确认弹窗 — 深色背景
+
+.el-message-box {
+
+  background-color: $color-bg-surface !important;
+
+  border-color: $color-border !important;
+
+
+
+  .el-message-box__title {
+
+    color: $color-text-primary !important;
+
+  }
+
+
+
+  .el-message-box__message p {
+
+    color: $color-text-regular !important;
+
+  }
+
+}
+
+
+
+// 表单标签 — 深色适配
+
+.el-form-item__label {
+
+  color: $color-text-regular !important;
+
+  font-size: $font-size-sm !important;
+
+}
+
+
+
+// 单选按钮 — 深色适配
+
+.el-radio {
+
+  color: $color-text-regular !important;
+
+}
+
+
+
+// 消息提示
+
+.el-message {
+
+  background-color: $color-bg-toolbar !important;
+
+  border-color: $color-border !important;
+
+}
+
+
+
+
+
+
+
+// 表格
+
+
+
+.el-table {
+
+
+
+  background-color: transparent !important;
+
+
+
+  --el-table-bg-color: transparent;
+
+
+
+  --el-table-tr-bg-color: transparent;
+
+
+
+  --el-table-header-bg-color: #{$color-bg-toolbar};
+
+
+
+  --el-table-border-color: #{$color-border-light};
+
+
+
+  --el-table-text-color: #{$color-text-regular};
+
+
+
+  --el-table-header-text-color: #{$color-text-primary};
+
+
+
+}
+
+
+
+
+
+
+
+// 标签页
+
+
+
+.el-tabs__item {
+
+
+
+  color: $color-text-secondary !important;
+
+
+
+  font-size: $font-size-sm !important;
+
+
+
+
+
+
+
+  &.is-active {
+
+
+
+    color: $color-primary !important;
+
+
+
+  }
+
+
+
+}
+
+
+
+
+
+
+
+// 通用工具类
+
+
+
+.flex-center {
+
+
+
+  display: flex;
+
+
+
+  align-items: center;
+
+
+
+  justify-content: center;
+
+
+
+}
+
+
+
+
+
+
+
+.flex-between {
+
+
+
+  display: flex;
+
+
+
+  align-items: center;
+
+
+
+  justify-content: space-between;
+
+
+
+}
+
+
+
+
+
+
+
+.text-ellipsis {
+
+
+
+  overflow: hidden;
+
+
+
+  text-overflow: ellipsis;
+
+
+
+  white-space: nowrap;
+
+
+
+}
+
+
+
+
+
+
+
+// Tauri拖拽区域
+
+
+
+[data-tauri-drag-region] {
+
+
+
+  -webkit-app-region: drag;
+
+
+
+}
+
+
+
+
+// 终端文本选中高亮
+.terminal-body ::selection, .terminal-body ::-moz-selection {
+  background-color: rgba(91, 141, 239, 0.4) !important;
+  color: #ffffff !important;
+}
