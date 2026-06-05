@@ -1020,3 +1020,13 @@ body {
 .terminal-output ::selection,
 .fv-content ::selection,
 .file-preview ::selection {
+  background-color: rgba(91, 155, 213, 0.45) !important;
+  color: #ffffff !important;
+}
+.terminal-body ::-moz-selection,
+.terminal-output ::-moz-selection,
+.fv-content ::-moz-selection,
+.file-preview ::-moz-selection {
+  background-color: rgba(91, 155, 213, 0.45) !important;
+  color: #ffffff !important;
+}

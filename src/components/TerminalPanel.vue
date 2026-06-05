@@ -759,4 +759,207 @@ async function termAction(action: string) {
       ElMessage.success('Sent to AI for analysis')
       break
     }
-    c
+    case 'executeAsCommand': {
+      // 将选中文字作为命令执行
+      const text = selectedText.value.trim()
+      if (!text) { ElMessage.info('No text selected'); break }
+      // 取第一行作为命令（多行选中时只执行首行）
+      const firstLine = text.split('\n')[0].trim()
+      if (!firstLine) { ElMessage.info('Empty command'); break }
+      inputText.value = firstLine
+      focusInput()
+      ElMessage.info(`Ready to execute: ${firstLine}`)
+      break
+    }
+    case 'searchWeb': {
+      // 用浏览器搜索选中文字
+      const text = selectedText.value.trim()
+      if (!text) { ElMessage.info('No text selected'); break }
+      const query = encodeURIComponent(text.slice(0, 200))
+      window.open(`https://www.google.com/search?q=${query}`, '_blank')
+      ElMessage.info('Searching web...')
+      break
+    }
+    case 'saveAsQuickCommand': {
+      // 将选中文字保存为快捷命令
+      const text = selectedText.value.trim()
+      if (!text) { ElMessage.info('No text selected'); break }
+      const firstLine = text.split('\n')[0].trim()
+      if (!firstLine) { ElMessage.info('Empty command'); break }
+      sshStore.addQuickCommand({
+        name: firstLine.split(' ')[0],
+        command: firstLine,
+        description: `Saved from terminal: ${firstLine.slice(0, 50)}`,
+        category: 'Custom',
+      })
+      ElMessage.success(`Saved as quick command: ${firstLine.split(' ')[0]}`)
+      break
+    }
+    case 'copy': {
+      const selection = window.getSelection()
+      const selected = selection?.toString().trim()
+      if (selected && selected.length > 0) {
+        await navigator.clipboard.writeText(selected)
+        selection?.removeAllRanges()
+        ElMessage.success('Copied selection')
+      } else {
+        const text = outputLines.value.map(l => l.text).join('\n')
+        await navigator.clipboard.writeText(text)
+        ElMessage.success('Copied all output')
+      }
+      break
+    }
+    case 'paste': {
+      try {
+        const text = await navigator.clipboard.readText()
+        inputText.value += text
+        focusInput()
+      } catch {
+        // Fallback: use execCommand for older browsers
+        try {
+          const textarea = document.createElement('textarea')
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+          document.body.appendChild(textarea)
+          textarea.focus()
+          document.execCommand('paste')
+          const pasted = textarea.value
+          document.body.removeChild(textarea)
+          if (pasted) {
+            inputText.value += pasted
+            focusInput()
+          }
+        } catch {
+          ElMessage.warning('Paste not available. Try Ctrl+Shift+V')
+        }
+      }
+      break
+    }
+    case 'selectAll':
+      // Select all output text
+      if (outputRef.value) {
+        const range = document.createRange()
+        range.selectNodeContents(outputRef.value)
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+        ElMessage.success('All output selected')
+      }
+      break
+    case 'clear':
+      handleClear()
+      break
+    case 'copyCommand': {
+      const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
+      if (lastCmd) {
+        await navigator.clipboard.writeText(lastCmd.text)
+        ElMessage.success('Last command copied')
+      } else {
+        ElMessage.info('No command to copy')
+      }
+      break
+    }
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.terminal-body { user-select: text; -webkit-user-select: text; }
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.terminal-toolbar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+  padding: 0 $spacing-sm;
+  height: 26px;
+}
+
+.output-line {
+  white-space: pre;
+
+  .prompt { color: $color-success; font-weight: 600; }
+  .cmd { color: $color-text-primary; }
+  .output { color: $color-text-regular; white-space: pre; display: block; }
+  .error { color: $color-danger; }
+  .info { color: $color-primary; }
+}
+
+.input-line {
+  display: flex;
+  align-items: center;
+  line-height: 1.5;
+}
+
+.terminal-input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: $color-text-primary;
+  font-family: $font-family-mono;
+  font-size: $font-size-sm;
+  flex: 1;
+  caret-color: $color-primary;
+  padding: 0;
+  margin: 0;
+}
+// === 终端选中高亮 ===
+.terminal-output,
+.terminal-body {
+  ::selection {
+    background-color: rgba(91, 155, 213, 0.45);
+    color: #ffffff;
+  }
+  ::-moz-selection {
+    background-color: rgba(91, 155, 213, 0.45);
+    color: #ffffff;
+  }
+}
+
+.term-context-menu {
+  position: fixed; z-index: 9999;
+  background-color: $color-bg-toolbar;
+  border: 1px solid $color-border;
+  border-radius: $border-radius-md;
+  padding: $spacing-xs 0;
+  min-width: 200px;
+  box-shadow: $shadow-lg;
+}
+
+.tmenu-header {
+  padding: 4px 14px 6px;
+  font-size: 10px;
+  font-family: $font-family-mono;
+  color: $color-text-placeholder;
+  border-bottom: 1px solid $color-border-light;
+  margin-bottom: $spacing-xs;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.tmenu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; cursor: pointer;
+  color: $color-text-regular; font-size: $font-size-sm;
+  transition: all $transition-fast; user-select: none;
+  &:hover { background-color: $color-bg-hover; color: $color-text-primary; }
+}
+
+.tmenu-shortcut {
+  margin-left: auto;
+  font-size: 10px;
+  color: $color-text-muted;
+  font-family: $font-family-mono;
+  opacity: 0.6;
+}
+
+.tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
+</style>
