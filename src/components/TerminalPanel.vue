@@ -407,40 +407,78 @@ function handleTabComplete() {
   const text = inputText.value.trim()
   if (!text) return
 
-  // If starts with cd, complete path from DIR_MAP
-  if (text.startsWith('cd ')) {
-    const partial = text.slice(3).trim()
-    if (!partial || partial === '') {
-      // Show all top-level directories
-      const dirs = Object.keys(DIR_MAP).filter(d => d !== '/' && d.split('/').length === 2).map(d => d.replace('/', ''))
-      showCompletionCandidates(dirs)
-      return
-    }
-    // Try to match path prefix
-    const candidates = Object.keys(DIR_MAP).filter(d =>
-      d.startsWith('/' + partial) || d.includes(partial)
-    ).map(d => d.startsWith('/') ? d.slice(1) : d)
+  const parts = text.split(/\s+/)
+  const isFirstToken = parts.length === 1
+
+  // 第一个token：补全命令名
+  if (isFirstToken) {
+    const candidates = KNOWN_COMMANDS.filter(c => c.startsWith(text))
     if (candidates.length === 1) {
-      const full = candidates[0].endsWith('/') ? candidates[0] : candidates[0] + '/'
-      inputText.value = 'cd ' + full
+      inputText.value = candidates[0] + ' '
     } else if (candidates.length > 1) {
-      // Find common prefix
-      const common = findCommonPrefix(candidates)
-      if (common && common.length > partial.length) {
-        inputText.value = 'cd ' + common
-      } else {
-        showCompletionCandidates(candidates)
-      }
+      showCompletionCandidates(candidates.slice(0, 20))
     }
     return
   }
 
-  // Complete command name
-  const candidates = KNOWN_COMMANDS.filter(c => c.startsWith(text))
+  // 第二个及之后的token：补全文件路径
+  const command = parts[0]
+  const partial = parts[parts.length - 1]
+  // 需要文件参数的命令
+  const fileCommands = ['cd', 'cat', 'less', 'more', 'head', 'tail', 'vi', 'vim', 'nano', 'rm', 'cp', 'mv', 'chmod', 'chown', 'ls', 'find', 'grep', 'wc', 'sort', 'cut', 'diff', 'stat', 'file', 'du', 'tar', 'gzip', 'gunzip']
+  if (!fileCommands.includes(command)) {
+    // 非文件命令，尝试命令补全
+    const candidates = KNOWN_COMMANDS.filter(c => c.startsWith(partial))
+    if (candidates.length === 1) {
+      parts[parts.length - 1] = candidates[0]
+      inputText.value = parts.join(' ') + ' '
+    } else if (candidates.length > 1) {
+      showCompletionCandidates(candidates.slice(0, 20))
+    }
+    return
+  }
+
+  // 文件路径补全
+  if (!partial) {
+    // 无输入时，列出当前目录文件
+    const files = getDirFiles(currentWorkDir.value)
+    showCompletionCandidates(files)
+    return
+  }
+
+  // 解析partial：可能包含目录前缀
+  const lastSlash = partial.lastIndexOf('/')
+  let dirPrefix = ''
+  let namePrefix = partial
+  let searchDir = currentWorkDir.value
+
+  if (lastSlash >= 0) {
+    dirPrefix = partial.substring(0, lastSlash + 1)
+    namePrefix = partial.substring(lastSlash + 1)
+    searchDir = resolvePath(partial.substring(0, lastSlash) || '/')
+  }
+
+  // 在searchDir中查找匹配的文件/目录
+  const dirFiles = getDirFiles(searchDir)
+  const candidates = dirFiles.filter(f => f.startsWith(namePrefix))
+
+  if (candidates.length === 0) return
+
   if (candidates.length === 1) {
-    inputText.value = candidates[0]
-  } else if (candidates.length > 1) {
-    showCompletionCandidates(candidates.slice(0, 20))
+    const match = candidates[0]
+    const fullPath = searchDir === '/' ? `/${match}` : `${searchDir}/${match}`
+    const isDir = isDirPath(fullPath)
+    parts[parts.length - 1] = dirPrefix + match + (isDir ? '/' : ' ')
+    inputText.value = parts.join(' ')
+  } else {
+    // 多个匹配：找公共前缀
+    const common = findCommonPrefix(candidates)
+    if (common && common.length > namePrefix.length) {
+      parts[parts.length - 1] = dirPrefix + common
+      inputText.value = parts.join(' ')
+    } else {
+      showCompletionCandidates(candidates)
+    }
   }
 }
 
@@ -533,20 +571,120 @@ function handleCommand() {
   }, 50)
 }
 
+/** 判断路径是否为目录（在DIR_MAP中存在） */
+function isDirPath(path: string): boolean {
+  return path in DIR_MAP
+}
+
+/** 判断路径是否为文件（父目录在DIR_MAP中且包含该文件名） */
+function isFilePath(path: string): boolean {
+  if (path in DIR_MAP) return false // 是目录
+  const lastSlash = path.lastIndexOf('/')
+  if (lastSlash < 0) return false
+  const parentDir = path.substring(0, lastSlash) || '/'
+  const fileName = path.substring(lastSlash + 1)
+  const siblings = DIR_MAP[parentDir]
+  return siblings ? siblings.includes(fileName) : false
+}
+
+/** 解析路径（支持相对路径和~） */
+function resolvePath(path: string): string {
+  if (path.startsWith('~')) path = '/root' + path.slice(1)
+  if (path.startsWith('/')) return path
+  return currentWorkDir.value === '/' ? `/${path}` : `${currentWorkDir.value}/${path}`
+}
+
+/** 根据文件扩展名生成合理的mock内容 */
+function getMockFileContent(filePath: string): string | null {
+  if (isDirPath(filePath)) return null // 目录不能cat
+  if (!isFilePath(filePath)) return null // 文件不存在
+
+  const fileName = filePath.split('/').pop() || ''
+  const ext = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : ''
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+  // 特定文件优先
+  if (filePath === '/etc/hostname') return 'demo-server'
+  if (filePath === '/etc/passwd') return 'root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nadmin:x:1000:1000:,,,:/home/admin:/bin/bash'
+  if (filePath === '/etc/shadow') return 'root:$6$rounds=4096$xxx:19000:0:99999:7:::'
+  if (filePath === '/etc/group') return 'root:x:0:\ndaemon:x:1:\nadmin:x:1000:'
+  if (filePath === '/etc/fstab') return '# /etc/fstab: static file system information.\nUUID=a1b2c3d4  /  ext4  defaults  0  1\ntmpfs  /dev/shm  tmpfs  defaults  0  0'
+  if (filePath === '/etc/resolv.conf') return 'nameserver 8.8.8.8\nnameserver 8.8.4.4'
+  if (filePath === '/etc/hosts') return '127.0.0.1\tlocalhost\n127.0.1.1\tdemo-server\n192.168.1.100\tweb\n192.168.1.101\tdb'
+  if (filePath === '/etc/os-release') return 'PRETTY_NAME="Ubuntu 22.04.3 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian'
+  if (filePath === '/etc/crontab') return '# /etc/crontab: system-wide crontab\nSHELL=/bin/sh\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\n# m h dom mon dow user command\n17 * * * * root  cd / && run-parts --report /etc/cron.hourly\n25 6 * * * root  test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )'
+  if (filePath === '/etc/profile') return '# /etc/profile: system-wide .profile file\nif [ "$(id -u)" -eq 0 ]; then\n  PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"\nelse\n  PATH="/usr/local/bin:/usr/bin:/usr/games"\nfi\nexport PATH\numask 022'
+  if (filePath === '/etc/environment') return 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+  if (filePath === '/etc/sudoers') return 'Defaults\tenv_reset\nDefaults\tsecure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"\nroot\tALL=(ALL:ALL) ALL\n%admin\tALL=(ALL) ALL'
+  if (filePath === '/etc/shells') return '/bin/sh\n/bin/bash\n/usr/bin/bash\n/bin/dash\n/usr/bin/dash'
+  if (filePath === '/etc/issue') return 'Ubuntu 22.04.3 LTS \\n \\l'
+  if (filePath === '/etc/nginx/nginx.conf') return 'user www-data;\nworker_processes auto;\npid /run/nginx.pid;\nevents {\n  worker_connections 768;\n  multi_accept on;\n}\nhttp {\n  sendfile on;\n  tcp_nopush on;\n  types_hash_max_size 2048;\n  include /etc/nginx/mime.types;\n  default_type application/octet-stream;\n  access_log /var/log/nginx/access.log;\n  error_log /var/log/nginx/error.log;\n  gzip on;\n  include /etc/nginx/conf.d/*.conf;\n  include /etc/nginx/sites-enabled/*;\n}'
+  if (filePath === '/etc/ssh/sshd_config') return 'Port 22\nProtocol 2\nHostKey /etc/ssh/ssh_host_rsa_key\nHostKey /etc/ssh/ssh_host_ecdsa_key\nPermitRootLogin yes\nPubkeyAuthentication yes\nPasswordAuthentication yes\nX11Forwarding no\nPrintMotd no\nAcceptEnv LANG LC_*\nSubsystem sftp /usr/lib/openssh/sftp-server'
+  if (filePath === '/etc/ssh/ssh_config') return 'Host *\n  SendEnv LANG LC_*\n  HashKnownHosts yes\n  GSSAPIAuthentication yes'
+  if (filePath === '/etc/docker/daemon.json') return '{\n  "registry-mirrors": ["https://mirror.example.com"],\n  "log-driver": "json-file",\n  "log-opts": {"max-size": "10m", "max-file": "3"},\n  "storage-driver": "overlay2"\n}'
+  if (filePath === '/proc/cpuinfo') return 'processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Xeon(R) Platinum 8269CY\ncpu MHz\t\t: 2500.000\ncache size\t: 36608 KB\nprocessor\t: 1\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Xeon(R) Platinum 8269CY\ncpu MHz\t\t: 2500.000\ncache size\t: 36608 KB'
+  if (filePath === '/proc/meminfo') return 'MemTotal:        8192000 kB\nMemFree:         3200000 kB\nMemAvailable:    5200000 kB\nBuffers:          256000 kB\nCached:          1536000 kB\nSwapTotal:       2048000 kB\nSwapFree:        2048000 kB'
+  if (filePath === '/proc/version') return 'Linux version 5.15.0-91-generic (gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1)) #101-Ubuntu SMP x86_64'
+  if (filePath === '/proc/uptime') return '2592000.00 5184000.00'
+  if (filePath === '/proc/loadavg') return '0.10 0.05 0.01 1/120 256'
+  if (filePath === '/proc/stat') return 'cpu  2255 34 2290 22625563 6290 0 0 0\ncpu0 1132 17 1145 11312781 3145 0 0 0\ncpu1 1123 17 1145 11312782 3145 0 0 0'
+  if (filePath === '/var/log/syslog') return 'Jun  4 10:00:00 demo-server systemd[1]: Started nginx.service\nJun  4 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100\nJun  4 09:50:00 demo-server kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready\nJun  4 09:45:00 demo-server docker[1024]: Container webapp started\nJun  4 09:40:00 demo-server cron[300]: (root) CMD (/usr/local/bin/healthcheck.sh)'
+  if (filePath === '/var/log/auth.log') return 'Jun  4 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100 port 22 ssh2\nJun  4 09:50:00 demo-server sshd[256]: pam_unix(sshd:session): session opened for user root'
+  if (filePath === '/var/log/nginx/access.log') return '192.168.1.1 - - [04/Jun/2026:10:00:00 +0000] "GET / HTTP/1.1" 200 1234 "-" "curl/7.68"\n192.168.1.2 - - [04/Jun/2026:09:59:00 +0000] "POST /api/data HTTP/1.1" 201 256 "-" "Mozilla/5.0"\n192.168.1.3 - - [04/Jun/2026:09:58:00 +0000] "GET /static/app.js HTTP/1.1" 304 0 "-" "Mozilla/5.0"'
+  if (filePath === '/var/log/nginx/error.log') return '2026/06/04 09:45:00 [error] 512#512: *1 connect() failed (111: Connection refused) while connecting to upstream\n2026/06/04 09:40:00 [warn] 512#512: *2 upstream sent too big header'
+  if (filePath === '/var/log/docker/daemon.log') return 'time="2026-06-04T09:50:00Z" level=info msg="Container webapp started"\ntime="2026-06-04T09:45:00Z" level=info msg="Loading containers: start"'
+  if (filePath === '/var/log/mysql/error.log') return '2026-06-04 09:50:00 0 [Note] /usr/sbin/mysqld: ready for connections.\n2026-06-04 09:45:00 0 [Note] InnoDB: Buffer pool(s) load completed at'
+
+  // 按扩展名生成
+  if (['log', 'out'].includes(ext)) return `[2026-06-04 10:00:00] INFO  Server started successfully on port 8081\n[2026-06-04 09:55:00] INFO  SSH login from 192.168.1.100\n[2026-06-04 09:50:00] WARN  Nginx service reloaded\n[2026-06-04 09:45:00] ERROR Docker container webapp restarted (exit code 137)\n[2026-06-04 09:40:00] INFO  SSL certificate renewed for *.example.com\n[2026-06-04 09:35:00] INFO  Backup completed: 512MB transferred\n[2026-06-04 09:30:00] DEBUG Health check passed: all services OK\n[2026-06-04 09:25:00] INFO  Cron job executed: /usr/local/bin/backup.sh`
+  if (ext === 'json') return '{\n  "name": "' + fileName.replace('.json', '') + '",\n  "version": "1.0.0",\n  "description": "Application configuration",\n  "port": 8081,\n  "debug": false,\n  "database": {\n    "host": "localhost",\n    "port": 3306,\n    "name": "myapp"\n  }\n}'
+  if (ext === 'yaml' || ext === 'yml') return '# ' + fileName + '\nversion: "3.8"\nservices:\n  web:\n    image: nginx:latest\n    ports:\n      - "80:80"\n    volumes:\n      - ./html:/usr/share/nginx/html\n  app:\n    build: .\n    ports:\n      - "8081:8081"\n    environment:\n      - NODE_ENV=production'
+  if (ext === 'toml') return '# ' + fileName + '\n[server]\nhost = "0.0.0.0"\nport = 8081\nworkers = 4\n\n[database]\nurl = "postgres://localhost/myapp"\nmax_connections = 20'
+  if (ext === 'sh' || ext === 'bash') return '#!/bin/bash\n# ' + fileName + '\nset -e\n\necho "Starting ' + fileName.replace('.sh', '') + '..."\n\n# Main logic\nif [ -z "$1" ]; then\n  echo "Usage: $0 <argument>"\n  exit 1\nfi\n\necho "Done."'
+  if (ext === 'py') return '#!/usr/bin/env python3\n"""' + fileName + '"""\n\nimport os\nimport sys\n\ndef main():\n    print("Hello from ' + fileName.replace('.py', '') + '")\n\nif __name__ == "__main__":\n    main()'
+  if (ext === 'js' || ext === 'ts') return '// ' + fileName + '\nconst express = require("express");\nconst app = express();\nconst PORT = process.env.PORT || 8081;\n\napp.get("/", (req, res) => {\n  res.json({ status: "ok" });\n});\n\napp.listen(PORT, () => {\n  console.log(`Server running on port ${PORT}`);\n});'
+  if (ext === 'vue') return '<template>\n  <div class="app">\n    <h1>Hello World</h1>\n  </div>\n</template>\n\n<script setup>\n// ' + fileName + '\n</script>\n\n<style scoped>\n.app { padding: 20px; }\n</style>'
+  if (ext === 'html') return '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>' + fileName.replace('.html', '') + '</title>\n</head>\n<body>\n  <h1>Welcome</h1>\n</body>\n</html>'
+  if (ext === 'css' || ext === 'scss') return '/* ' + fileName + ' */\n:root {\n  --primary: #5b8def;\n  --bg: #1a1a2e;\n  --text: #e8e8f0;\n}\n\nbody {\n  font-family: sans-serif;\n  background: var(--bg);\n  color: var(--text);\n}'
+  if (ext === 'md') return '# ' + fileName.replace('.md', '') + '\n\n## Overview\nThis is a markdown file on the server.\n\n## Usage\n```bash\nnpm install\nnpm start\n```\n\n## Notes\n> File: ' + filePath
+  if (ext === 'conf' || ext === 'cfg' || ext === 'ini') return '# ' + fileName + '\nserver_name = demo-server\nlisten_port = 8081\nworker_processes = 4\nlog_level = info\nmax_connections = 1024'
+  if (ext === 'env') return '# Environment variables\nNODE_ENV=production\nPORT=8081\nDATABASE_URL=postgres://localhost:5432/myapp\nREDIS_URL=redis://localhost:6379'
+  if (ext === 'sql') return '-- ' + fileName + '\nSELECT * FROM users WHERE active = true ORDER BY created_at DESC LIMIT 10;'
+  if (ext === 'csv') return 'id,name,email,role\n1,admin,admin@example.com,admin\n2,user,user@example.com,user\n3,ops,ops@example.com,operator'
+  if (ext === 'txt') return 'This is the content of ' + fileName + '.\nCreated on 2026-06-04.\nPath: ' + filePath + '\n\nNotes:\n- Server: demo-server\n- OS: Ubuntu 22.04 LTS\n- Status: Running'
+  if (ext === 'xml') return '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <server>\n    <host>0.0.0.0</host>\n    <port>8081</port>\n  </server>\n</config>'
+  if (ext === 'rs') return '// ' + fileName + '\nfn main() {\n    println!("Hello from Rust!");\n}'
+  if (ext === 'go') return 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello from Go!")\n}'
+  if (ext === 'java') return 'public class ' + fileName.replace('.java', '') + ' {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}'
+  if (ext === 'c' || ext === 'cpp' || ext === 'h') return '// ' + fileName + '\n#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}'
+  if (ext === 'rb') return '# ' + fileName + '\nputs "Hello from Ruby!"'
+  if (ext === 'php') return '<?php\n// ' + fileName + '\necho "Hello from PHP!";\n?>'
+  if (ext === 'dockerfile') return 'FROM node:20-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install --production\nCOPY . .\nEXPOSE 8081\nCMD ["node", "server.js"]'
+  if (ext === 'gitignore') return 'node_modules/\ndist/\n.env\n*.log\n.DS_Store'
+  if (ext === 'pub') return 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... root@demo-server'
+  if (ext === 'service') return '[Unit]\nDescription=' + fileName.replace('.service', '') + '\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/usr/bin/' + fileName.replace('.service', '') + '\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target'
+  if (ext === 'types') return 'text/css text/html application/json application/javascript'
+  if (ext === 'gz' || ext === 'tgz' || ext === 'zip' || ext === 'rar' || ext === '7z' || ext === 'bz2' || ext === 'xz') return `[Binary file: ${fileName}] - cannot display contents`
+  if (ext === 'ico' || ext === 'icns' || ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'gif' || ext === 'svg' || ext === 'bmp' || ext === 'webp') return `[Image file: ${fileName}] - cannot display contents`
+  if (ext === 'ibd' || ext === 'sql.gz') return `[Database file: ${fileName}] - binary data`
+  if (ext === 'cms' || ext === 'crl' || ext === 'sha256') return `[Encrypted/Checksum file: ${fileName}]`
+
+  // 无扩展名文件 — 可能是配置文件或脚本
+  return `# ${fileName}\n# Path: ${filePath}\n# Last modified: ${dateStr}\n\nThis is the content of ${fileName}.`
+}
+
 function getMockOutput(cmd: string): string {
   if (cmd === 'cd') return ''
   if (cmd === 'ls') return formatLsColumns(getDirFiles(currentWorkDir.value))
   if (cmd === 'ls -1') return getDirFiles(currentWorkDir.value).join('\n')
   if (cmd === 'ls -la' || cmd === 'ls -l') return getDirFilesDetailed(currentWorkDir.value).join('\n')
   if (cmd.startsWith('ls ')) {
-    // ls <dir> — try to list the given directory
     const target = cmd.slice(3).trim()
-    if (target.startsWith('/')) {
-      return (getDirFiles(target).length > 0) ? formatLsColumns(getDirFiles(target)) : `ls: cannot access '${target}': No such file or directory (demo)`
-    }
-    // Relative path — join with current work dir
-    const fullPath = currentWorkDir.value === '/' ? `/${target}` : `${currentWorkDir.value}/${target}`
-    return (getDirFiles(fullPath).length > 0) ? formatLsColumns(getDirFiles(fullPath)) : formatLsColumns(getDirFiles(currentWorkDir.value))
+    const fullPath = resolvePath(target)
+    if (isDirPath(fullPath)) return formatLsColumns(getDirFiles(fullPath))
+    if (isFilePath(fullPath)) return target // ls a-file just shows the name
+    return `ls: cannot access '${target}': No such file or directory`
   }
   if (cmd === 'pwd') return currentWorkDir.value
   if (cmd === 'whoami') return 'root'
@@ -558,408 +696,75 @@ function getMockOutput(cmd: string): string {
   if (cmd === 'df -h') return 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/vda1        50G   12G   36G  25% /\ntmpfs           3.9G     0  3.9G   0% /dev/shm'
   if (cmd === 'free -h') return '              total        used        free      shared  buff/cache   available\nMem:          7.8Gi       2.1Gi       3.2Gi       256Mi       2.5Gi       5.2Gi\nSwap:         2.0Gi          0B       2.0Gi'
   if (cmd.startsWith('echo ')) return cmd.slice(5)
-  if (cmd === 'cat /etc/os-release') return 'PRETTY_NAME="Ubuntu 22.04.3 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian'
+
+  // === cat: 读取文件内容 ===
   if (cmd.startsWith('cat ')) {
     const target = cmd.slice(4).trim()
-    if (target === '/etc/hostname') return 'demo-server'
-    if (target === '/etc/passwd') return 'root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nadmin:x:1000:1000:,,,:/home/admin:/bin/bash'
-    if (target === '/etc/nginx/nginx.conf') return 'user www-data;\nworker_processes auto;\nevents { multi_accept on; use epoll; }\nhttp {\n  sendfile on;\n  tcp_nopush on;\n  include /etc/nginx/mime.types;\n  include /etc/nginx/conf.d/*.conf;\n}'
-    if (target === '/proc/cpuinfo') return 'processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Xeon(R) Platinum 8269CY\ncpu MHz\t\t: 2500.000\ncache size\t: 36608 KB'
-    if (target === '/proc/meminfo') return 'MemTotal:        8192000 kB\nMemFree:         3200000 kB\nMemAvailable:    5200000 kB\nSwapTotal:       2048000 kB'
+    const fullPath = resolvePath(target)
+    if (isDirPath(fullPath)) return `cat: ${target}: Is a directory`
+    const content = getMockFileContent(fullPath)
+    if (content !== null) return content
     return `cat: ${target}: No such file or directory`
   }
-  if (cmd === 'top' || cmd === 'htop') return 'top - 10:00:00 up 30 days,  2:00,  1 user,  load average: 0.10, 0.05, 0.01\nTasks: 120 total,   1 running, 119 sleeping'
-  if (cmd === 'ps aux' || cmd === 'ps -ef') return 'USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot         1  0.0  0.2 169356 13032 ?        Ss   May01   0:02 /sbin/init\nroot       256  0.0  0.1  61532  4816 ?        Ss   May01   0:00 /usr/sbin/sshd'
-  if (cmd === 'netstat -tlnp' || cmd === 'ss -tlnp') return 'Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID\ntcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      256/sshd\ntcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      512/nginx'
-  if (cmd === 'docker ps') return 'CONTAINER ID   IMAGE          COMMAND        STATUS       PORTS                    NAMES\na1b2c3d4e5f6   nginx:latest   "/docker..."   Up 2 days   0.0.0.0:80->80/tcp       web'
-  if (cmd.startsWith('systemctl')) return '● nginx.service - A high performance web server\n   Loaded: loaded (/lib/systemd/system/nginx.service; enabled)\n   Active: active (running)'
-  if (cmd.startsWith('sudo ')) return `[sudo] password for root: \n${getMockOutput(cmd.slice(5))}`
-  if (cmd === 'bash' || cmd === 'sh') return 'bash-5.1$ '
-  if (cmd.startsWith('mkdir ') || cmd.startsWith('touch ') || cmd.startsWith('rm ')) return ''
-  if (cmd.startsWith('chmod ') || cmd.startsWith('chown ')) return ''
-  if (cmd.startsWith('cp ') || cmd.startsWith('mv ')) return ''
-  if (cmd.startsWith('tar ')) return ''
-  if (cmd.startsWith('grep ')) return '(demo: grep not simulated)'
-  if (cmd.startsWith('find ')) return '(demo: find not simulated)'
-  if (cmd.startsWith('curl ') || cmd.startsWith('wget ')) return '(demo: network commands not available)'
-  if (cmd === 'vi' || cmd === 'vim' || cmd === 'nano') return '(demo: interactive editors not available)'
-  if (cmd === 'env' || cmd === 'printenv') return 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nHOME=/root\nUSER=root\nSHELL=/bin/bash'
-  if (cmd === 'history') return outputLines.value.filter(l => l.type === 'cmd').map((l, i) => `  ${i + 1}  ${l.text}`).join('\n')
-  if (cmd === 'tree') return getDirFiles(currentWorkDir.value).join('\n')
-  if (cmd.startsWith('tree ')) {
-    const target = cmd.slice(5).trim()
-    const path = target.startsWith('/') ? target : (currentWorkDir.value === '/' ? `/${target}` : `${currentWorkDir.value}/${target}`)
-    const files = getDirFiles(path).slice(0, 15)
-    return path + '\n' + files.map(f => '├── ' + f).join('\n')
-  }
-  if (cmd.startsWith('grep ')) {
+
+  // === head: 显示文件前N行 ===
+  if (cmd.startsWith('head ')) {
     const parts = cmd.slice(5).trim().split(/\s+/)
-    if (parts.length >= 1) {
-      const pattern = parts[0].replace(/['"]/g, '')
-      return `/var/log/syslog:Jun  4 10:00:00 demo-server sshd[256]: Accepted publickey for root\n/var/log/syslog:Jun  4 09:55:00 demo-server systemd[1]: Started nginx.service\n/var/log/syslog:Jun  4 09:50:00 demo-server docker[1024]: Container webapp started`
+    let n = 10
+    let fileIdx = 0
+    if (parts[0]?.startsWith('-n')) {
+      n = parseInt(parts[0].replace('-n', '')) || 10
+      fileIdx = 1
+    } else if (parts[0]?.startsWith('-')) {
+      n = parseInt(parts[0].slice(1)) || 10
+      fileIdx = 1
     }
-    return ''
+    const target = parts[fileIdx]
+    if (!target) return ''
+    const fullPath = resolvePath(target)
+    const content = getMockFileContent(fullPath)
+    if (content === null) return `head: ${target}: No such file or directory`
+    return content.split('\n').slice(0, n).join('\n')
   }
-  if (cmd.startsWith('find ')) {
-    const parts = cmd.slice(5).trim().split(/\s+/)
-    const path = parts[0] || currentWorkDir.value
-    return path + '/config.json\n' + path + '/README.md\n' + path + '/src'
-  }
-  if (cmd.startsWith('tail -f ') || cmd.startsWith('tail -n ')) {
-    return 'Jun  4 10:00:00 demo-server systemd[1]: Started nginx.service\nJun  4 10:00:01 demo-server nginx[512]: Worker process started'
-  }
-  if (cmd === 'tail -f /var/log/nginx/access.log' || cmd === 'tail -n 100 /var/log/nginx/access.log') {
-    return '192.168.1.1 - - [04/Jun/2026:10:00:00 +0000] "GET / HTTP/1.1" 200 1234 "-" "curl/7.68"\n192.168.1.2 - - [04/Jun/2026:09:59:00 +0000] "POST /api/data HTTP/1.1" 201 256 "-" "Mozilla/5.0"'
-  }
-  if (cmd.startsWith('journalctl ')) {
-    return 'Jun 04 10:00:00 demo-server systemd[1]: Started nginx.service\nJun 04 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100\nJun 04 09:50:00 demo-server kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready'
-  }
-  if (cmd === 'docker images') return 'REPOSITORY   TAG       IMAGE ID       CREATED       SIZE\nnginx        latest    a1b2c3d4e5f6   2 weeks ago   187MB\nnode         20-alpine  b2c3d4e5f6a7   4 weeks ago   126MB\npostgres     16        c3d4e5f6a7b8   6 weeks ago   412MB'
-  if (cmd === 'docker ps -a') return 'CONTAINER ID   IMAGE          COMMAND                  STATUS                     PORTS                    NAMES\na1b2c3d4e5f6   nginx:latest   \"/docker-entrypoint.\"   Up 2 days                 0.0.0.0:80->80/tcp       web\nb2c3d4e5f6a7   postgres:16    \"docker-entrypoint.\"   Exited (137) 3 hours ago  0.0.0.0:5432->5432/tcp   db'
-  if (cmd.startsWith('docker logs ')) return '2026/06/04 09:50:00 [notice] 1#1: start worker process 512\n2026/06/04 09:50:00 [info] 512#512: *1 client connected'
-  if (cmd === 'apt list --installed') return 'Listing... Done\nnginx/now 1.24.0-1 amd64 [installed]\ndocker-ce/now 24.0.7-1 amd64 [installed]\nnodejs/now 18.19.0 amd64 [installed]\npostgresql/now 16.1-1 amd64 [installed]'
-  if (cmd.startsWith('which ')) return `/usr/bin/${cmd.slice(6)}`
-  if (cmd.startsWith('head ') || cmd.startsWith('tail ')) return '(demo: head/tail not simulated)'
-  if (cmd.startsWith('du ')) return '12M\t.'
-  if (cmd.startsWith('ping ')) return 'PING demo (127.0.0.1) 56(84) bytes of data.\n64 bytes from demo: icmp_seq=1 ttl=64 time=0.1 ms'
-  if (cmd === 'ifconfig' || cmd === 'ip addr') return 'eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 192.168.1.100  netmask 255.255.255.0'
-  return `bash: ${cmd}: command not found`
-}
 
-/** Execute command on remote server via SSH exec */
-async function executeRemoteCommand(sessionId: string, cmd: string) {
-  inputText.value = ''
-
-  // Always use mock for consistent terminal display across dev/build
-  const mock = getMockOutput(cmd)
-  if (mock) outputLines.value.push({ type: 'output', text: mock })
-  nextTick(() => {
-    if (outputRef.value) outputRef.value.scrollTop = outputRef.value.scrollHeight
-  })
-}
-
-function handleClear() {
-  outputLines.value = []
-}
-
-function handleCopy() {
-  const selection = window.getSelection()
-  const selectedText = selection?.toString().trim()
-  if (selectedText && selectedText.length > 0) {
-    navigator.clipboard.writeText(selectedText).then(() => {
-      ElMessage.success('Copied selection')
-    })
-    selection?.removeAllRanges()
-    return
-  }
-  // Fallback: copy all output
-  const text = outputLines.value.map(l => l.text).join('\n')
-  navigator.clipboard.writeText(text).then(() => {
-    ElMessage.success('Copied all output')
-  })
-}
-
-function handleDisconnect() {
-  sshStore.updateSessionStatus(props.session.id, 'disconnected')
-  outputLines.value.push({ type: 'info', text: 'Disconnected' })
-}
-
-function handleReconnect() {
-  sshStore.updateSessionStatus(props.session.id, 'connecting')
-  outputLines.value.push({ type: 'info', text: 'Reconnecting...' })
-  setTimeout(() => {
-    sshStore.updateSessionStatus(props.session.id, 'connected')
-  }, 800)
-}
-
-// Inject terminal context to AI
-const injectFilePathToAI = inject<(path: string, type: string, server?: string) => void>('injectFilePathToAI', undefined)
-
-function handleExplainCommand() {
-  const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-  if (!lastCmd) {
-    ElMessage.info('No command to explain')
-    return
-  }
-  if (!injectFilePathToAI) {
-    ElMessage.warning('AI panel not ready')
-    return
-  }
-  const serverInfo = props.session.serverName
-  injectFilePathToAI(
-    `[Command Explanation]`,
-    'file',
-    serverInfo
-  )
-  // Simulate injecting the command for explanation to AI chat
-  ElMessage.success('Sent command to AI for explanation')
-}
-
-function handleAnalyzeOutput() {
-  const lastOutput = outputLines.value.filter(l => l.type !== 'cmd').slice(-10).map(l => l.text).join('\n').trim()
-  if (!lastOutput) {
-    ElMessage.info('No output to analyze')
-    return
-  }
-  if (!injectFilePathToAI) {
-    ElMessage.warning('AI panel not ready')
-    return
-  }
-  const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-  const context = lastCmd ? `Command: ${lastCmd.text}\n\nOutput:\n${lastOutput}` : `Output:\n${lastOutput}`
-  ElMessage.success('Sent terminal output to AI for analysis')
-}
-
-// 终端右键菜单
-const selectedText = ref('')
-
-function onTerminalContextMenu(e: MouseEvent) {
-  e.preventDefault()
-  // 检测当前是否有选中文字
-  const selection = window.getSelection()
-  const text = selection?.toString().trim() || ''
-  selectedText.value = text
-  termContextMenu.visible = true
-  termContextMenu.x = e.clientX
-  termContextMenu.y = e.clientY
-  setTimeout(() => {
-    document.addEventListener('click', () => { termContextMenu.visible = false }, { once: true })
-  }, 10)
-}
-
-async function termAction(action: string) {
-  switch (action) {
-    case 'copySelection': {
-      // 复制选中文字
-      const text = selectedText.value
-      if (text) {
-        await navigator.clipboard.writeText(text)
-        window.getSelection()?.removeAllRanges()
-        ElMessage.success(`Copied ${text.length} chars`)
-      }
-      break
+  // === tail: 显示文件后N行 ===
+  if (cmd.startsWith('tail ')) {
+    const rest = cmd.slice(5).trim()
+    if (rest.startsWith('-f ')) {
+      // tail -f: 模拟输出最新几行
+      const target = rest.slice(3).trim()
+      const fullPath = resolvePath(target)
+      const content = getMockFileContent(fullPath)
+      if (content === null) return `tail: ${target}: No such file or directory`
+      const lines = content.split('\n')
+      return lines.slice(-5).join('\n')
     }
-    case 'sendToAI': {
-      // 将选中文字发送给AI分析
-      const text = selectedText.value
-      if (!text) { ElMessage.info('No text selected'); break }
-      if (!injectFilePathToAI) { ElMessage.warning('AI panel not ready'); break }
-      const serverInfo = props.session.serverName
-      injectFilePathToAI(
-        `[Terminal Selection] ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}`,
-        'file',
-        serverInfo
-      )
-      // 同时将完整选中内容注入到AI对话
-      const { useChatStore } = await import('@/stores/chat')
-      const { useAgentStore } = await import('@/stores/agent')
-      const chatStore = useChatStore()
-      const agentStore = useAgentStore()
-      chatStore.addUserMessage(agentStore.activeAgentId, `[Terminal Output from ${serverInfo}]\n\`\`\`\n${text}\n\`\`\`\nPlease analyze this terminal output.`)
-      ElMessage.success('Sent to AI for analysis')
-      break
+    const parts = rest.split(/\s+/)
+    let n = 10
+    let fileIdx = 0
+    if (parts[0]?.startsWith('-n')) {
+      n = parseInt(parts[0].replace('-n', '')) || 10
+      fileIdx = 1
+    } else if (parts[0]?.startsWith('-')) {
+      n = parseInt(parts[0].slice(1)) || 10
+      fileIdx = 1
     }
-    case 'executeAsCommand': {
-      // 将选中文字作为命令执行
-      const text = selectedText.value.trim()
-      if (!text) { ElMessage.info('No text selected'); break }
-      // 取第一行作为命令（多行选中时只执行首行）
-      const firstLine = text.split('\n')[0].trim()
-      if (!firstLine) { ElMessage.info('Empty command'); break }
-      inputText.value = firstLine
-      focusInput()
-      ElMessage.info(`Ready to execute: ${firstLine}`)
-      break
-    }
-    case 'searchWeb': {
-      // 用浏览器搜索选中文字
-      const text = selectedText.value.trim()
-      if (!text) { ElMessage.info('No text selected'); break }
-      const query = encodeURIComponent(text.slice(0, 200))
-      window.open(`https://www.google.com/search?q=${query}`, '_blank')
-      ElMessage.info('Searching web...')
-      break
-    }
-    case 'saveAsQuickCommand': {
-      // 将选中文字保存为快捷命令
-      const text = selectedText.value.trim()
-      if (!text) { ElMessage.info('No text selected'); break }
-      const firstLine = text.split('\n')[0].trim()
-      if (!firstLine) { ElMessage.info('Empty command'); break }
-      sshStore.addQuickCommand({
-        name: firstLine.split(' ')[0],
-        command: firstLine,
-        description: `Saved from terminal: ${firstLine.slice(0, 50)}`,
-        category: 'Custom',
-      })
-      ElMessage.success(`Saved as quick command: ${firstLine.split(' ')[0]}`)
-      break
-    }
-    case 'copy': {
-      const selection = window.getSelection()
-      const selected = selection?.toString().trim()
-      if (selected && selected.length > 0) {
-        await navigator.clipboard.writeText(selected)
-        selection?.removeAllRanges()
-        ElMessage.success('Copied selection')
-      } else {
-        const text = outputLines.value.map(l => l.text).join('\n')
-        await navigator.clipboard.writeText(text)
-        ElMessage.success('Copied all output')
-      }
-      break
-    }
-    case 'paste': {
-      try {
-        const text = await navigator.clipboard.readText()
-        inputText.value += text
-        focusInput()
-      } catch {
-        // Fallback: use execCommand for older browsers
-        try {
-          const textarea = document.createElement('textarea')
-          textarea.style.position = 'fixed'
-          textarea.style.opacity = '0'
-          document.body.appendChild(textarea)
-          textarea.focus()
-          document.execCommand('paste')
-          const pasted = textarea.value
-          document.body.removeChild(textarea)
-          if (pasted) {
-            inputText.value += pasted
-            focusInput()
-          }
-        } catch {
-          ElMessage.warning('Paste not available. Try Ctrl+Shift+V')
-        }
-      }
-      break
-    }
-    case 'selectAll':
-      // Select all output text
-      if (outputRef.value) {
-        const range = document.createRange()
-        range.selectNodeContents(outputRef.value)
-        const sel = window.getSelection()
-        sel?.removeAllRanges()
-        sel?.addRange(range)
-        ElMessage.success('All output selected')
-      }
-      break
-    case 'clear':
-      handleClear()
-      break
-    case 'copyCommand': {
-      const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-      if (lastCmd) {
-        await navigator.clipboard.writeText(lastCmd.text)
-        ElMessage.success('Last command copied')
-      } else {
-        ElMessage.info('No command to copy')
-      }
-      break
-    }
+    const target = parts[fileIdx]
+    if (!target) return ''
+    const fullPath = resolvePath(target)
+    const content = getMockFileContent(fullPath)
+    if (content === null) return `tail: ${target}: No such file or directory`
+    return content.split('\n').slice(-n).join('\n')
   }
-}
-</script>
 
-<style lang="scss" scoped>
-.terminal-body { user-select: text; -webkit-user-select: text; }
-.terminal-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-.terminal-toolbar {
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: $spacing-xs;
-  padding: 0 $spacing-sm;
-  height: 26px;
-}
-
-.output-line {
-  white-space: pre;
-
-  .prompt { color: $color-success; font-weight: 600; }
-  .cmd { color: $color-text-primary; }
-  .output { color: $color-text-regular; white-space: pre; display: block; }
-  .error { color: $color-danger; }
-  .info { color: $color-primary; }
-}
-
-.input-line {
-  display: flex;
-  align-items: center;
-  line-height: 1.5;
-}
-
-.terminal-input {
-  background: transparent !important;
-  border: none !important;
-  outline: none !important;
-  color: $color-text-primary;
-  font-family: $font-family-mono;
-  font-size: $font-size-sm;
-  flex: 1;
-  caret-color: $color-primary;
-  padding: 0;
-  margin: 0;
-}
-// === 终端选中高亮 ===
-.terminal-output,
-.terminal-body {
-  ::selection {
-    background-color: rgba(91, 155, 213, 0.45);
-    color: #ffffff;
-  }
-  ::-moz-selection {
-    background-color: rgba(91, 155, 213, 0.45);
-    color: #ffffff;
-  }
-}
-
-.term-context-menu {
-  position: fixed; z-index: 9999;
-  background-color: $color-bg-toolbar;
-  border: 1px solid $color-border;
-  border-radius: $border-radius-md;
-  padding: $spacing-xs 0;
-  min-width: 200px;
-  box-shadow: $shadow-lg;
-}
-
-.tmenu-header {
-  padding: 4px 14px 6px;
-  font-size: 10px;
-  font-family: $font-family-mono;
-  color: $color-text-placeholder;
-  border-bottom: 1px solid $color-border-light;
-  margin-bottom: $spacing-xs;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 260px;
-}
-
-.tmenu-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 14px; cursor: pointer;
-  color: $color-text-regular; font-size: $font-size-sm;
-  transition: all $transition-fast; user-select: none;
-  &:hover { background-color: $color-bg-hover; color: $color-text-primary; }
-}
-
-.tmenu-shortcut {
-  margin-left: auto;
-  font-size: 10px;
-  color: $color-text-muted;
-  font-family: $font-family-mono;
-  opacity: 0.6;
-}
-
-.tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
-</style>
+  // === wc: 统计行数/词数/字节数 ===
+  if (cmd.startsWith('wc ')) {
+    const parts = cmd.slice(3).trim().split(/\s+/)
+    const target = parts.find(p => !p.startsWith('-')) || ''
+    if (!target) return ''
+    const fullPath = resolvePath(target)
+    const content = getMockFileContent(fullPath)
+    if (content === null) return `wc: ${target}: No such file or directory`
+    const lines = content.split('\n').length
+    const words = content.split(/\s+/).filter(Boolean).length
+    const
