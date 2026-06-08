@@ -786,7 +786,7 @@ echo "Starting ${fileName.replace('.sh', '')}..."
 
 # Main logic
 if [ -z "$1" ]; then
-  echo "Usage: $0 <argument>"
+  echo "Usage: $0 ${'<'}argument${'>'}"
   exit 1
 fi
 
@@ -814,29 +814,29 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log('Server running on port ' + PORT);
 });`
-  if (ext === 'vue') return `<template>
-  <div class="app">
-    <h1>Hello World</h1>
-  </div>
-</template>
+  if (ext === 'vue') return `${'<'}template>
+  ${'<'}div class="app">
+    ${'<'}h1>Hello World${'<'}${'/'}h1>
+  ${'<'}${'/'}div>
+${'<'}${'/'}template>
 
-<script setup>
+${'<'}script setup>
 // ${fileName}
-</script>
+${'<'}${'/'}script>
 
-<style scoped>
+${'<'}style scoped>
 .app { padding: 20px; }
-</style>`
-  if (ext === 'html') return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${fileName.replace('.html', '')}</title>
-</head>
-<body>
-  <h1>Welcome</h1>
-</body>
-</html>`
+${'<'}${'/'}style>`
+  if (ext === 'html') return `${'<'}!DOCTYPE html>
+${'<'}html lang="en">
+${'<'}head>
+  ${'<'}meta charset="UTF-8">
+  ${'<'}title>${fileName.replace('.html', '')}${'<'}${'/'}title>
+${'<'}${'/'}head>
+${'<'}body>
+  ${'<'}h1>Welcome${'<'}${'/'}h1>
+${'<'}${'/'}body>
+${'<'}${'/'}html>`
   if (ext === 'css' || ext === 'scss') return `/* ${fileName} */
 :root {
   --primary: #5b8def;
@@ -888,12 +888,12 @@ Notes:
 - OS: Ubuntu 22.04 LTS
 - Status: Running`
   if (ext === 'xml') return `${'<' + '?'}xml version="1.0" encoding="UTF-8"?>
-<config>
-  <server>
-    <host>0.0.0.0</host>
-    <port>8081</port>
-  </server>
-</config>`
+${'<'}config>
+  ${'<'}server>
+    ${'<'}host>0.0.0.0${'<'}${'/'}host>
+    ${'<'}port>8081${'<'}${'/'}port>
+  ${'<'}${'/'}server>
+${'<'}${'/'}config>`
   if (ext === 'rs') return `// ${fileName}
 fn main() {
     println!("Hello from Rust!");
@@ -911,7 +911,7 @@ func main() {
     }
 }`
   if (ext === 'c' || ext === 'cpp' || ext === 'h') return `// ${fileName}
-#include <stdio.h>
+${'#'}include ${'<'}stdio.h${'>'}
 
 int main() {
     printf("Hello, World!\\n");
@@ -1579,4 +1579,4 @@ async function termAction(action: string) {
 
 .tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
 </style>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                                                                                                                   
