@@ -653,13 +653,13 @@ function getMockFileContent(filePath: string): string | null {
   if (ext === 'sql') return '-- ' + fileName + '\nSELECT * FROM users WHERE active = true ORDER BY created_at DESC LIMIT 10;'
   if (ext === 'csv') return 'id,name,email,role\n1,admin,admin@example.com,admin\n2,user,user@example.com,user\n3,ops,ops@example.com,operator'
   if (ext === 'txt') return 'This is the content of ' + fileName + '.\nCreated on 2026-06-04.\nPath: ' + filePath + '\n\nNotes:\n- Server: demo-server\n- OS: Ubuntu 22.04 LTS\n- Status: Running'
-  if (ext === 'xml') return '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <server>\n    <host>0.0.0.0</host>\n    <port>8081</port>\n  </server>\n</config>'
+  if (ext === 'xml') return '<' + '?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <server>\n    <host>0.0.0.0</host>\n    <port>8081</port>\n  </server>\n</config>'
   if (ext === 'rs') return '// ' + fileName + '\nfn main() {\n    println!("Hello from Rust!");\n}'
   if (ext === 'go') return 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello from Go!")\n}'
   if (ext === 'java') return 'public class ' + fileName.replace('.java', '') + ' {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}'
   if (ext === 'c' || ext === 'cpp' || ext === 'h') return '// ' + fileName + '\n#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}'
   if (ext === 'rb') return '# ' + fileName + '\nputs "Hello from Ruby!"'
-  if (ext === 'php') return '<?php\n// ' + fileName + '\necho "Hello from PHP!";\n?>'
+  if (ext === 'php') return '<' + '?php\n// ' + fileName + '\necho "Hello from PHP!";\n?' + '>'
   if (ext === 'dockerfile') return 'FROM node:20-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install --production\nCOPY . .\nEXPOSE 8081\nCMD ["node", "server.js"]'
   if (ext === 'gitignore') return 'node_modules/\ndist/\n.env\n*.log\n.DS_Store'
   if (ext === 'pub') return 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... root@demo-server'
@@ -767,4 +767,528 @@ function getMockOutput(cmd: string): string {
     if (content === null) return `wc: ${target}: No such file or directory`
     const lines = content.split('\n').length
     const words = content.split(/\s+/).filter(Boolean).length
-    const
+    const bytes = new TextEncoder().encode(content).length
+    return `  ${lines}  ${words} ${bytes} ${target}`
+  }
+
+  // === sort: 排序 ===
+  if (cmd.startsWith('sort ')) {
+    const target = cmd.slice(5).trim().split(/\s+/).find(p => !p.startsWith('-')) || ''
+    if (!target) return ''
+    const fullPath = resolvePath(target)
+    const content = getMockFileContent(fullPath)
+    if (content === null) return `sort: ${target}: No such file or directory`
+    return content.split('\n').sort().join('\n')
+  }
+
+  // === uniq: 去重 ===
+  if (cmd.startsWith('uniq ')) {
+    const target = cmd.slice(5).trim().split(/\s+/).find(p => !p.startsWith('-')) || ''
+    if (!target) return ''
+    const fullPath = resolvePath(target)
+    const content = getMockFileContent(fullPath)
+    if (content === null) return `uniq: ${target}: No such file or directory`
+    const lines = content.split('\n')
+    return lines.filter((l, i) => l !== lines[i - 1]).join('\n')
+  }
+
+  // === cut: 截取列 ===
+  if (cmd.startsWith('cut ')) {
+    const rest = cmd.slice(4).trim()
+    const dMatch = rest.match(/-d['"]?([^'"\s]+)/)
+    const fMatch = rest.match(/-f(\d+)/)
+    const target = rest.split(/\s+/).find(p => !p.startsWith('-')) || ''
+    if (!target) return ''
+    const fullPath = resolvePath(target)
+    const content = getMockFileContent(fullPath)
+    if (content === null) return `cut: ${target}: No such file or directory`
+    const delim = dMatch ? dMatch[1] : '\t'
+    const field = fMatch ? parseInt(fMatch[1]) - 1 : 0
+    return content.split('\n').map(line => line.split(delim)[field] || '').join('\n')
+  }
+
+  // === grep: 搜索文本 ===
+  if (cmd.startsWith('grep ')) {
+    const rest = cmd.slice(5).trim()
+    const parts = rest.split(/\s+/).filter(p => !p.startsWith('-'))
+    if (parts.length < 1) return ''
+    const pattern = parts[0].replace(/['"]/g, '')
+    // 有文件参数时，在文件内容中搜索
+    if (parts.length >= 2) {
+      const target = parts[1]
+      const fullPath = resolvePath(target)
+      const content = getMockFileContent(fullPath)
+      if (content === null) return `grep: ${target}: No such file or directory`
+      return content.split('\n').filter(l => l.includes(pattern)).join('\n') || ''
+    }
+    // 无文件参数时，模拟搜索syslog
+    return `Jun  4 10:00:00 demo-server sshd[256]: Accepted publickey for root\nJun  4 09:55:00 demo-server systemd[1]: Started nginx.service\nJun  4 09:50:00 demo-server docker[1024]: Container webapp started`
+  }
+
+  // === find: 查找文件 ===
+  if (cmd.startsWith('find ')) {
+    const parts = cmd.slice(5).trim().split(/\s+/)
+    const path = parts[0]?.startsWith('-') ? currentWorkDir.value : resolvePath(parts[0] || '.')
+    const nameIdx = parts.indexOf('-name')
+    const namePattern = nameIdx >= 0 ? parts[nameIdx + 1]?.replace(/['"*]/g, '') : ''
+    // 从DIR_MAP中查找匹配的路径
+    const results: string[] = []
+    for (const dir of Object.keys(DIR_MAP)) {
+      if (!dir.startsWith(path)) continue
+      for (const f of DIR_MAP[dir]) {
+        const fullPath = dir === '/' ? `/${f}` : `${dir}/${f}`
+        if (namePattern) {
+          if (f.includes(namePattern)) results.push(fullPath)
+        } else {
+          results.push(fullPath)
+        }
+      }
+    }
+    return results.slice(0, 30).join('\n') || `${path}\n${path}/config.json\n${path}/README.md`
+  }
+
+  // === which: 查找命令位置 ===
+  if (cmd.startsWith('which ')) {
+    const name = cmd.slice(6).trim()
+    const binDirs = ['/usr/bin', '/usr/local/bin', '/bin', '/sbin']
+    for (const d of binDirs) {
+      if (DIR_MAP[d]?.includes(name)) return `${d}/${name}`
+    }
+    return KNOWN_COMMANDS.some(c => c.startsWith(name)) ? `/usr/bin/${name}` : `${name} not found`
+  }
+
+  // === du: 磁盘使用 ===
+  if (cmd.startsWith('du ')) {
+    const target = cmd.slice(3).trim().split(/\s+/).find(p => !p.startsWith('-')) || '.'
+    const fullPath = resolvePath(target)
+    if (isDirPath(fullPath)) {
+      const files = getDirFiles(fullPath)
+      return files.map(f => `4.0K\t${fullPath === '/' ? '/' + f : fullPath + '/' + f}`).join('\n') + `\n${12 + files.length * 4}K\t${fullPath}`
+    }
+    return '4.0K\t' + target
+  }
+
+  // === stat: 文件状态 ===
+  if (cmd.startsWith('stat ')) {
+    const target = cmd.slice(5).trim()
+    const fullPath = resolvePath(target)
+    const fileName = fullPath.split('/').pop() || ''
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    if (isDirPath(fullPath)) return `  File: ${fileName}\n  Size: 4096\tBlocks: 8\tIO Block: 4096\tdirectory\nAccess: (0755/drwxr-xr-x)  Uid: (0/root)   Gid: (0/root)\nModify: ${dateStr}`
+    if (isFilePath(fullPath)) return `  File: ${fileName}\n  Size: ${1024 + Math.floor(Math.random() * 51200)}\tBlocks: 16\tIO Block: 4096\tregular file\nAccess: (0644/-rw-r--r--)  Uid: (0/root)   Gid: (0/root)\nModify: ${dateStr}`
+    return `stat: cannot stat '${target}': No such file or directory`
+  }
+
+  // === file: 文件类型 ===
+  if (cmd.startsWith('file ')) {
+    const target = cmd.slice(5).trim()
+    const fullPath = resolvePath(target)
+    if (isDirPath(fullPath)) return `${target}: directory`
+    if (isFilePath(fullPath)) {
+      const ext = target.split('.').pop()?.toLowerCase() || ''
+      if (['sh', 'bash'].includes(ext)) return `${target}: Bourne-Again shell script, ASCII text executable`
+      if (['py'].includes(ext)) return `${target}: Python script, ASCII text executable`
+      if (['js', 'ts'].includes(ext)) return `${target}: ASCII text`
+      if (['json'].includes(ext)) return `${target}: JSON data`
+      if (['gz', 'zip', 'tgz'].includes(ext)) return `${target}: gzip compressed data`
+      return `${target}: ASCII text`
+    }
+    return `${target}: cannot open (No such file or directory)`
+  }
+
+  // === diff: 文件比较 ===
+  if (cmd.startsWith('diff ')) return ''
+
+  // === touch/mkdir/rm/cp/mv/chmod/chown/ln: 静默成功 ===
+  if (cmd.startsWith('mkdir ') || cmd.startsWith('touch ') || cmd.startsWith('rm ')) return ''
+  if (cmd.startsWith('chmod ') || cmd.startsWith('chown ')) return ''
+  if (cmd.startsWith('cp ') || cmd.startsWith('mv ') || cmd.startsWith('ln ')) return ''
+  if (cmd.startsWith('tar ')) return ''
+  if (cmd.startsWith('gzip ') || cmd.startsWith('gunzip ')) return ''
+
+  // === 常用命令 ===
+  if (cmd === 'top' || cmd === 'htop') return 'top - 10:00:00 up 30 days,  2:00,  1 user,  load average: 0.10, 0.05, 0.01\nTasks: 120 total,   1 running, 119 sleeping\n%Cpu(s):  2.0 us,  0.5 sy,  0.0 ni, 97.5 id,  0.0 wa\nMiB Mem :   7800.0 total,   3200.0 free,   2100.0 used,   2500.0 buff/cache'
+  if (cmd === 'ps aux' || cmd === 'ps -ef') return 'USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot         1  0.0  0.2 169356 13032 ?        Ss   May01   0:02 /sbin/init\nroot       256  0.0  0.1  61532  4816 ?        Ss   May01   0:00 /usr/sbin/sshd -D\nroot       512  0.0  0.3  57344 28672 ?        Ss   May01   0:01 nginx: master process\nwww-data   513  0.0  0.1  57344  8192 ?        S    May01   0:02 nginx: worker process\nroot      1024  0.1  0.5 819200 40960 ?        Sl   May01   5:30 /usr/bin/dockerd'
+  if (cmd === 'netstat -tlnp' || cmd === 'ss -tlnp') return 'Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID\ntcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      256/sshd\ntcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      512/nginx\ntcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      512/nginx\ntcp        0      0 127.0.0.1:3306          0.0.0.0:*               LISTEN      768/mysqld'
+  if (cmd === 'docker ps') return 'CONTAINER ID   IMAGE          COMMAND        STATUS       PORTS                    NAMES\na1b2c3d4e5f6   nginx:latest   "/docker..."   Up 2 days   0.0.0.0:80->80/tcp       web\nb2c3d4e5f6a7   postgres:16    "docker..."    Up 3 days   0.0.0.0:5432->5432/tcp   db'
+  if (cmd.startsWith('systemctl')) return '● nginx.service - A high performance web server\n   Loaded: loaded (/lib/systemd/system/nginx.service; enabled)\n   Active: active (running)\n   Main PID: 512 (nginx)\n   CGroup: /system.slice/nginx.service'
+  if (cmd.startsWith('sudo ')) return `[sudo] password for root: \n${getMockOutput(cmd.slice(5))}`
+  if (cmd === 'bash' || cmd === 'sh') return 'bash-5.1$ '
+  if (cmd === 'env' || cmd === 'printenv') return 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nHOME=/root\nUSER=root\nSHELL=/bin/bash\nLANG=en_US.UTF-8\nTERM=xterm-256color'
+  if (cmd === 'history') return outputLines.value.filter(l => l.type === 'cmd').map((l, i) => `  ${i + 1}  ${l.text}`).join('\n')
+  if (cmd === 'tree') {
+    const files = getDirFiles(currentWorkDir.value)
+    return currentWorkDir.value + '\n' + files.map(f => {
+      const isDir = isDirPath(currentWorkDir.value === '/' ? `/${f}` : `${currentWorkDir.value}/${f}`)
+      return '├── ' + f + (isDir ? '/' : '')
+    }).join('\n')
+  }
+  if (cmd.startsWith('tree ')) {
+    const target = cmd.slice(5).trim()
+    const path = resolvePath(target)
+    if (!isDirPath(path)) return `tree: ${target}: Not a directory`
+    const files = getDirFiles(path)
+    return path + '\n' + files.map(f => {
+      const isDir = isDirPath(path === '/' ? `/${f}` : `${path}/${f}`)
+      return '├── ' + f + (isDir ? '/' : '')
+    }).join('\n')
+  }
+  if (cmd.startsWith('journalctl')) return 'Jun 04 10:00:00 demo-server systemd[1]: Started nginx.service\nJun 04 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100\nJun 04 09:50:00 demo-server kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready'
+  if (cmd === 'docker images') return 'REPOSITORY   TAG       IMAGE ID       CREATED       SIZE\nnginx        latest    a1b2c3d4e5f6   2 weeks ago   187MB\nnode         20-alpine  b2c3d4e5f6a7   4 weeks ago   126MB\npostgres     16        c3d4e5f6a7b8   6 weeks ago   412MB'
+  if (cmd === 'docker ps -a') return 'CONTAINER ID   IMAGE          COMMAND                  STATUS                     PORTS                    NAMES\na1b2c3d4e5f6   nginx:latest   \"/docker-entrypoint.\"   Up 2 days                 0.0.0.0:80->80/tcp       web\nb2c3d4e5f6a7   postgres:16    \"docker-entrypoint.\"   Exited (137) 3 hours ago  0.0.0.0:5432->5432/tcp   db'
+  if (cmd.startsWith('docker logs ')) return '2026/06/04 09:50:00 [notice] 1#1: start worker process 512\n2026/06/04 09:50:00 [info] 512#512: *1 client connected\n2026/06/04 09:45:00 [notice] 1#1: gracefully shutting down'
+  if (cmd === 'apt list --installed') return 'Listing... Done\nnginx/now 1.24.0-1 amd64 [installed]\ndocker-ce/now 24.0.7-1 amd64 [installed]\nnodejs/now 18.19.0 amd64 [installed]\npostgresql/now 16.1-1 amd64 [installed]'
+  if (cmd.startsWith('ping ')) return 'PING demo (127.0.0.1) 56(84) bytes of data.\n64 bytes from demo: icmp_seq=1 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=2 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=3 ttl=64 time=0.1 ms\n\n--- demo ping statistics ---\n3 packets transmitted, 3 received, 0% packet loss'
+  if (cmd === 'ifconfig' || cmd === 'ip addr') return 'eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 192.168.1.100  netmask 255.255.255.0  broadcast 192.168.1.255\n        inet6 fe80::1  prefixlen 64  scopeid 0x20<link>\n        ether 00:16:3e:xx:xx:xx  txqueuelen 1000\nlo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536\n        inet 127.0.0.1  netmask 255.0.0.0'
+  if (cmd === 'ip route') return 'default via 192.168.1.1 dev eth0\n192.168.1.0/24 dev eth0 proto kernel scope link src 192.168.1.100'
+  if (cmd === 'route') return 'Kernel IP routing table\nDestination     Gateway         Genmask         Flags Metric Ref    Use Iface\ndefault         192.168.1.1     0.0.0.0         UG    0      0        0 eth0\n192.168.1.0     0.0.0.0         255.255.255.0   U     0      0        0 eth0'
+  if (cmd === 'uptime') return ' 10:00:00 up 30 days,  2:00,  1 user,  load average: 0.10, 0.05, 0.01'
+  if (cmd === 'w' || cmd === 'who') return 'root     pts/0    Jun 4 09:55 (192.168.1.100)'
+  if (cmd === 'last') return 'root     pts/0        192.168.1.100   Thu Jun  4 09:55   still logged in\nroot     pts/0        192.168.1.100   Wed Jun  3 10:00 - 18:00  (08:00)'
+  if (cmd === 'crontab -l') return '# Edit this file to introduce tasks to be run by cron\n# m h  dom mon dow   command\n*/5 * * * * /usr/local/bin/healthcheck.sh\n0 2 * * * /usr/local/bin/backup.sh'
+  if (cmd === 'service --status-all') return ' [ + ]  cron\n [ + ]  docker\n [ + ]  nginx\n [ + ]  ssh\n [ - ]  postgresql'
+  if (cmd.startsWith('curl ') || cmd.startsWith('wget ')) return '(demo: network commands not available in mock mode)'
+  if (cmd === 'vi' || cmd === 'vim' || cmd === 'nano') return '(demo: interactive editors not available — use cat to view files)'
+  if (cmd === 'less' || cmd === 'more') return '(demo: pagers not available — use cat instead)'
+
+  // === 未知命令 ===
+  return `bash: ${cmd.split(' ')[0]}: command not found`
+}
+
+/** Execute command on remote server via SSH exec */
+async function executeRemoteCommand(sessionId: string, cmd: string) {
+  inputText.value = ''
+
+  // Always use mock for consistent terminal display across dev/build
+  const mock = getMockOutput(cmd)
+  if (mock) outputLines.value.push({ type: 'output', text: mock })
+  nextTick(() => {
+    if (outputRef.value) outputRef.value.scrollTop = outputRef.value.scrollHeight
+  })
+}
+
+function handleClear() {
+  outputLines.value = []
+}
+
+function handleCopy() {
+  const selection = window.getSelection()
+  const selectedText = selection?.toString().trim()
+  if (selectedText && selectedText.length > 0) {
+    navigator.clipboard.writeText(selectedText).then(() => {
+      ElMessage.success('Copied selection')
+    })
+    selection?.removeAllRanges()
+    return
+  }
+  // Fallback: copy all output
+  const text = outputLines.value.map(l => l.text).join('\n')
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success('Copied all output')
+  })
+}
+
+function handleDisconnect() {
+  sshStore.updateSessionStatus(props.session.id, 'disconnected')
+  outputLines.value.push({ type: 'info', text: 'Disconnected' })
+}
+
+function handleReconnect() {
+  sshStore.updateSessionStatus(props.session.id, 'connecting')
+  outputLines.value.push({ type: 'info', text: 'Reconnecting...' })
+  setTimeout(() => {
+    sshStore.updateSessionStatus(props.session.id, 'connected')
+  }, 800)
+}
+
+// Inject terminal context to AI
+const injectFilePathToAI = inject<(path: string, type: string, server?: string) => void>('injectFilePathToAI', undefined)
+
+function handleExplainCommand() {
+  const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
+  if (!lastCmd) {
+    ElMessage.info('No command to explain')
+    return
+  }
+  if (!injectFilePathToAI) {
+    ElMessage.warning('AI panel not ready')
+    return
+  }
+  const serverInfo = props.session.serverName
+  injectFilePathToAI(
+    `[Command Explanation]`,
+    'file',
+    serverInfo
+  )
+  // Simulate injecting the command for explanation to AI chat
+  ElMessage.success('Sent command to AI for explanation')
+}
+
+function handleAnalyzeOutput() {
+  const lastOutput = outputLines.value.filter(l => l.type !== 'cmd').slice(-10).map(l => l.text).join('\n').trim()
+  if (!lastOutput) {
+    ElMessage.info('No output to analyze')
+    return
+  }
+  if (!injectFilePathToAI) {
+    ElMessage.warning('AI panel not ready')
+    return
+  }
+  const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
+  const context = lastCmd ? `Command: ${lastCmd.text}\n\nOutput:\n${lastOutput}` : `Output:\n${lastOutput}`
+  ElMessage.success('Sent terminal output to AI for analysis')
+}
+
+// 终端右键菜单
+const selectedText = ref('')
+
+function onTerminalContextMenu(e: MouseEvent) {
+  e.preventDefault()
+  // 检测当前是否有选中文字
+  const selection = window.getSelection()
+  const text = selection?.toString().trim() || ''
+  selectedText.value = text
+  termContextMenu.visible = true
+  termContextMenu.x = e.clientX
+  termContextMenu.y = e.clientY
+  setTimeout(() => {
+    document.addEventListener('click', () => { termContextMenu.visible = false }, { once: true })
+  }, 10)
+}
+
+async function termAction(action: string) {
+  switch (action) {
+    case 'copySelection': {
+      // 复制选中文字
+      const text = selectedText.value
+      if (text) {
+        await navigator.clipboard.writeText(text)
+        window.getSelection()?.removeAllRanges()
+        ElMessage.success(`Copied ${text.length} chars`)
+      }
+      break
+    }
+    case 'sendToAI': {
+      // 将选中文字发送给AI分析
+      const text = selectedText.value
+      if (!text) { ElMessage.info('No text selected'); break }
+      if (!injectFilePathToAI) { ElMessage.warning('AI panel not ready'); break }
+      const serverInfo = props.session.serverName
+      injectFilePathToAI(
+        `[Terminal Selection] ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}`,
+        'file',
+        serverInfo
+      )
+      // 同时将完整选中内容注入到AI对话
+      const { useChatStore } = await import('@/stores/chat')
+      const { useAgentStore } = await import('@/stores/agent')
+      const chatStore = useChatStore()
+      const agentStore = useAgentStore()
+      chatStore.addUserMessage(agentStore.activeAgentId, `[Terminal Output from ${serverInfo}]\n\`\`\`\n${text}\n\`\`\`\nPlease analyze this terminal output.`)
+      ElMessage.success('Sent to AI for analysis')
+      break
+    }
+    case 'executeAsCommand': {
+      // 将选中文字作为命令执行
+      const text = selectedText.value.trim()
+      if (!text) { ElMessage.info('No text selected'); break }
+      // 取第一行作为命令（多行选中时只执行首行）
+      const firstLine = text.split('\n')[0].trim()
+      if (!firstLine) { ElMessage.info('Empty command'); break }
+      inputText.value = firstLine
+      focusInput()
+      ElMessage.info(`Ready to execute: ${firstLine}`)
+      break
+    }
+    case 'searchWeb': {
+      // 用浏览器搜索选中文字
+      const text = selectedText.value.trim()
+      if (!text) { ElMessage.info('No text selected'); break }
+      const query = encodeURIComponent(text.slice(0, 200))
+      window.open(`https://www.google.com/search?q=${query}`, '_blank')
+      ElMessage.info('Searching web...')
+      break
+    }
+    case 'saveAsQuickCommand': {
+      // 将选中文字保存为快捷命令
+      const text = selectedText.value.trim()
+      if (!text) { ElMessage.info('No text selected'); break }
+      const firstLine = text.split('\n')[0].trim()
+      if (!firstLine) { ElMessage.info('Empty command'); break }
+      sshStore.addQuickCommand({
+        name: firstLine.split(' ')[0],
+        command: firstLine,
+        description: `Saved from terminal: ${firstLine.slice(0, 50)}`,
+        category: 'Custom',
+      })
+      ElMessage.success(`Saved as quick command: ${firstLine.split(' ')[0]}`)
+      break
+    }
+    case 'copy': {
+      const selection = window.getSelection()
+      const selected = selection?.toString().trim()
+      if (selected && selected.length > 0) {
+        await navigator.clipboard.writeText(selected)
+        selection?.removeAllRanges()
+        ElMessage.success('Copied selection')
+      } else {
+        const text = outputLines.value.map(l => l.text).join('\n')
+        await navigator.clipboard.writeText(text)
+        ElMessage.success('Copied all output')
+      }
+      break
+    }
+    case 'paste': {
+      try {
+        const text = await navigator.clipboard.readText()
+        inputText.value += text
+        focusInput()
+      } catch {
+        // Fallback: use execCommand for older browsers
+        try {
+          const textarea = document.createElement('textarea')
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+          document.body.appendChild(textarea)
+          textarea.focus()
+          document.execCommand('paste')
+          const pasted = textarea.value
+          document.body.removeChild(textarea)
+          if (pasted) {
+            inputText.value += pasted
+            focusInput()
+          }
+        } catch {
+          ElMessage.warning('Paste not available. Try Ctrl+Shift+V')
+        }
+      }
+      break
+    }
+    case 'selectAll':
+      // Select all output text
+      if (outputRef.value) {
+        const range = document.createRange()
+        range.selectNodeContents(outputRef.value)
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+        ElMessage.success('All output selected')
+      }
+      break
+    case 'clear':
+      handleClear()
+      break
+    case 'copyCommand': {
+      const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
+      if (lastCmd) {
+        await navigator.clipboard.writeText(lastCmd.text)
+        ElMessage.success('Last command copied')
+      } else {
+        ElMessage.info('No command to copy')
+      }
+      break
+    }
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.terminal-body { user-select: text; -webkit-user-select: text; }
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.terminal-toolbar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+  padding: 0 $spacing-sm;
+  height: 26px;
+}
+
+.output-line {
+  white-space: pre;
+
+  .prompt { color: $color-success; font-weight: 600; }
+  .cmd { color: $color-text-primary; }
+  .output { color: $color-text-regular; white-space: pre; display: block; }
+  .error { color: $color-danger; }
+  .info { color: $color-primary; }
+}
+
+.input-line {
+  display: flex;
+  align-items: center;
+  line-height: 1.5;
+}
+
+.terminal-input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: $color-text-primary;
+  font-family: $font-family-mono;
+  font-size: $font-size-sm;
+  flex: 1;
+  caret-color: $color-primary;
+  padding: 0;
+  margin: 0;
+}
+// === 终端选中高亮 ===
+.terminal-output,
+.terminal-body {
+  ::selection {
+    background-color: rgba(91, 155, 213, 0.45);
+    color: #ffffff;
+  }
+  ::-moz-selection {
+    background-color: rgba(91, 155, 213, 0.45);
+    color: #ffffff;
+  }
+}
+
+.term-context-menu {
+  position: fixed; z-index: 9999;
+  background-color: $color-bg-toolbar;
+  border: 1px solid $color-border;
+  border-radius: $border-radius-md;
+  padding: $spacing-xs 0;
+  min-width: 200px;
+  box-shadow: $shadow-lg;
+}
+
+.tmenu-header {
+  padding: 4px 14px 6px;
+  font-size: 10px;
+  font-family: $font-family-mono;
+  color: $color-text-placeholder;
+  border-bottom: 1px solid $color-border-light;
+  margin-bottom: $spacing-xs;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.tmenu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; cursor: pointer;
+  color: $color-text-regular; font-size: $font-size-sm;
+  transition: all $transition-fast; user-select: none;
+  &:hover { background-color: $color-bg-hover; color: $color-text-primary; }
+}
+
+.tmenu-shortcut {
+  margin-left: auto;
+  font-size: 10px;
+  color: $color-text-muted;
+  font-family: $font-family-mono;
+  opacity: 0.6;
+}
+
+.tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
+</style>
