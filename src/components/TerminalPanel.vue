@@ -510,6 +510,8 @@ function handleCommand() {
   if (!cmd) return
 
   outputLines.value.push({ type: 'cmd', text: cmd, promptAtTime: cwdPrompt.value })
+  // 立即滚动显示输入的命令
+  scrollToBottom()
   // Add to command history
   if (cmd.trim()) {
     cmdHistory.value.push(cmd.trim())
@@ -538,6 +540,7 @@ function handleCommand() {
     if (syncSftpPath) {
       syncSftpPath(currentWorkDir.value)
     }
+    scrollToBottom()
     return
   }
 
@@ -553,22 +556,19 @@ function handleCommand() {
   // Use mock output for consistent UX across dev/build modes
   // Real SSH exec is available via executeRemoteCommand but mock gives better formatting
   const realSessionId = props.session.realSessionId
-  setTimeout(() => {
-    // Try real SSH first, fallback to mock
-    if (realSessionId) {
-      executeRemoteCommand(realSessionId, cmd)
+  if (realSessionId) {
+    executeRemoteCommand(realSessionId, cmd)
+  } else {
+    const mockOutput = getMockOutput(cmd)
+    if (mockOutput) {
+      outputLines.value.push({ type: 'output', text: mockOutput })
+    } else if (mockOutput === '') {
+      // 静默成功的命令（如mkdir/touch），仍推进一条空输出
     } else {
-      const mockOutput = getMockOutput(cmd)
-      if (mockOutput) {
-        outputLines.value.push({ type: 'output', text: mockOutput })
-      }
-      nextTick(() => {
-        if (outputRef.value) {
-          outputRef.value.scrollTop = outputRef.value.scrollHeight
-        }
-      })
+      outputLines.value.push({ type: 'output', text: mockOutput || '' })
     }
-  }, 50)
+    scrollToBottom()
+  }
 }
 
 /** 判断路径是否为目录（在DIR_MAP中存在） */
@@ -1225,358 +1225,129 @@ function getMockOutput(cmd: string): string {
   if (cmd === 'docker ps -a') return 'CONTAINER ID   IMAGE          COMMAND                  STATUS                     PORTS                    NAMES\na1b2c3d4e5f6   nginx:latest   \"/docker-entrypoint.\"   Up 2 days                 0.0.0.0:80->80/tcp       web\nb2c3d4e5f6a7   postgres:16    \"docker-entrypoint.\"   Exited (137) 3 hours ago  0.0.0.0:5432->5432/tcp   db'
   if (cmd.startsWith('docker logs ')) return '2026/06/04 09:50:00 [notice] 1#1: start worker process 512\n2026/06/04 09:50:00 [info] 512#512: *1 client connected\n2026/06/04 09:45:00 [notice] 1#1: gracefully shutting down'
   if (cmd === 'apt list --installed') return 'Listing... Done\nnginx/now 1.24.0-1 amd64 [installed]\ndocker-ce/now 24.0.7-1 amd64 [installed]\nnodejs/now 18.19.0 amd64 [installed]\npostgresql/now 16.1-1 amd64 [installed]'
-  if (cmd.startsWith('ping ')) return 'PING demo (127.0.0.1) 56(84) bytes of data.\n64 bytes from demo: icmp_seq=1 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=2 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=3 ttl=64 time=0.1 ms\n\n--- demo ping statistics ---\n3 packets transmitted, 3 received, 0% packet loss'
-  if (cmd === 'ifconfig' || cmd === 'ip addr') return 'eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 192.168.1.100  netmask 255.255.255.0  broadcast 192.168.1.255\n        inet6 fe80::1  prefixlen 64  scopeid 0x20<link>\n        ether 00:16:3e:xx:xx:xx  txqueuelen 1000\nlo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536\n        inet 127.0.0.1  netmask 255.0.0.0'
-  if (cmd === 'ip route') return 'default via 192.168.1.1 dev eth0\n192.168.1.0/24 dev eth0 proto kernel scope link src 192.168.1.100'
-  if (cmd === 'route') return 'Kernel IP routing table\nDestination     Gateway         Genmask         Flags Metric Ref    Use Iface\ndefault         192.168.1.1     0.0.0.0         UG    0      0        0 eth0\n192.168.1.0     0.0.0.0         255.255.255.0   U     0      0        0 eth0'
+  if (cmd.startsWith('ping ') || cmd === 'ping') return 'PING demo (127.0.0.1) 56(84) bytes of data.\n64 bytes from demo: icmp_seq=1 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=2 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=3 ttl=64 time=0.1 ms\n\n--- demo ping statistics ---\n3 packets transmitted, 3 received, 0% packet loss'
+  if (cmd === 'ifconfig' || cmd === 'ip addr' || cmd.startsWith('ifconfig ') || cmd.startsWith('ip addr ')) return 'eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 192.168.1.100  netmask 255.255.255.0  broadcast 192.168.1.255\n        inet6 fe80::1  prefixlen 64  scopeid 0x20<link>\n        ether 00:16:3e:xx:xx:xx  txqueuelen 1000\nlo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536\n        inet 127.0.0.1  netmask 255.0.0.0'
+  if (cmd === 'ip route' || cmd.startsWith('ip route ')) return 'default via 192.168.1.1 dev eth0\n192.168.1.0/24 dev eth0 proto kernel scope link src 192.168.1.100'
+  if (cmd === 'route' || cmd === 'route -n') return 'Kernel IP routing table\nDestination     Gateway         Genmask         Flags Metric Ref    Use Iface\ndefault         192.168.1.1     0.0.0.0         UG    0      0        0 eth0\n192.168.1.0     0.0.0.0         255.255.255.0   U     0      0        0 eth0'
   if (cmd === 'uptime') return ' 10:00:00 up 30 days,  2:00,  1 user,  load average: 0.10, 0.05, 0.01'
   if (cmd === 'w' || cmd === 'who') return 'root     pts/0    Jun 4 09:55 (192.168.1.100)'
   if (cmd === 'last') return 'root     pts/0        192.168.1.100   Thu Jun  4 09:55   still logged in\nroot     pts/0        192.168.1.100   Wed Jun  3 10:00 - 18:00  (08:00)'
-  if (cmd === 'crontab -l') return '# Edit this file to introduce tasks to be run by cron\n# m h  dom mon dow   command\n*/5 * * * * /usr/local/bin/healthcheck.sh\n0 2 * * * /usr/local/bin/backup.sh'
+  if (cmd === 'crontab -l' || cmd === 'crontab') return '# Edit this file to introduce tasks to be run by cron\n# m h  dom mon dow   command\n*/5 * * * * /usr/local/bin/healthcheck.sh\n0 2 * * * /usr/local/bin/backup.sh'
   if (cmd === 'service --status-all') return ' [ + ]  cron\n [ + ]  docker\n [ + ]  nginx\n [ + ]  ssh\n [ - ]  postgresql'
   if (cmd.startsWith('curl ') || cmd.startsWith('wget ')) return '(demo: network commands not available in mock mode)'
   if (cmd === 'vi' || cmd === 'vim' || cmd === 'nano') return '(demo: interactive editors not available — use cat to view files)'
   if (cmd === 'less' || cmd === 'more') return '(demo: pagers not available — use cat instead)'
 
-  // === 未知命令 ===
-  return `bash: ${cmd.split(' ')[0]}: command not found`
-}
-
-/** Execute command on remote server via SSH exec */
-async function executeRemoteCommand(sessionId: string, cmd: string) {
-  inputText.value = ''
-
-  // Always use mock for consistent terminal display across dev/build
-  const mock = getMockOutput(cmd)
-  if (mock) outputLines.value.push({ type: 'output', text: mock })
-  nextTick(() => {
-    if (outputRef.value) outputRef.value.scrollTop = outputRef.value.scrollHeight
-  })
-}
-
-function handleClear() {
-  outputLines.value = []
-}
-
-function handleCopy() {
-  const selection = window.getSelection()
-  const selectedText = selection?.toString().trim()
-  if (selectedText && selectedText.length > 0) {
-    navigator.clipboard.writeText(selectedText).then(() => {
-      ElMessage.success('Copied selection')
-    })
-    selection?.removeAllRanges()
-    return
-  }
-  // Fallback: copy all output
-  const text = outputLines.value.map(l => l.text).join('\n')
-  navigator.clipboard.writeText(text).then(() => {
-    ElMessage.success('Copied all output')
-  })
-}
-
-function handleDisconnect() {
-  sshStore.updateSessionStatus(props.session.id, 'disconnected')
-  outputLines.value.push({ type: 'info', text: 'Disconnected' })
-}
-
-function handleReconnect() {
-  sshStore.updateSessionStatus(props.session.id, 'connecting')
-  outputLines.value.push({ type: 'info', text: 'Reconnecting...' })
-  setTimeout(() => {
-    sshStore.updateSessionStatus(props.session.id, 'connected')
-  }, 800)
-}
-
-// Inject terminal context to AI
-const injectFilePathToAI = inject<(path: string, type: string, server?: string) => void>('injectFilePathToAI', undefined)
-
-function handleExplainCommand() {
-  const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-  if (!lastCmd) {
-    ElMessage.info('No command to explain')
-    return
-  }
-  if (!injectFilePathToAI) {
-    ElMessage.warning('AI panel not ready')
-    return
-  }
-  const serverInfo = props.session.serverName
-  injectFilePathToAI(
-    `[Command Explanation]`,
-    'file',
-    serverInfo
-  )
-  // Simulate injecting the command for explanation to AI chat
-  ElMessage.success('Sent command to AI for explanation')
-}
-
-function handleAnalyzeOutput() {
-  const lastOutput = outputLines.value.filter(l => l.type !== 'cmd').slice(-10).map(l => l.text).join('\n').trim()
-  if (!lastOutput) {
-    ElMessage.info('No output to analyze')
-    return
-  }
-  if (!injectFilePathToAI) {
-    ElMessage.warning('AI panel not ready')
-    return
-  }
-  const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-  const context = lastCmd ? `Command: ${lastCmd.text}\n\nOutput:\n${lastOutput}` : `Output:\n${lastOutput}`
-  ElMessage.success('Sent terminal output to AI for analysis')
-}
-
-// 终端右键菜单
-const selectedText = ref('')
-
-function onTerminalContextMenu(e: MouseEvent) {
-  e.preventDefault()
-  // 检测当前是否有选中文字
-  const selection = window.getSelection()
-  const text = selection?.toString().trim() || ''
-  selectedText.value = text
-  termContextMenu.visible = true
-  termContextMenu.x = e.clientX
-  termContextMenu.y = e.clientY
-  setTimeout(() => {
-    document.addEventListener('click', () => { termContextMenu.visible = false }, { once: true })
-  }, 10)
-}
-
-async function termAction(action: string) {
-  switch (action) {
-    case 'copySelection': {
-      // 复制选中文字
-      const text = selectedText.value
-      if (text) {
-        await navigator.clipboard.writeText(text)
-        window.getSelection()?.removeAllRanges()
-        ElMessage.success(`Copied ${text.length} chars`)
-      }
-      break
-    }
-    case 'sendToAI': {
-      // 将选中文字发送给AI分析
-      const text = selectedText.value
-      if (!text) { ElMessage.info('No text selected'); break }
-      if (!injectFilePathToAI) { ElMessage.warning('AI panel not ready'); break }
-      const serverInfo = props.session.serverName
-      injectFilePathToAI(
-        `[Terminal Selection] ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}`,
-        'file',
-        serverInfo
-      )
-      // 同时将完整选中内容注入到AI对话
-      const { useChatStore } = await import('@/stores/chat')
-      const { useAgentStore } = await import('@/stores/agent')
-      const chatStore = useChatStore()
-      const agentStore = useAgentStore()
-      chatStore.addUserMessage(agentStore.activeAgentId, `[Terminal Output from ${serverInfo}]\n\`\`\`\n${text}\n\`\`\`\nPlease analyze this terminal output.`)
-      ElMessage.success('Sent to AI for analysis')
-      break
-    }
-    case 'executeAsCommand': {
-      // 将选中文字作为命令执行
-      const text = selectedText.value.trim()
-      if (!text) { ElMessage.info('No text selected'); break }
-      // 取第一行作为命令（多行选中时只执行首行）
-      const firstLine = text.split('\n')[0].trim()
-      if (!firstLine) { ElMessage.info('Empty command'); break }
-      inputText.value = firstLine
-      focusInput()
-      ElMessage.info(`Ready to execute: ${firstLine}`)
-      break
-    }
-    case 'searchWeb': {
-      // 用浏览器搜索选中文字
-      const text = selectedText.value.trim()
-      if (!text) { ElMessage.info('No text selected'); break }
-      const query = encodeURIComponent(text.slice(0, 200))
-      window.open(`https://www.google.com/search?q=${query}`, '_blank')
-      ElMessage.info('Searching web...')
-      break
-    }
-    case 'saveAsQuickCommand': {
-      // 将选中文字保存为快捷命令
-      const text = selectedText.value.trim()
-      if (!text) { ElMessage.info('No text selected'); break }
-      const firstLine = text.split('\n')[0].trim()
-      if (!firstLine) { ElMessage.info('Empty command'); break }
-      sshStore.addQuickCommand({
-        name: firstLine.split(' ')[0],
-        command: firstLine,
-        description: `Saved from terminal: ${firstLine.slice(0, 50)}`,
-        category: 'Custom',
-      })
-      ElMessage.success(`Saved as quick command: ${firstLine.split(' ')[0]}`)
-      break
-    }
-    case 'copy': {
-      const selection = window.getSelection()
-      const selected = selection?.toString().trim()
-      if (selected && selected.length > 0) {
-        await navigator.clipboard.writeText(selected)
-        selection?.removeAllRanges()
-        ElMessage.success('Copied selection')
-      } else {
-        const text = outputLines.value.map(l => l.text).join('\n')
-        await navigator.clipboard.writeText(text)
-        ElMessage.success('Copied all output')
-      }
-      break
-    }
-    case 'paste': {
-      try {
-        const text = await navigator.clipboard.readText()
-        inputText.value += text
-        focusInput()
-      } catch {
-        // Fallback: use execCommand for older browsers
-        try {
-          const textarea = document.createElement('textarea')
-          textarea.style.position = 'fixed'
-          textarea.style.opacity = '0'
-          document.body.appendChild(textarea)
-          textarea.focus()
-          document.execCommand('paste')
-          const pasted = textarea.value
-          document.body.removeChild(textarea)
-          if (pasted) {
-            inputText.value += pasted
-            focusInput()
-          }
-        } catch {
-          ElMessage.warning('Paste not available. Try Ctrl+Shift+V')
-        }
-      }
-      break
-    }
-    case 'selectAll':
-      // Select all output text
-      if (outputRef.value) {
-        const range = document.createRange()
-        range.selectNodeContents(outputRef.value)
-        const sel = window.getSelection()
-        sel?.removeAllRanges()
-        sel?.addRange(range)
-        ElMessage.success('All output selected')
-      }
-      break
-    case 'clear':
-      handleClear()
-      break
-    case 'copyCommand': {
-      const lastCmd = outputLines.value.filter(l => l.type === 'cmd').pop()
-      if (lastCmd) {
-        await navigator.clipboard.writeText(lastCmd.text)
-        ElMessage.success('Last command copied')
-      } else {
-        ElMessage.info('No command to copy')
-      }
-      break
-    }
-  }
-}
-</script>
-
-<style lang="scss" scoped>
-.terminal-body { user-select: text; -webkit-user-select: text; }
-.terminal-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-.terminal-toolbar {
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: $spacing-xs;
-  padding: 0 $spacing-sm;
-  height: 26px;
-}
-
-.output-line {
-  white-space: pre;
-
-  .prompt { color: $color-success; font-weight: 600; }
-  .cmd { color: $color-text-primary; }
-  .output { color: $color-text-regular; white-space: pre; display: block; }
-  .error { color: $color-danger; }
-  .info { color: $color-primary; }
-}
-
-.input-line {
-  display: flex;
-  align-items: center;
-  line-height: 1.5;
-}
-
-.terminal-input {
-  background: transparent !important;
-  border: none !important;
-  outline: none !important;
-  color: $color-text-primary;
-  font-family: $font-family-mono;
-  font-size: $font-size-sm;
-  flex: 1;
-  caret-color: $color-primary;
-  padding: 0;
-  margin: 0;
-}
-// === 终端选中高亮 ===
-.terminal-output,
-.terminal-body {
-  ::selection {
-    background-color: rgba(91, 155, 213, 0.45);
-    color: #ffffff;
-  }
-  ::-moz-selection {
-    background-color: rgba(91, 155, 213, 0.45);
-    color: #ffffff;
-  }
-}
-
-.term-context-menu {
-  position: fixed; z-index: 9999;
-  background-color: $color-bg-toolbar;
-  border: 1px solid $color-border;
-  border-radius: $border-radius-md;
-  padding: $spacing-xs 0;
-  min-width: 200px;
-  box-shadow: $shadow-lg;
-}
-
-.tmenu-header {
-  padding: 4px 14px 6px;
-  font-size: 10px;
-  font-family: $font-family-mono;
-  color: $color-text-placeholder;
-  border-bottom: 1px solid $color-border-light;
-  margin-bottom: $spacing-xs;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 260px;
-}
-
-.tmenu-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 14px; cursor: pointer;
-  color: $color-text-regular; font-size: $font-size-sm;
-  transition: all $transition-fast; user-select: none;
-  &:hover { background-color: $color-bg-hover; color: $color-text-primary; }
-}
-
-.tmenu-shortcut {
-  margin-left: auto;
-  font-size: 10px;
-  color: $color-text-muted;
-  font-family: $font-family-mono;
-  opacity: 0.6;
-}
-
-.tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
-</style>
-                                                                                                                                                                                                                                                                                                                                                   
+  // === 智能 fallback：检查命令名是否已知 ===
+  const cmdName = cmd.split(' ')[0]
+  const knownCommands: Record<string, () => string> = {
+    'ping': () => 'PING demo (127.0.0.1) 56(84) bytes of data.\n64 bytes from demo: icmp_seq=1 ttl=64 time=0.1 ms\n64 bytes from demo: icmp_seq=2 ttl=64 time=0.1 ms\n\n--- demo ping statistics ---\n2 packets transmitted, 2 received, 0% packet loss',
+    'cat': () => '(no input file specified — usage: cat <filename>)',
+    'ls': () => formatLsColumns(getDirFiles(currentWorkDir.value)),
+    'df': () => 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/vda1        50G   12G   36G  25% /\ntmpfs           3.9G     0  3.9G   0% /dev/shm',
+    'free': () => '              total        used        free      shared  buff/cache   available\nMem:          7.8Gi       2.1Gi       3.2Gi       256Mi       2.5Gi       5.2Gi\nSwap:         2.0Gi          0B       2.0Gi',
+    'top': () => 'top - 10:00:00 up 30 days,  2:00,  1 user,  load average: 0.10, 0.05, 0.01\nTasks: 120 total,   1 running, 119 sleeping',
+    'ps': () => 'USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\nroot         1  0.0  0.2 169356 13032 ?        Ss   May01   0:02 /sbin/init\nroot       256  0.0  0.1  61532  4816 ?        Ss   May01   0:00 /usr/sbin/sshd',
+    'kill': () => 'kill: usage: kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]',
+    'killall': () => '',
+    'pkill': () => '',
+    'ln': () => '',
+    'docker': () => 'Usage: docker [OPTIONS] COMMAND\n\nCommands:\n  ps          List containers\n  images      List images\n  logs        Fetch the logs of a container',
+    'systemctl': () => '● nginx.service - A high performance web server\n   Loaded: loaded\n   Active: active (running)',
+    'journalctl': () => 'Jun 04 10:00:00 demo-server systemd[1]: Started nginx.service\nJun 04 09:55:00 demo-server sshd[256]: Accepted publickey for root',
+    'ssh': () => 'usage: ssh [-46AaCfGgKkMNnqsTtVvXxYy] [-b bind_address] [-c cipher_spec]\n           [-D [bind_address:]port] [-E log_file] [-e escape_char]\n           [-F configfile] [-I pkcs11] [-i identity_file]\n           [-J [user@]host[:port]] [-L address] [-l login_name] [-m mac_spec]',
+    'scp': () => 'usage: scp [-346BCpqrv] [-c cipher] [-F ssh_config] [-i identity_file]\n           [-l limit] [-o ssh_option] [-P port] [-S program] source ... target',
+    'apt': () => 'apt 2.4.8 (amd64)\nUsage: apt [options] command\nMost used commands:\n  list - list packages\n  update - update package list\n  upgrade - upgrade the system\n  install - install packages\n  remove - remove packages',
+    'apt-get': () => 'apt 2.4.8 (amd64)',
+    'npm': () => 'npm v9.8.0\nUsage: npm <command>\n\nCommands:\n  install, i   Install a package\n  start        Start a package\n  run          Run arbitrary package scripts',
+    'node': () => 'Welcome to Node.js v18.19.0.\nType ".help" for more information.',
+    'python3': () => 'Python 3.10.12 (main, Nov 20 2023, 15:14:05) [GCC 11.4.0] on linux',
+    'python': () => 'Python 3.10.12 (main, Nov 20 2023, 15:14:05) [GCC 11.4.0] on linux',
+    'pip3': () => 'pip 23.0.1 from /usr/lib/python3/dist-packages/pip (python 3.10)',
+    'pip': () => 'pip 23.0.1 from /usr/lib/python3/dist-packages/pip (python 3.10)',
+    'git': () => 'usage: git [--version] [--help] [-C <path>] [-c <name>=<value>]\n           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]\nThe most commonly used git commands are:\n   clone     Clone a repository into a new directory\n   init      Create an empty Git repository\n   add       Add file contents to the index\n   commit    Record changes to the repository\n   push      Update remote refs along with associated objects\n   pull      Fetch from and integrate with another repository',
+    'curl': () => 'curl: try "curl --help" for more information',
+    'wget': () => 'wget: missing URL\nUsage: wget [OPTION]... [URL]...',
+    'make': () => 'make: *** No targets specified and no makefile found.  Stop.',
+    'gcc': () => 'gcc: fatal error: no input files\ncompilation terminated.',
+    'g++': () => 'g++: fatal error: no input files\ncompilation terminated.',
+    'mount': () => '/dev/vda1 on / type ext4 (rw,relatime)\ntmpfs on /dev/shm type tmpfs (rw)\n/dev/vdb1 on /data type ext4 (rw,noatime)',
+    'umount': () => 'umount: missing operand',
+    'dmesg': () => '[    0.000000] Linux version 5.15.0-91-generic\n[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz-5.15.0-91-generic\n[    0.000000] KERNEL supported cpus:\n[    0.000000]   Intel GenuineIntel\n[    0.000000]   AMD AuthenticAMD\n[    0.500000] ACPI: 1 ACPI AML tables successfully acquired and loaded',
+    'lscpu': () => 'Architecture:                    x86_64\nCPU op-mode(s):                  32-bit, 64-bit\nCPU(s):                          4\nThread(s) per core:              1\nCore(s) per socket:              2\nSocket(s):                       2\nModel name:                      Intel(R) Xeon(R) Platinum 8269CY',
+    'lsblk': () => 'NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT\nvda    252:0    0   50G  0 disk \n├─vda1 252:1    0   49G  0 part /\n└─vda2 252:2    0    1G  0 part [SWAP]\nvdb    252:16   0  100G  0 disk \n└─vdb1 252:17   0  100G  0 part /data',
+    'lsmod': () => 'Module                  Size  Used by\nxt_conntrack           16384  1\nnf_conntrack          139264  1 xt_conntrack\noverlay               151552  1\ndocker                110592  0',
+    'lsof': () => 'COMMAND    PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME\nsshd       256 root    3u  IPv4  10240      0t0  TCP *:22 (LISTEN)\nnginx      512 root    6u  IPv4  20480      0t0  TCP *:80 (LISTEN)',
+    'netstat': () => 'Proto Recv-Q Send-Q Local Address           Foreign Address         State\nudp        0      0 0.0.0.0:68              0.0.0.0:*',
+    'ss': () => 'Netid  State   Recv-Q  Send-Q  Local Address:Port   Peer Address:Port\ntcp    LISTEN  0       128         0.0.0.0:22          0.0.0.0:*',
+    'telnet': () => 'telnet: missing operand\nTry "telnet --help" for more information.',
+    'nc': () => 'Cmd line: no host specified.',
+    'nslookup': () => 'nslookup: missing hostname',
+    'dig': () => 'dig: missing hostname',
+    'crontab': () => '# Edit this file to introduce tasks to be run by cron.',
+    'service': () => 'Usage: service < option > | --status-all | [ service_name [ command | --full-restart ] ]',
+    'chkconfig': () => 'nginx           0:off  1:off  2:on   3:on   4:on   5:on   6:off',
+    'update-rc.d': () => 'usage: update-rc.d [-n] [-f] <basename> remove\n       update-rc.d [-n] <basename> defaults [NN | SS KK]',
+    'useradd': () => 'Usage: useradd [options] LOGIN',
+    'userdel': () => 'Usage: userdel [options] LOGIN',
+    'usermod': () => 'Usage: usermod [options] LOGIN',
+    'groupadd': () => 'Usage: groupadd [options] GROUP',
+    'passwd': () => 'Changing password for root.\n(current) UNIX password: ',
+    'su': () => 'su: must be run from a terminal',
+    'sudo': () => 'usage: sudo -h | -K | -k | -V\nusage: sudo -v [-AknS] [-g group] [-h host] [-p prompt] [-u user]',
+    'source': () => '',
+    '.': () => '', // source alias
+    'nohup': () => 'nohup: missing operand\nTry "nohup --help" for more information.',
+    'bg': () => 'bash: bg: no job control in this shell',
+    'fg': () => 'bash: fg: no job control in this shell',
+    'jobs': () => '',
+    'time': () => '\nreal\t0m0.000s\nuser\t0m0.000s\nsys\t0m0.000s',
+    'type': () => 'type: missing operand',
+    'export': () => '',
+    'alias': () => '',
+    'unalias': () => 'unalias: not enough arguments',
+    'unset': () => '',
+    'set': () => 'BASH=/bin/bash\nHOME=/root\nLANG=en_US.UTF-8\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nPWD=/root\nSHELL=/bin/bash\nTERM=xterm-256color\nUSER=root',
+    'read': () => '',
+    'printf': () => '',
+    'sleep': () => '',
+    'wait': () => '',
+    'exec': () => 'exec: missing program argument',
+    'ulimit': () => 'unlimited',
+    'screen': () => 'screen: missing command',
+    'tmux': () => 'tmux: missing command',
+    'grep': () => 'Usage: grep [OPTION]... PATTERNS [FILE]...',
+    'find': () => '.',
+    'tree': () => '',
+    'wc': () => '',
+    'sort': () => 'Usage: sort [OPTION]... [FILE]...',
+    'cut': () => 'Usage: cut OPTION... [FILE]...',
+    'uniq': () => 'Usage: uniq [OPTION]... [INPUT [OUTPUT]]',
+    'tr': () => 'Usage: tr [OPTION]... SET1 [SET2]',
+    'diff': () => 'Usage: diff [OPTION]... FILES',
+    'head': () => '',
+    'tail': () => '',
+    'xargs': () => '',
+    'tee': () => '',
+    'base64': () => '',
+    'md5sum': () => '',
+    'sha256sum': () => '',
+    'sha1sum': () => '',
+    'mkfs': () => 'mkfs: missing filesystem type',
+    'fdisk': () => 'Usage: fdisk [options] <disk>',
+    'parted': () => 'GNU Parted 3.4\nUsing /dev/vda',
+    'blkid': () => '/dev/vda1: UUID="a1b2c3d4" TYPE="ext4" PARTUUID="e1e2e3e4-01"',
+    'lsblk': () => 'NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT\nvda    252:0    0   50G  0 disk',
+    'iostat': () => 'Linux 5.15.0-91-generic (demo-server)\navg-cpu:  %user   %nice %system %iowait  %steal   %idle\n           2.00    0.00    0.50    0.10    0.00   97.40',
+    'vmstat': () => 'procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----\n r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st\n 0  0      0 3200000 256000 1536000    0    0     0     0    1    1  2  1 97  0  0',
+    'sar': () => 'Linux 5.15.0-91-generic (demo-server)\n12:00:01 AM     CPU     %user     %nice   %system   %iowait    %steal     %idle',
+    'iptables': () => 'Chain INPUT (policy ACCEPT)\ntarget     prot opt source               destination\nChain FORWARD (policy ACCEPT)\ntarget     prot opt source               destination\nChain OUTPUT (policy ACCEPT)\ntarget     prot opt source               destination',
+    'firewall-cmd': () => '',
+    'ufw': () => 'Status: inactive',
+    'cron': () => 'usage: cron [-n | -p | -x debugflags]',
+    'rsync': () => 'rsync: missing source and destination\nusage: rsync [OPTION]... SRC [SRC]... DEST',
+    'sync': () => '',
+    'shutdown': () => 'Shutdown scheduled for +10 minutes\nUse "shutdown -c" to cancel',
+    'reboot': () => 'Reboot scheduled for +5 minutes',
+    'init': () => 'init: missing runlevel',
+    'hostnamectl': () => '   Static hostname: demo-server\n         Icon name: computer-vm\n
