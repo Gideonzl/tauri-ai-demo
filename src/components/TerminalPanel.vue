@@ -606,72 +606,359 @@ function getMockFileContent(filePath: string): string | null {
 
   // 特定文件优先
   if (filePath === '/etc/hostname') return 'demo-server'
-  if (filePath === '/etc/passwd') return 'root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nadmin:x:1000:1000:,,,:/home/admin:/bin/bash'
+  if (filePath === '/etc/passwd') return `root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+admin:x:1000:1000:,,,:/home/admin:/bin/bash`
   if (filePath === '/etc/shadow') return 'root:$6$rounds=4096$xxx:19000:0:99999:7:::'
-  if (filePath === '/etc/group') return 'root:x:0:\ndaemon:x:1:\nadmin:x:1000:'
-  if (filePath === '/etc/fstab') return '# /etc/fstab: static file system information.\nUUID=a1b2c3d4  /  ext4  defaults  0  1\ntmpfs  /dev/shm  tmpfs  defaults  0  0'
-  if (filePath === '/etc/resolv.conf') return 'nameserver 8.8.8.8\nnameserver 8.8.4.4'
-  if (filePath === '/etc/hosts') return '127.0.0.1\tlocalhost\n127.0.1.1\tdemo-server\n192.168.1.100\tweb\n192.168.1.101\tdb'
-  if (filePath === '/etc/os-release') return 'PRETTY_NAME="Ubuntu 22.04.3 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian'
-  if (filePath === '/etc/crontab') return '# /etc/crontab: system-wide crontab\nSHELL=/bin/sh\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\n# m h dom mon dow user command\n17 * * * * root  cd / && run-parts --report /etc/cron.hourly\n25 6 * * * root  test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )'
-  if (filePath === '/etc/profile') return '# /etc/profile: system-wide .profile file\nif [ "$(id -u)" -eq 0 ]; then\n  PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"\nelse\n  PATH="/usr/local/bin:/usr/bin:/usr/games"\nfi\nexport PATH\numask 022'
+  if (filePath === '/etc/group') return `root:x:0:
+daemon:x:1:
+admin:x:1000:`
+  if (filePath === '/etc/fstab') return `# /etc/fstab: static file system information.
+UUID=a1b2c3d4  /  ext4  defaults  0  1
+tmpfs  /dev/shm  tmpfs  defaults  0  0`
+  if (filePath === '/etc/resolv.conf') return `nameserver 8.8.8.8
+nameserver 8.8.4.4`
+  if (filePath === '/etc/hosts') return `127.0.0.1	localhost
+127.0.1.1	demo-server
+192.168.1.100	web
+192.168.1.101	db`
+  if (filePath === '/etc/os-release') return `PRETTY_NAME="Ubuntu 22.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="22.04"
+VERSION_CODENAME=jammy
+ID=ubuntu
+ID_LIKE=debian`
+  if (filePath === '/etc/crontab') return `# /etc/crontab: system-wide crontab
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+# m h dom mon dow user command
+17 * * * * root  cd / && run-parts --report /etc/cron.hourly
+25 6 * * * root  test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )`
+  if (filePath === '/etc/profile') return `# /etc/profile: system-wide .profile file
+if [ "$(id -u)" -eq 0 ]; then
+  PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+else
+  PATH="/usr/local/bin:/usr/bin:/usr/games"
+fi
+export PATH
+umask 022`
   if (filePath === '/etc/environment') return 'PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
-  if (filePath === '/etc/sudoers') return 'Defaults\tenv_reset\nDefaults\tsecure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"\nroot\tALL=(ALL:ALL) ALL\n%admin\tALL=(ALL) ALL'
-  if (filePath === '/etc/shells') return '/bin/sh\n/bin/bash\n/usr/bin/bash\n/bin/dash\n/usr/bin/dash'
+  if (filePath === '/etc/sudoers') return `Defaults	env_reset
+Defaults	secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+root	ALL=(ALL:ALL) ALL
+%admin	ALL=(ALL) ALL`
+  if (filePath === '/etc/shells') return `/bin/sh
+/bin/bash
+/usr/bin/bash
+/bin/dash
+/usr/bin/dash`
   if (filePath === '/etc/issue') return 'Ubuntu 22.04.3 LTS \\n \\l'
-  if (filePath === '/etc/nginx/nginx.conf') return 'user www-data;\nworker_processes auto;\npid /run/nginx.pid;\nevents {\n  worker_connections 768;\n  multi_accept on;\n}\nhttp {\n  sendfile on;\n  tcp_nopush on;\n  types_hash_max_size 2048;\n  include /etc/nginx/mime.types;\n  default_type application/octet-stream;\n  access_log /var/log/nginx/access.log;\n  error_log /var/log/nginx/error.log;\n  gzip on;\n  include /etc/nginx/conf.d/*.conf;\n  include /etc/nginx/sites-enabled/*;\n}'
-  if (filePath === '/etc/ssh/sshd_config') return 'Port 22\nProtocol 2\nHostKey /etc/ssh/ssh_host_rsa_key\nHostKey /etc/ssh/ssh_host_ecdsa_key\nPermitRootLogin yes\nPubkeyAuthentication yes\nPasswordAuthentication yes\nX11Forwarding no\nPrintMotd no\nAcceptEnv LANG LC_*\nSubsystem sftp /usr/lib/openssh/sftp-server'
-  if (filePath === '/etc/ssh/ssh_config') return 'Host *\n  SendEnv LANG LC_*\n  HashKnownHosts yes\n  GSSAPIAuthentication yes'
-  if (filePath === '/etc/docker/daemon.json') return '{\n  "registry-mirrors": ["https://mirror.example.com"],\n  "log-driver": "json-file",\n  "log-opts": {"max-size": "10m", "max-file": "3"},\n  "storage-driver": "overlay2"\n}'
-  if (filePath === '/proc/cpuinfo') return 'processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Xeon(R) Platinum 8269CY\ncpu MHz\t\t: 2500.000\ncache size\t: 36608 KB\nprocessor\t: 1\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Xeon(R) Platinum 8269CY\ncpu MHz\t\t: 2500.000\ncache size\t: 36608 KB'
-  if (filePath === '/proc/meminfo') return 'MemTotal:        8192000 kB\nMemFree:         3200000 kB\nMemAvailable:    5200000 kB\nBuffers:          256000 kB\nCached:          1536000 kB\nSwapTotal:       2048000 kB\nSwapFree:        2048000 kB'
+  if (filePath === '/etc/nginx/nginx.conf') return `user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+events {
+  worker_connections 768;
+  multi_accept on;
+}
+http {
+  sendfile on;
+  tcp_nopush on;
+  types_hash_max_size 2048;
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  access_log /var/log/nginx/access.log;
+  error_log /var/log/nginx/error.log;
+  gzip on;
+  include /etc/nginx/conf.d/*.conf;
+  include /etc/nginx/sites-enabled/*;
+}`
+  if (filePath === '/etc/ssh/sshd_config') return `Port 22
+Protocol 2
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+PermitRootLogin yes
+PubkeyAuthentication yes
+PasswordAuthentication yes
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/openssh/sftp-server`
+  if (filePath === '/etc/ssh/ssh_config') return `Host *
+  SendEnv LANG LC_*
+  HashKnownHosts yes
+  GSSAPIAuthentication yes`
+  if (filePath === '/etc/docker/daemon.json') return `{
+  "registry-mirrors": ["https://mirror.example.com"],
+  "log-driver": "json-file",
+  "log-opts": {"max-size": "10m", "max-file": "3"},
+  "storage-driver": "overlay2"
+}`
+  if (filePath === '/proc/cpuinfo') return `processor	: 0
+vendor_id	: GenuineIntel
+model name	: Intel(R) Xeon(R) Platinum 8269CY
+cpu MHz		: 2500.000
+cache size	: 36608 KB
+processor	: 1
+vendor_id	: GenuineIntel
+model name	: Intel(R) Xeon(R) Platinum 8269CY
+cpu MHz		: 2500.000
+cache size	: 36608 KB`
+  if (filePath === '/proc/meminfo') return `MemTotal:        8192000 kB
+MemFree:         3200000 kB
+MemAvailable:    5200000 kB
+Buffers:          256000 kB
+Cached:          1536000 kB
+SwapTotal:       2048000 kB
+SwapFree:        2048000 kB`
   if (filePath === '/proc/version') return 'Linux version 5.15.0-91-generic (gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1)) #101-Ubuntu SMP x86_64'
   if (filePath === '/proc/uptime') return '2592000.00 5184000.00'
   if (filePath === '/proc/loadavg') return '0.10 0.05 0.01 1/120 256'
-  if (filePath === '/proc/stat') return 'cpu  2255 34 2290 22625563 6290 0 0 0\ncpu0 1132 17 1145 11312781 3145 0 0 0\ncpu1 1123 17 1145 11312782 3145 0 0 0'
-  if (filePath === '/var/log/syslog') return 'Jun  4 10:00:00 demo-server systemd[1]: Started nginx.service\nJun  4 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100\nJun  4 09:50:00 demo-server kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready\nJun  4 09:45:00 demo-server docker[1024]: Container webapp started\nJun  4 09:40:00 demo-server cron[300]: (root) CMD (/usr/local/bin/healthcheck.sh)'
-  if (filePath === '/var/log/auth.log') return 'Jun  4 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100 port 22 ssh2\nJun  4 09:50:00 demo-server sshd[256]: pam_unix(sshd:session): session opened for user root'
-  if (filePath === '/var/log/nginx/access.log') return '192.168.1.1 - - [04/Jun/2026:10:00:00 +0000] "GET / HTTP/1.1" 200 1234 "-" "curl/7.68"\n192.168.1.2 - - [04/Jun/2026:09:59:00 +0000] "POST /api/data HTTP/1.1" 201 256 "-" "Mozilla/5.0"\n192.168.1.3 - - [04/Jun/2026:09:58:00 +0000] "GET /static/app.js HTTP/1.1" 304 0 "-" "Mozilla/5.0"'
-  if (filePath === '/var/log/nginx/error.log') return '2026/06/04 09:45:00 [error] 512#512: *1 connect() failed (111: Connection refused) while connecting to upstream\n2026/06/04 09:40:00 [warn] 512#512: *2 upstream sent too big header'
-  if (filePath === '/var/log/docker/daemon.log') return 'time="2026-06-04T09:50:00Z" level=info msg="Container webapp started"\ntime="2026-06-04T09:45:00Z" level=info msg="Loading containers: start"'
-  if (filePath === '/var/log/mysql/error.log') return '2026-06-04 09:50:00 0 [Note] /usr/sbin/mysqld: ready for connections.\n2026-06-04 09:45:00 0 [Note] InnoDB: Buffer pool(s) load completed at'
+  if (filePath === '/proc/stat') return `cpu  2255 34 2290 22625563 6290 0 0 0
+cpu0 1132 17 1145 11312781 3145 0 0 0
+cpu1 1123 17 1145 11312782 3145 0 0 0`
+  if (filePath === '/var/log/syslog') return `Jun  4 10:00:00 demo-server systemd[1]: Started nginx.service
+Jun  4 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100
+Jun  4 09:50:00 demo-server kernel: IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+Jun  4 09:45:00 demo-server docker[1024]: Container webapp started
+Jun  4 09:40:00 demo-server cron[300]: (root) CMD (/usr/local/bin/healthcheck.sh)`
+  if (filePath === '/var/log/auth.log') return `Jun  4 09:55:00 demo-server sshd[256]: Accepted publickey for root from 192.168.1.100 port 22 ssh2
+Jun  4 09:50:00 demo-server sshd[256]: pam_unix(sshd:session): session opened for user root`
+  if (filePath === '/var/log/nginx/access.log') return `192.168.1.1 - - [04/Jun/2026:10:00:00 +0000] "GET / HTTP/1.1" 200 1234 "-" "curl/7.68"
+192.168.1.2 - - [04/Jun/2026:09:59:00 +0000] "POST /api/data HTTP/1.1" 201 256 "-" "Mozilla/5.0"
+192.168.1.3 - - [04/Jun/2026:09:58:00 +0000] "GET /static/app.js HTTP/1.1" 304 0 "-" "Mozilla/5.0"`
+  if (filePath === '/var/log/nginx/error.log') return `2026/06/04 09:45:00 [error] 512#512: *1 connect() failed (111: Connection refused) while connecting to upstream
+2026/06/04 09:40:00 [warn] 512#512: *2 upstream sent too big header`
+  if (filePath === '/var/log/docker/daemon.log') return `time="2026-06-04T09:50:00Z" level=info msg="Container webapp started"
+time="2026-06-04T09:45:00Z" level=info msg="Loading containers: start"`
+  if (filePath === '/var/log/mysql/error.log') return `2026-06-04 09:50:00 0 [Note] /usr/sbin/mysqld: ready for connections.
+2026-06-04 09:45:00 0 [Note] InnoDB: Buffer pool(s) load completed at`
 
   // 按扩展名生成
-  if (['log', 'out'].includes(ext)) return `[2026-06-04 10:00:00] INFO  Server started successfully on port 8081\n[2026-06-04 09:55:00] INFO  SSH login from 192.168.1.100\n[2026-06-04 09:50:00] WARN  Nginx service reloaded\n[2026-06-04 09:45:00] ERROR Docker container webapp restarted (exit code 137)\n[2026-06-04 09:40:00] INFO  SSL certificate renewed for *.example.com\n[2026-06-04 09:35:00] INFO  Backup completed: 512MB transferred\n[2026-06-04 09:30:00] DEBUG Health check passed: all services OK\n[2026-06-04 09:25:00] INFO  Cron job executed: /usr/local/bin/backup.sh`
-  if (ext === 'json') return '{\n  "name": "' + fileName.replace('.json', '') + '",\n  "version": "1.0.0",\n  "description": "Application configuration",\n  "port": 8081,\n  "debug": false,\n  "database": {\n    "host": "localhost",\n    "port": 3306,\n    "name": "myapp"\n  }\n}'
-  if (ext === 'yaml' || ext === 'yml') return '# ' + fileName + '\nversion: "3.8"\nservices:\n  web:\n    image: nginx:latest\n    ports:\n      - "80:80"\n    volumes:\n      - ./html:/usr/share/nginx/html\n  app:\n    build: .\n    ports:\n      - "8081:8081"\n    environment:\n      - NODE_ENV=production'
-  if (ext === 'toml') return '# ' + fileName + '\n[server]\nhost = "0.0.0.0"\nport = 8081\nworkers = 4\n\n[database]\nurl = "postgres://localhost/myapp"\nmax_connections = 20'
-  if (ext === 'sh' || ext === 'bash') return '#!/bin/bash\n# ' + fileName + '\nset -e\n\necho "Starting ' + fileName.replace('.sh', '') + '..."\n\n# Main logic\nif [ -z "$1" ]; then\n  echo "Usage: $0 <argument>"\n  exit 1\nfi\n\necho "Done."'
-  if (ext === 'py') return '#!/usr/bin/env python3\n"""' + fileName + '"""\n\nimport os\nimport sys\n\ndef main():\n    print("Hello from ' + fileName.replace('.py', '') + '")\n\nif __name__ == "__main__":\n    main()'
-  if (ext === 'js' || ext === 'ts') return '// ' + fileName + '\nconst express = require("express");\nconst app = express();\nconst PORT = process.env.PORT || 8081;\n\napp.get("/", (req, res) => {\n  res.json({ status: "ok" });\n});\n\napp.listen(PORT, () => {\n  console.log(`Server running on port ${PORT}`);\n});'
-  if (ext === 'vue') return '<template>\n  <div class="app">\n    <h1>Hello World</h1>\n  </div>\n</template>\n\n<script setup>\n// ' + fileName + '\n</script>\n\n<style scoped>\n.app { padding: 20px; }\n</style>'
-  if (ext === 'html') return '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>' + fileName.replace('.html', '') + '</title>\n</head>\n<body>\n  <h1>Welcome</h1>\n</body>\n</html>'
-  if (ext === 'css' || ext === 'scss') return '/* ' + fileName + ' */\n:root {\n  --primary: #5b8def;\n  --bg: #1a1a2e;\n  --text: #e8e8f0;\n}\n\nbody {\n  font-family: sans-serif;\n  background: var(--bg);\n  color: var(--text);\n}'
-  if (ext === 'md') return '# ' + fileName.replace('.md', '') + '\n\n## Overview\nThis is a markdown file on the server.\n\n## Usage\n```bash\nnpm install\nnpm start\n```\n\n## Notes\n> File: ' + filePath
-  if (ext === 'conf' || ext === 'cfg' || ext === 'ini') return '# ' + fileName + '\nserver_name = demo-server\nlisten_port = 8081\nworker_processes = 4\nlog_level = info\nmax_connections = 1024'
-  if (ext === 'env') return '# Environment variables\nNODE_ENV=production\nPORT=8081\nDATABASE_URL=postgres://localhost:5432/myapp\nREDIS_URL=redis://localhost:6379'
-  if (ext === 'sql') return '-- ' + fileName + '\nSELECT * FROM users WHERE active = true ORDER BY created_at DESC LIMIT 10;'
-  if (ext === 'csv') return 'id,name,email,role\n1,admin,admin@example.com,admin\n2,user,user@example.com,user\n3,ops,ops@example.com,operator'
-  if (ext === 'txt') return 'This is the content of ' + fileName + '.\nCreated on 2026-06-04.\nPath: ' + filePath + '\n\nNotes:\n- Server: demo-server\n- OS: Ubuntu 22.04 LTS\n- Status: Running'
-  if (ext === 'xml') return '<' + '?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <server>\n    <host>0.0.0.0</host>\n    <port>8081</port>\n  </server>\n</config>'
-  if (ext === 'rs') return '// ' + fileName + '\nfn main() {\n    println!("Hello from Rust!");\n}'
-  if (ext === 'go') return 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello from Go!")\n}'
-  if (ext === 'java') return 'public class ' + fileName.replace('.java', '') + ' {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}'
-  if (ext === 'c' || ext === 'cpp' || ext === 'h') return '// ' + fileName + '\n#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}'
-  if (ext === 'rb') return '# ' + fileName + '\nputs "Hello from Ruby!"'
-  if (ext === 'php') return '<' + '?php\n// ' + fileName + '\necho "Hello from PHP!";\n?' + '>'
-  if (ext === 'dockerfile') return 'FROM node:20-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install --production\nCOPY . .\nEXPOSE 8081\nCMD ["node", "server.js"]'
-  if (ext === 'gitignore') return 'node_modules/\ndist/\n.env\n*.log\n.DS_Store'
-  if (ext === 'pub') return 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... root@demo-server'
-  if (ext === 'service') return '[Unit]\nDescription=' + fileName.replace('.service', '') + '\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/usr/bin/' + fileName.replace('.service', '') + '\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target'
-  if (ext === 'types') return 'text/css text/html application/json application/javascript'
-  if (ext === 'gz' || ext === 'tgz' || ext === 'zip' || ext === 'rar' || ext === '7z' || ext === 'bz2' || ext === 'xz') return `[Binary file: ${fileName}] - cannot display contents`
-  if (ext === 'ico' || ext === 'icns' || ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'gif' || ext === 'svg' || ext === 'bmp' || ext === 'webp') return `[Image file: ${fileName}] - cannot display contents`
-  if (ext === 'ibd' || ext === 'sql.gz') return `[Database file: ${fileName}] - binary data`
-  if (ext === 'cms' || ext === 'crl' || ext === 'sha256') return `[Encrypted/Checksum file: ${fileName}]`
+  if (['log', 'out'].includes(ext)) return `[2026-06-04 10:00:00] INFO  Server started successfully on port 8081
+[2026-06-04 09:55:00] INFO  SSH login from 192.168.1.100
+[2026-06-04 09:50:00] WARN  Nginx service reloaded
+[2026-06-04 09:45:00] ERROR Docker container webapp restarted (exit code 137)
+[2026-06-04 09:40:00] INFO  SSL certificate renewed for *.example.com
+[2026-06-04 09:35:00] INFO  Backup completed: 512MB transferred
+[2026-06-04 09:30:00] DEBUG Health check passed: all services OK
+[2026-06-04 09:25:00] INFO  Cron job executed: /usr/local/bin/backup.sh`
+  if (ext === 'json') return `{
+  "name": "${fileName.replace('.json', '')}",
+  "version": "1.0.0",
+  "description": "Application configuration",
+  "port": 8081,
+  "debug": false,
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "name": "myapp"
+  }
+}`
+  if (ext === 'yaml' || ext === 'yml') return `# ${fileName}
+version: "3.8"
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./html:/usr/share/nginx/html
+  app:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ENV=production`
+  if (ext === 'toml') return `# ${fileName}
+[server]
+host = "0.0.0.0"
+port = 8081
+workers = 4
 
-  // 无扩展名文件 — 可能是配置文件或脚本
-  return `# ${fileName}\n# Path: ${filePath}\n# Last modified: ${dateStr}\n\nThis is the content of ${fileName}.`
+[database]
+url = "postgres://localhost/myapp"
+max_connections = 20`
+  if (ext === 'sh' || ext === 'bash') return `#!/bin/bash
+# ${fileName}
+set -e
+
+echo "Starting ${fileName.replace('.sh', '')}..."
+
+# Main logic
+if [ -z "$1" ]; then
+  echo "Usage: $0 <argument>"
+  exit 1
+fi
+
+echo "Done."`
+  if (ext === 'py') return `#!/usr/bin/env python3
+"""${fileName}"""
+
+import os
+import sys
+
+def main():
+    print("Hello from ${fileName.replace('.py', '')}")
+
+if __name__ == "__main__":
+    main()`
+  if (ext === 'js' || ext === 'ts') return `// ${fileName}
+const express = require("express");
+const app = express();
+const PORT = process.env.PORT || 8081;
+
+app.get("/", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.listen(PORT, () => {
+  console.log('Server running on port ' + PORT);
+});`
+  if (ext === 'vue') return `<template>
+  <div class="app">
+    <h1>Hello World</h1>
+  </div>
+</template>
+
+<script setup>
+// ${fileName}
+</script>
+
+<style scoped>
+.app { padding: 20px; }
+</style>`
+  if (ext === 'html') return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${fileName.replace('.html', '')}</title>
+</head>
+<body>
+  <h1>Welcome</h1>
+</body>
+</html>`
+  if (ext === 'css' || ext === 'scss') return `/* ${fileName} */
+:root {
+  --primary: #5b8def;
+  --bg: #1a1a2e;
+  --text: #e8e8f0;
+}
+
+body {
+  font-family: sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}`
+  if (ext === 'md') return `# ${fileName.replace('.md', '')}
+
+## Overview
+This is a markdown file on the server.
+
+## Usage
+\`\`\`bash
+npm install
+npm start
+\`\`\`
+
+## Notes
+> File: ${filePath}`
+  if (ext === 'conf' || ext === 'cfg' || ext === 'ini') return `# ${fileName}
+server_name = demo-server
+listen_port = 8081
+worker_processes = 4
+log_level = info
+max_connections = 1024`
+  if (ext === 'env') return `# Environment variables
+NODE_ENV=production
+PORT=8081
+DATABASE_URL=postgres://localhost:5432/myapp
+REDIS_URL=redis://localhost:6379`
+  if (ext === 'sql') return `-- ${fileName}
+SELECT * FROM users WHERE active = true ORDER BY created_at DESC LIMIT 10;`
+  if (ext === 'csv') return `id,name,email,role
+1,admin,admin@example.com,admin
+2,user,user@example.com,user
+3,ops,ops@example.com,operator`
+  if (ext === 'txt') return `This is the content of ${fileName}.
+Created on 2026-06-04.
+Path: ${filePath}
+
+Notes:
+- Server: demo-server
+- OS: Ubuntu 22.04 LTS
+- Status: Running`
+  if (ext === 'xml') return `<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <server>
+    <host>0.0.0.0</host>
+    <port>8081</port>
+  </server>
+</config>`
+  if (ext === 'rs') return `// ${fileName}
+fn main() {
+    println!("Hello from Rust!");
+}`
+  if (ext === 'go') return `package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello from Go!")
+}`
+  if (ext === 'java') return `public class ${fileName.replace('.java', '')} {
+    public static void main(String[] args) {
+        System.out.println("Hello from Java!");
+    }
+}`
+  if (ext === 'c' || ext === 'cpp' || ext === 'h') return `// ${fileName}
+#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    return 0;
+}`
+  if (ext === 'rb') return `# ${fileName}
+puts "Hello from Ruby!"`
+  if (ext === 'php') return `<?php
+// ${fileName}
+echo "Hello from PHP!";
+?>`
+  if (ext === 'dockerfile') return `FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY . .
+EXPOSE 8081
+CMD ["node", "server.js"]`
+  if (ext === 'gitignore') return `node_modules/
+dist/
+.env
+*.log
+.DS_Store`
+  if (ext === 'pub') return 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... root@demo-server'
+  if (ext === 'service') return `[Unit]
+Description=${fileName.replace('.service', '')}
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/${fileName.replace('.service', '')}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target`
+  if (ext === 'types') return 'text/css text/html application/json application/javascript'
+  if (['gz', 'tgz', 'zip', 'rar', '7z', 'bz2', 'xz'].includes(ext)) return `[Binary file: ${fileName}] - cannot display contents`
+  if (['ico', 'icns', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'bmp', 'webp'].includes(ext)) return `[Image file: ${fileName}] - cannot display contents`
+  if (['ibd', 'sql.gz'].includes(ext)) return `[Database file: ${fileName}] - binary data`
+  if (['cms', 'crl', 'sha256'].includes(ext)) return `[Encrypted/Checksum file: ${fileName}]`
+
+  // 无扩展名文件
+  return `# ${fileName}
+# Path: ${filePath}
+# Last modified: ${dateStr}
+
+This is the content of ${fileName}.`
 }
 
 function getMockOutput(cmd: string): string {
@@ -1292,3 +1579,4 @@ async function termAction(action: string) {
 
 .tmenu-sep { height: 1px; background-color: $color-border-light; margin: $spacing-xs 0; }
 </style>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
