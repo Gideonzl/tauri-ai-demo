@@ -34,6 +34,9 @@ pub fn run() {
             commands::ssh_connect,
             commands::ssh_disconnect,
             commands::ssh_exec,
+            commands::ssh_open_shell,
+            commands::ssh_write,
+            commands::ssh_resize,
             // SFTP
             commands::sftp_read_dir,
             commands::sftp_mkdir,

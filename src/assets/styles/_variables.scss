@@ -1,42 +1,42 @@
 // ============================================================
-// SCSS 全局变量 — 严格对齐 TERMIUS_UI_SPEC.md 规范
-// Termius 冷灰蓝系，低饱和度，高质感商务桌面端
+// SCSS 全局变量 — Termius 1:1 精确复刻
+// Termius: 深蓝黑底 #16162a, 冷蓝强调 #5b8def, 极简无边框
 // ============================================================
 
-// 品牌色 — 冷蓝 #5b8def
+// 品牌色 — Termius 冷蓝
 $color-primary: #5b8def;
 $color-primary-light: #7ba4f2;
 $color-primary-dark: #4a7de0;
 
-// 低饱和功能色 — 对齐规范
+// 功能色 — 低饱和
 $color-success: #4caf7d;
 $color-warning: #d4a24e;
 $color-danger: #d45454;
 $color-info: #7a8a9e;
 
-// 文字颜色 — 冷灰调三级
+// 文字 — Termius 灰阶
 $color-text-primary: #e8e8f0;
-$color-text-regular: #8888a0;
-$color-text-secondary: #555570;
-$color-text-placeholder: #444460;
-$color-text-muted: #333350;
+$color-text-regular: #c0c0d0;
+$color-text-secondary: #8888a0;
+$color-text-placeholder: #555570;
+$color-text-muted: #444460;
 
-// 背景色 — Termius冷灰蓝系
-$color-bg-app: #1b1b2f;          // 应用最底层（规范主背景）
-$color-bg-primary: #1b1b2f;      // 主背景
-$color-bg-sidebar: #1b1b2f;      // 左侧菜单栏
-$color-bg-surface: #22223a;      // 表面色
-$color-bg-toolbar: #2a2a45;      // 抬起色/工具栏
-$color-bg-panel: #1b1b2f;        // 面板背景
-$color-bg-input: #2a2a45;        // 输入框背景
+// 背景 — Termius 深蓝黑系
+$color-bg-app: #0d0d1a;          // 最底层（终端区）
+$color-bg-primary: #12122a;      // 主背景
+$color-bg-sidebar: #16162a;      // 左侧栏（Termius sidebar底色）
+$color-bg-surface: #16162a;      // 表面
+$color-bg-toolbar: #1e1e32;      // 工具栏/卡片
+$color-bg-panel: #12122a;        // 面板
+$color-bg-input: #1e1e32;        // 输入框
 $color-bg-hover: rgba(91, 141, 239, 0.08);
-$color-bg-active: rgba(91, 141, 239, 0.15);
-$color-bg-message-user: #2a2a4a;
-$color-bg-message-ai: #22223a;
+$color-bg-active: rgba(91, 141, 239, 0.14);
+$color-bg-message-user: #1e1e36;
+$color-bg-message-ai: #16162a;
 
-// 边框
-$color-border: #333355;
-$color-border-light: #2a2a45;
+// 边框 — Termius 极细边框
+$color-border: rgba(255, 255, 255, 0.08);
+$color-border-light: rgba(255, 255, 255, 0.05);
 $color-border-focus: #5b8def;
 
 // 尺寸 — 严格对齐规范

@@ -14,6 +14,7 @@ src-tauri/target/
 .DS_Store
 Thumbs.db
 
-# Env
-.env.local
-.env.*.local
+# Scripts
+push.bat
+push-to-github.bat
+push-to-github.ps1

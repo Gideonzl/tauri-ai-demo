@@ -1,91 +1,112 @@
 /**
  * SSH Tauri指令前端API封装
- * 对接Rust后端 ssh_connect / ssh_disconnect / ssh_write / ssh_resize
- * Demo版：部分指令尚未在Rust端实现，提供降级处理
+ * 对接Rust后端 SSH 模块
+ * 支持: connect → open_shell → write/resize → listen events → disconnect
  */
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
-/** SSH连接参数 */
+// ============================================================
+// Types
+// ============================================================
+
 export interface SshConnectParams {
   host: string
   port: number
   username: string
-  authType: 'password' | 'key'
-  password?: string
-  keyPath?: string
+  auth: SshAuthMethod
+  timeout_ms: number
+  remark: string
+  pinned: boolean
 }
 
-/** SSH连接结果 */
-export interface SshConnectResult {
-  sessionId: string
-  success: boolean
-  error?: string
+export type SshAuthMethod =
+  | { type: 'password'; password: string }
+  | { type: 'private_key'; key_path: string; passphrase?: string }
+  | { type: 'agent' }
+
+export interface SshSessionInfo {
+  session_id: string
+  config: SshConnectParams
+  state: string
 }
 
-/** 终端尺寸 */
-export interface TerminalSize {
-  cols: number
-  rows: number
-  width: number
-  height: number
+export interface SshTestResult {
+  reachable: boolean
+  error_type?: string
+  error_message?: string
+  latency_ms?: number
 }
 
 // ============================================================
 // SSH连接指令
 // ============================================================
 
-/** 连接SSH服务器 */
-export async function sshConnect(params: SshConnectParams): Promise<SshConnectResult> {
-  try {
-    return await invoke<SshConnectResult>('ssh_connect', { params })
-  } catch (e) {
-    // Demo降级：Rust端未实现时返回模拟结果
-    console.warn('ssh_connect not implemented in Rust, using demo mode')
-    return {
-      sessionId: `demo-${Date.now()}`,
-      success: true,
-    }
-  }
+/** 测试SSH连通性 */
+export async function sshTestConnect(config: SshConnectParams): Promise<SshTestResult> {
+  return invoke<SshTestResult>('ssh_test_connect', { config })
+}
+
+/** 建立SSH连接 */
+export async function sshConnect(config: SshConnectParams): Promise<SshSessionInfo> {
+  return invoke<SshSessionInfo>('ssh_connect', { config })
+}
+
+/** 打开交互式Shell（PTY分配） */
+export async function sshOpenShell(
+  sessionId: string,
+  cols: number = 80,
+  rows: number = 24
+): Promise<void> {
+  return invoke<void>('ssh_open_shell', { sessionId, cols, rows })
+}
+
+/** 向Shell写入数据（键盘输入） */
+export async function sshWrite(sessionId: string, data: string | Uint8Array): Promise<void> {
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data
+  return invoke<void>('ssh_write', { sessionId, data: Array.from(bytes) })
+}
+
+/** 调整PTY终端尺寸 */
+export async function sshResize(
+  sessionId: string,
+  cols: number,
+  rows: number
+): Promise<void> {
+  return invoke<void>('ssh_resize', { sessionId, cols, rows })
 }
 
 /** 断开SSH连接 */
 export async function sshDisconnect(sessionId: string): Promise<void> {
-  try {
-    await invoke('ssh_disconnect', { sessionId })
-  } catch {
-    console.warn('ssh_disconnect not implemented in Rust')
-  }
+  return invoke<void>('ssh_disconnect', { sessionId })
 }
 
-/** 向终端写入数据（发送命令） */
-export async function sshWrite(sessionId: string, data: string): Promise<void> {
-  try {
-    await invoke('ssh_write', { sessionId, data })
-  } catch {
-    console.warn('ssh_write not implemented in Rust')
-  }
-}
-
-/** 调整终端尺寸 */
-export async function sshResize(sessionId: string, size: TerminalSize): Promise<void> {
-  try {
-    await invoke('ssh_resize', { sessionId, size })
-  } catch {
-    console.warn('ssh_resize not implemented in Rust')
-  }
+/** 执行单条命令（非交互式） */
+export async function sshExec(sessionId: string, command: string): Promise<string> {
+  return invoke<string>('ssh_exec', { sessionId, command })
 }
 
 // ============================================================
-// SSH终端数据事件监听
+// 事件监听
 // ============================================================
 
-/** 监听终端输出数据 */
-export async function onSshData(
+interface SshDataEvent {
+  sessionId: string
+  data: string
+}
+
+interface SshStatusEvent {
+  sessionId: string
+  status: string
+  error?: string
+}
+
+/** 监听SSH终端数据输出 */
+export function onSshData(
   sessionId: string,
   callback: (data: string) => void
-) {
-  return listen<{ sessionId: string; data: string }>('ssh-data', (event) => {
+): Promise<UnlistenFn> {
+  return listen<SshDataEvent>('ssh-data', (event) => {
     if (event.payload.sessionId === sessionId) {
       callback(event.payload.data)
     }
@@ -93,13 +114,22 @@ export async function onSshData(
 }
 
 /** 监听SSH连接状态变化 */
-export async function onSshStatus(
+export function onSshStatus(
   sessionId: string,
-  callback: (status: string) => void
-) {
-  return listen<{ sessionId: string; status: string }>('ssh-status', (event) => {
+  callback: (status: string, error?: string) => void
+): Promise<UnlistenFn> {
+  return listen<SshStatusEvent>('ssh-status', (event) => {
     if (event.payload.sessionId === sessionId) {
-      callback(event.payload.status)
+      callback(event.payload.status, event.payload.error)
     }
+  })
+}
+
+/** 全局监听所有SSH数据事件 */
+export function onAllSshData(
+  callback: (sessionId: string, data: string) => void
+): Promise<UnlistenFn> {
+  return listen<SshDataEvent>('ssh-data', (event) => {
+    callback(event.payload.sessionId, event.payload.data)
   })
 }

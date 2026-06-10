@@ -1,48 +1,74 @@
-/**
- * 左侧导航菜单 — Termius极简导航
- * 连接 / AI模型管理 / 终端 / SFTP / 设置
- * 侧栏窄时仅图标，侧栏宽时图标+文字
- * 无emoji，使用Element Plus图标
- */
+<!--
+  SideNav — Termius 1:1 Left Sidebar Navigation
+  Icon-only mode when sidebar is narrow (< 80px)
+  Shows labels when expanded
+  Settings icon pinned to bottom
+-->
 <template>
-  <div class="side-nav">
-    <div
-      v-for="item in navItems"
-      :key="item.path"
-      class="nav-item"
-      :class="{ active: currentRoute === item.path, bottom: item.bottom }"
-      :title="item.label"
-      @click="navigate(item.path)"
-    >
-      <el-icon :size="18"><component :is="item.icon" /></el-icon>
-      <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
+  <nav class="side-nav">
+    <!-- Top section: main navigation -->
+    <div class="nav-top">
+      <div
+        v-for="item in topItems"
+        :key="item.path"
+        class="nav-item"
+        :class="{ active: isActive(item.path) }"
+        :title="item.label"
+        @click="navigate(item.path)"
+      >
+        <el-icon :size="18"><component :is="item.icon" /></el-icon>
+        <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
+      </div>
     </div>
-  </div>
+
+    <!-- Bottom section: settings -->
+    <div class="nav-bottom">
+      <div
+        v-for="item in bottomItems"
+        :key="item.path"
+        class="nav-item"
+        :class="{ active: isActive(item.path) }"
+        :title="item.label"
+        @click="navigate(item.path)"
+      >
+        <el-icon :size="18"><component :is="item.icon" /></el-icon>
+        <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
+      </div>
+    </div>
+  </nav>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, Ref } from 'vue'
+import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Monitor, Cpu, SetUp, FolderOpened, Setting } from '@element-plus/icons-vue'
+import { Monitor, Cpu, FolderOpened, Setting } from '@element-plus/icons-vue'
+import type { Ref } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
-const currentRoute = computed(() => route.path)
 
-// 从MainLayout注入侧栏宽度
-const sidebarWidth = inject<Ref<number>>('sidebarWidth', { value: 56 } as any)
-// 宽度超过80px时显示文字标签
-const showLabels = computed(() => sidebarWidth.value > 80)
+// Sidebar width from parent → show labels when > 80px
+const sidebarWidth = inject<Ref<number>>('sidebarWidth')
+const showLabels = computed(() => (sidebarWidth?.value ?? 56) > 80)
 
-const navItems = [
-  { path: '/', label: 'Hosts', icon: Monitor, bottom: false },
-  { path: '/ai-config', label: 'AI Models', icon: Cpu, bottom: false },
-  { path: '/terminal', label: 'Terminal', icon: SetUp, bottom: false },
-  { path: '/sftp', label: 'SFTP', icon: FolderOpened, bottom: false },
-  { path: '/settings', label: 'Settings', icon: Setting, bottom: true },
+// Navigation items
+const topItems = [
+  { path: '/', label: 'Hosts', icon: Monitor },
+  { path: '/ai-config', label: 'AI Models', icon: Cpu },
+  { path: '/', label: 'SFTP', icon: FolderOpened },  // SFTP is part of workspace
 ]
 
+const bottomItems = [
+  { path: '/settings', label: 'Settings', icon: Setting },
+]
+
+function isActive(path: string): boolean {
+  if (path === '/') return route.path === '/' || route.path.startsWith('/?')
+  return route.path === path
+}
+
 function navigate(path: string) {
+  if (path === route.path) return
   router.push(path)
 }
 </script>
@@ -51,25 +77,41 @@ function navigate(path: string) {
 .side-nav {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  height: 100%;
   width: 100%;
+  padding: 0;
+}
+
+.nav-top {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   padding-top: $spacing-md;
-  gap: 2px;
+  gap: 1px;
+}
+
+.nav-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: auto;
+  padding-bottom: $spacing-md;
+  gap: 1px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 $spacing-sm;
-  border-radius: $border-radius-sm;
+  height: 38px;
+  padding: 0 $spacing-md;
+  border-radius: 0;
   cursor: pointer;
   color: $color-text-secondary;
   transition: all $transition-fast;
   position: relative;
   white-space: nowrap;
   overflow: hidden;
+  border-left: 2px solid transparent;
 
   &:hover {
     background-color: $color-bg-hover;
@@ -79,23 +121,7 @@ function navigate(path: string) {
   &.active {
     color: $color-primary;
     background-color: $color-bg-active;
-
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 2px;
-      height: 16px;
-      background-color: $color-primary;
-      border-radius: 0 1px 1px 0;
-    }
-  }
-
-  &.bottom {
-    margin-top: auto;
-    margin-bottom: $spacing-md;
+    border-left-color: $color-primary;
   }
 }
 

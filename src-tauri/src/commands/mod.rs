@@ -98,6 +98,24 @@ pub async fn ssh_exec(session_id: String, command: String) -> AppResult<String> 
     ssh::exec_command(&session_id, &command).await
 }
 
+/// 打开交互式Shell（PTY分配 + shell启动）
+#[tauri::command]
+pub async fn ssh_open_shell(app: AppHandle, session_id: String, cols: u32, rows: u32) -> AppResult<()> {
+    ssh::open_shell(app, &session_id, cols, rows).await
+}
+
+/// 向Shell写入数据（用户键盘输入）
+#[tauri::command]
+pub async fn ssh_write(session_id: String, data: Vec<u8>) -> AppResult<()> {
+    ssh::write_to_shell(&session_id, &data).await
+}
+
+/// 调整PTY终端尺寸
+#[tauri::command]
+pub async fn ssh_resize(session_id: String, cols: u32, rows: u32) -> AppResult<()> {
+    ssh::resize_shell(&session_id, cols, rows).await
+}
+
 // ============================================================
 // SFTP 文件操作指令
 // ============================================================

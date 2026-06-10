@@ -1,5 +1,5 @@
-//! SSH protocol module — pure Rust SSH via russh (no C dependencies)
-//! Uses tokio::sync::Mutex for Send-safe async access
+//! SSH module — russh-based SSH client
+//! Architecture: handle stays in session for exec/SFTP, channel goes to shell task
 
 use crate::error::{AppError, AppResult, ErrorCode};
 use once_cell::sync::Lazy;
@@ -8,16 +8,17 @@ use russh::ChannelMsg;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
+use tauri::{AppHandle, Emitter};
 
 // ============================================================
-// Data types
+// Types
 // ============================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshConnectConfig {
     pub host: String,
-    #[serde(default = "default_ssh_port")]
+    #[serde(default = "default_port")]
     pub port: u16,
     pub username: String,
     pub auth: SshAuthMethod,
@@ -28,8 +29,7 @@ pub struct SshConnectConfig {
     #[serde(default)]
     pub pinned: bool,
 }
-
-fn default_ssh_port() -> u16 { 22 }
+fn default_port() -> u16 { 22 }
 fn default_timeout() -> u64 { 10000 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,7 +64,7 @@ pub struct SshTestResult {
 pub enum SshTestErrorType { PortUnreachable, AuthFailed, InvalidKey, FirewallBlocked }
 
 // ============================================================
-// russh handler
+// Handler
 // ============================================================
 
 #[derive(Clone)]
@@ -73,60 +73,88 @@ struct SshHandler;
 #[async_trait::async_trait]
 impl client::Handler for SshHandler {
     type Error = anyhow::Error;
-
-    async fn check_server_key(
-        &mut self,
-        _server_public_key: &russh_keys::key::PublicKey,
-    ) -> Result<bool, Self::Error> {
+    async fn check_server_key(&mut self, _key: &russh_keys::key::PublicKey) -> Result<bool, Self::Error> {
         Ok(true)
     }
 }
 
 // ============================================================
-// Connection manager — tokio::sync::Mutex for async safety
+// Session storage
 // ============================================================
 
-/// A stored SSH session (handle is Clone, Arc-wrapped internally by russh)
-struct SshConnection {
+enum ShellCmd { Data(Vec<u8>), Resize(u32, u32), Close }
+
+struct SshSession {
+    #[allow(dead_code)]
     config: SshConnectConfig,
-    handle: client::Handle<SshHandler>,
+    handle: Option<client::Handle<SshHandler>>,
+    cmd_tx: Option<mpsc::UnboundedSender<ShellCmd>>,
 }
 
-static SESSIONS: Lazy<Mutex<HashMap<String, SshConnection>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static SESSIONS: Lazy<Mutex<HashMap<String, SshSession>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-fn gen_session_id() -> String {
-    format!("ssh-{}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos())
+fn gen_id() -> String {
+    format!("ssh-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos())
+}
+
+fn emit_status(app: &AppHandle, sid: &str, status: &str, error: &str) {
+    let _ = app.emit("ssh-status", serde_json::json!({ "sessionId": sid, "status": status, "error": error }));
+}
+
+fn emit_data(app: &AppHandle, sid: &str, data: &[u8]) {
+    let text = String::from_utf8_lossy(data).to_string();
+    if text.is_empty() { return; }
+    let _ = app.emit("ssh-data", serde_json::json!({ "sessionId": sid, "data": text }));
 }
 
 // ============================================================
-// SSH operations
+// Shell channel task (owns channel, not handle)
 // ============================================================
 
-/// Exec a command on given handle (no lock held)
-async fn exec_on_handle(handle: &mut client::Handle<SshHandler>, command: &str) -> AppResult<String> {
-    let mut channel = handle.channel_open_session().await
-        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("channel: {}", e)))?;
+async fn shell_task(
+    mut channel: russh::Channel<russh::client::Msg>,
+    session_id: String,
+    mut cmd_rx: mpsc::UnboundedReceiver<ShellCmd>,
+    app: AppHandle,
+) {
+    emit_status(&app, &session_id, "connected", "");
 
-    channel.exec(true, command).await
-        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("exec: {}", e)))?;
-
-    let mut output = String::new();
     loop {
-        match channel.wait().await {
-            Some(ChannelMsg::Data { ref data }) => {
-                output.push_str(&String::from_utf8_lossy(data));
+        // Process queued commands
+        loop {
+            match cmd_rx.try_recv() {
+                Ok(ShellCmd::Data(data)) => {
+                    if channel.data(&data[..]).await.is_err() { return; }
+                }
+                Ok(ShellCmd::Resize(c, r)) => {
+                    channel.window_change(c, r, 0, 0).await.ok();
+                }
+                Ok(ShellCmd::Close) => {
+                    channel.close().await.ok();
+                    emit_status(&app, &session_id, "disconnected", "");
+                    return;
+                }
+                Err(mpsc::error::TryRecvError::Empty) => break,
+                Err(mpsc::error::TryRecvError::Disconnected) => { return; }
             }
-            Some(ChannelMsg::Eof) | None => break,
-            _ => {} // Continue on Success, Failure, etc.
+        }
+
+        // Read from channel
+        match channel.wait().await {
+            Some(ChannelMsg::Data { data }) => emit_data(&app, &session_id, &data),
+            Some(ChannelMsg::ExitStatus { .. }) | Some(ChannelMsg::Eof) | None => {
+                emit_status(&app, &session_id, "disconnected", "");
+                return;
+            }
+            _ => {}
         }
     }
-    channel.close().await.ok();
-    Ok(output)
 }
 
-/// Test SSH connectivity
+// ============================================================
+// Public API
+// ============================================================
+
 pub async fn ssh_test_connect(config: &SshConnectConfig) -> AppResult<SshTestResult> {
     let start = std::time::Instant::now();
     let cfg = Arc::new(client::Config::default());
@@ -134,58 +162,139 @@ pub async fn ssh_test_connect(config: &SshConnectConfig) -> AppResult<SshTestRes
     let mut session = match client::connect(cfg, (config.host.as_str(), config.port), SshHandler).await {
         Ok(s) => s,
         Err(e) => {
-            let err = e.to_string();
+            let err = e.to_string().to_lowercase();
             let etype = if err.contains("refused") { SshTestErrorType::PortUnreachable }
                        else if err.contains("timeout") { SshTestErrorType::FirewallBlocked }
                        else { SshTestErrorType::PortUnreachable };
-            return Ok(SshTestResult { reachable: false, error_type: Some(etype), error_message: Some(format!("{}", e)), latency_ms: None });
+            return Ok(SshTestResult { reachable: false, error_type: Some(etype), error_message: Some(e.to_string()), latency_ms: None });
         }
     };
 
     let auth_ok = match &config.auth {
         SshAuthMethod::Password { password } => session.authenticate_password(&config.username, password).await.unwrap_or(false),
-        _ => false,
+        SshAuthMethod::PrivateKey { key_path, passphrase } => {
+            match russh_keys::load_secret_key(key_path, passphrase.as_deref()) {
+                Ok(key) => session.authenticate_publickey(&config.username, Arc::new(key)).await.unwrap_or(false),
+                Err(e) => return Ok(SshTestResult { reachable: false, error_type: Some(SshTestErrorType::InvalidKey), error_message: Some(format!("Key load error: {}", e)), latency_ms: None }),
+            }
+        }
+        SshAuthMethod::Agent => false,
     };
 
-    if auth_ok {
-        Ok(SshTestResult { reachable: true, error_type: None, error_message: None, latency_ms: Some(start.elapsed().as_millis() as u64) })
+    let latency = start.elapsed().as_millis() as u64;
+    Ok(if auth_ok {
+        SshTestResult { reachable: true, error_type: None, error_message: None, latency_ms: Some(latency) }
     } else {
-        Ok(SshTestResult { reachable: false, error_type: Some(SshTestErrorType::AuthFailed), error_message: Some("Auth failed".into()), latency_ms: None })
-    }
+        SshTestResult { reachable: false, error_type: Some(SshTestErrorType::AuthFailed), error_message: Some("Authentication rejected".into()), latency_ms: Some(latency) }
+    })
 }
 
-/// Connect and store session
 pub async fn connect(config: SshConnectConfig) -> AppResult<SshSessionInfo> {
     let cfg = Arc::new(client::Config::default());
     let mut handle = client::connect(cfg, (config.host.as_str(), config.port), SshHandler).await
-        .map_err(|e| AppError::with_source(ErrorCode::SshHandshakeFailed, "Connect failed", e.to_string()))?;
+        .map_err(|e| AppError::with_source(ErrorCode::SshHandshakeFailed, "TCP handshake failed", e.to_string()))?;
 
     let auth_ok = match &config.auth {
-        SshAuthMethod::Password { password } => handle.authenticate_password(&config.username, password).await
-            .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Auth failed", e.to_string()))?,
-        _ => return Err(AppError::new(ErrorCode::SshAuthFailed, "Only password auth supported")),
+        SshAuthMethod::Password { password } => {
+            handle.authenticate_password(&config.username, password).await
+                .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Auth failed", e.to_string()))?
+        }
+        SshAuthMethod::PrivateKey { key_path, passphrase } => {
+            let key = russh_keys::load_secret_key(key_path, passphrase.as_deref())
+                .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Cannot load key", e.to_string()))?;
+            handle.authenticate_publickey(&config.username, Arc::new(key)).await
+                .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Key auth failed", e.to_string()))?
+        }
+        SshAuthMethod::Agent => return Err(AppError::new(ErrorCode::SshAuthFailed, "SSH agent not implemented")),
     };
 
-    if !auth_ok {
-        return Err(AppError::new(ErrorCode::SshAuthFailed, "Authentication rejected"));
-    }
+    if !auth_ok { return Err(AppError::new(ErrorCode::SshAuthFailed, "Authentication rejected")); }
 
-    let session_id = gen_session_id();
-    SESSIONS.lock().await.insert(session_id.clone(), SshConnection { config: config.clone(), handle });
-
-    Ok(SshSessionInfo { session_id, config, state: SshSessionState::Connected })
+    let id = gen_id();
+    SESSIONS.lock().await.insert(id.clone(), SshSession { config: config.clone(), handle: Some(handle), cmd_tx: None });
+    Ok(SshSessionInfo { session_id: id, config, state: SshSessionState::Connected })
 }
 
-/// Disconnect
-pub async fn disconnect(session_id: &str) -> AppResult<()> {
-    SESSIONS.lock().await.remove(session_id);
+/// Open interactive shell — opens channel using handle, then hands channel to background task
+/// Handle REMAINS in session for exec/SFTP operations
+pub async fn open_shell(app: AppHandle, session_id: &str, cols: u32, rows: u32) -> AppResult<()> {
+    let mut sessions = SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+
+    let handle = session.handle.as_mut()
+        .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
+
+    // Open channel using borrowed handle
+    let mut channel = handle.channel_open_session().await
+        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Channel open: {}", e)))?;
+
+    channel.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[]).await
+        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("PTY: {}", e)))?;
+
+    channel.request_shell(true).await
+        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Shell: {}", e)))?;
+
+    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+    session.cmd_tx = Some(cmd_tx);
+
+    let sid = session_id.to_string();
+    tokio::spawn(shell_task(channel, sid, cmd_rx, app));
+
     Ok(())
 }
 
-/// Execute command — hold tokio lock across await (guard is Send)
+pub async fn write_to_shell(session_id: &str, data: &[u8]) -> AppResult<()> {
+    let sessions = SESSIONS.lock().await;
+    let session = sessions.get(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+    match &session.cmd_tx {
+        Some(tx) => tx.send(ShellCmd::Data(data.to_vec())).map_err(|_| AppError::new(ErrorCode::SshChannelOpenFailed, "Shell closed"))?,
+        None => return Err(AppError::new(ErrorCode::SshChannelOpenFailed, "No shell open")),
+    }
+    Ok(())
+}
+
+pub async fn resize_shell(session_id: &str, cols: u32, rows: u32) -> AppResult<()> {
+    let sessions = SESSIONS.lock().await;
+    let session = sessions.get(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+    if let Some(tx) = &session.cmd_tx { tx.send(ShellCmd::Resize(cols, rows)).ok(); }
+    Ok(())
+}
+
+/// Execute single command via exec channel — uses handle stored in session
 pub async fn exec_command(session_id: &str, command: &str) -> AppResult<String> {
     let mut sessions = SESSIONS.lock().await;
-    let conn = sessions.get_mut(session_id)
+    let session = sessions.get_mut(session_id)
         .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
-    exec_on_handle(&mut conn.handle, command).await
+
+    let handle = session.handle.as_mut()
+        .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
+
+    let mut channel = handle.channel_open_session().await
+        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Exec channel: {}", e)))?;
+
+    channel.exec(true, command).await
+        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Exec: {}", e)))?;
+
+    let mut output = String::new();
+    loop {
+        match channel.wait().await {
+            Some(ChannelMsg::Data { ref data }) => output.push_str(&String::from_utf8_lossy(data)),
+            Some(ChannelMsg::Eof) | None => break,
+            _ => {}
+        }
+    }
+    channel.close().await.ok();
+    Ok(output)
+}
+
+pub async fn disconnect(session_id: &str) -> AppResult<()> {
+    let mut sessions = SESSIONS.lock().await;
+    if let Some(s) = sessions.get(session_id) {
+        if let Some(tx) = &s.cmd_tx { tx.send(ShellCmd::Close).ok(); }
+    }
+    sessions.remove(session_id);
+    Ok(())
 }

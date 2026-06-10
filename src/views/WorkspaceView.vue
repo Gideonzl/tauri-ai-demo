@@ -37,29 +37,50 @@
       <div class="host-list-panel" :style="{ width: hostListWidth + 'px' }">
         <template v-if="leftPanelMode === 'hosts'">
           <div class="host-list-top">
-            <div class="group-filter">
-              <span class="group-tag" :class="{ active: !sshStore.selectedGroupId }" @click="sshStore.selectedGroupId = ''">All</span>
-              <span v-for="group in sshStore.groups" :key="group.id" class="group-tag" :class="{ active: sshStore.selectedGroupId === group.id }" @click="sshStore.selectedGroupId = group.id">{{ group.name }}</span>
-            </div>
             <el-input v-model="sshStore.searchQuery" size="small" placeholder="Search hosts..." clearable class="search-input">
-              <template #prefix><el-icon><Search /></el-icon></template>
+              <template #prefix><el-icon :size="14"><Search /></el-icon></template>
             </el-input>
           </div>
           <div class="host-list">
-            <div v-for="server in sshStore.filteredServers" :key="server.id" class="host-item" :class="{ active: selectedServerId === server.id }" @click="selectedServerId = server.id" @dblclick="handleConnect(server.id)" @contextmenu.prevent="showHostMenu($event, server)">
-              <span class="host-status" :class="getServerStatus(server.id)"></span>
-              <div class="host-info">
-                <span class="host-name">{{ server.name }}</span>
-                <span class="host-addr">{{ server.host }}</span>
+            <!-- Grouped host list (Termius style) -->
+            <template v-for="group in groupedHosts" :key="group.name">
+              <div class="host-group" v-if="group.hosts.length > 0">
+                <div class="group-header" @click="toggleGroup(group.name)">
+                  <el-icon :size="12" class="group-chevron" :class="{ expanded: !collapsedGroups.has(group.name) }">
+                    <ArrowRight />
+                  </el-icon>
+                  <span class="group-name">{{ group.name }}</span>
+                  <span class="group-count">{{ group.onlineCount }}/{{ group.hosts.length }}</span>
+                </div>
+                <div v-if="!collapsedGroups.has(group.name)" class="group-hosts">
+                  <div
+                    v-for="server in group.hosts"
+                    :key="server.id"
+                    class="host-item"
+                    :class="{ active: selectedServerId === server.id }"
+                    @click="selectedServerId = server.id"
+                    @dblclick="handleConnect(server.id)"
+                    @contextmenu.prevent="showHostMenu($event, server)"
+                  >
+                    <span class="host-status" :class="getServerStatus(server.id)"></span>
+                    <div class="host-info">
+                      <span class="host-name">{{ server.name }}</span>
+                      <span class="host-addr">{{ server.username }}@{{ server.host }}:{{ server.port }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </template>
+            <!-- Empty state -->
             <div v-if="sshStore.filteredServers.length === 0" class="empty-hosts">
-              <p>{{ sshStore.servers.length === 0 ? 'No hosts' : 'No matching hosts' }}</p>
+              <el-icon :size="28" class="empty-icon"><SetUp /></el-icon>
+              <p>{{ sshStore.servers.length === 0 ? 'No saved hosts' : 'No matching hosts' }}</p>
+              <p class="sub">Add a host to get started</p>
             </div>
           </div>
           <div class="host-list-footer">
-            <el-button size="small" type="primary" class="new-host-btn" @click="handleNewConnection">
-              <el-icon><Plus /></el-icon>New Host
+            <el-button size="small" class="new-host-btn" @click="handleNewConnection">
+              <el-icon :size="14"><Plus /></el-icon>New Host
             </el-button>
           </div>
         </template>
@@ -116,22 +137,31 @@
     </div>
 
     <footer class="status-bar">
+      <span class="status-item" :style="{ color: isTauriMode ? '#4caf7d' : '#d4a24e', fontWeight: 600 }">
+        <span class="status-dot" :style="{ background: isTauriMode ? '#4caf7d' : '#d4a24e' }"></span>
+        {{ isTauriMode ? 'TAURI' : 'DEMO' }}
+      </span>
+      <span class="status-sep">|</span>
+      <span class="status-item" v-if="sshStore.activeSession">
+        {{ sshStore.activeSession.serverName }}
+        <span v-if="sshStore.activeSession.realSessionId" style="color:#4caf7d;font-weight:600"> REAL</span>
+        <span v-else style="color:#d4a24e"> DEMO</span>
+        -
+        <span :class="'status-text-' + sshStore.activeSession.status">{{ sshStore.activeSession.status }}</span>
+      </span>
+      <span class="status-sep" v-if="sshStore.activeSession">|</span>
       <span class="status-item">
         <span class="status-dot" :class="{ online: modelStore.defaultConfig }"></span>
         {{ modelStore.defaultConfig ? 'AI Ready' : 'AI N/A' }}
       </span>
       <span class="status-sep">|</span>
-      <span class="status-item">{{ sshStore.sessions.length }} session(s)</span>
-      <span class="status-sep">|</span>
-      <span class="status-item" v-if="sshStore.activeSession">
-        {{ sshStore.activeSession.serverName }} -
-        <span :class="'status-text-' + sshStore.activeSession.status">{{ sshStore.activeSession.status }}</span>
-      </span>
-      <span class="status-sep" v-if="sshStore.activeSession">|</span>
       <span class="status-item">v0.1.0</span>
     </footer>
 
     <SshConnectDialog />
+    <PortForwarding ref="portForwardingRef" />
+    <KeyManager ref="keyManagerRef" />
+    <HostImportExport ref="hostImportExportRef" />
 
     <!-- 服务器右键菜单 -->
     <teleport to="body">
@@ -141,6 +171,11 @@
         <div class="hmenu-sep"></div>
         <div class="hmenu-item" @click="hostMenuAction('copyAddr')"><el-icon :size="13"><CopyDocument /></el-icon><span>Copy Address</span></div>
         <div class="hmenu-item" @click="hostMenuAction('copyName')"><el-icon :size="13"><Link /></el-icon><span>Copy Name</span></div>
+        <div class="hmenu-sep"></div>
+        <div class="hmenu-item" @click="hostMenuAction('portForwarding')"><el-icon :size="13"><Connection /></el-icon><span>Port Forwarding</span></div>
+        <div class="hmenu-sep"></div>
+        <div class="hmenu-item" @click="hostMenuAction('keyManager')"><el-icon :size="13"><Key /></el-icon><span>Key Manager</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('importExport')"><el-icon :size="13"><Upload /></el-icon><span>Import / Export</span></div>
         <div class="hmenu-sep"></div>
         <div class="hmenu-item danger" @click="hostMenuAction('delete')"><el-icon :size="13"><Delete /></el-icon><span>Delete</span></div>
       </div>
@@ -155,15 +190,23 @@ import { useConfigStore } from '@/stores/config'
 import { highlightCode } from '@/utils/highlight'
 import { useModelStore } from '@/stores/model'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Monitor, Plus, Close, SetUp, ArrowLeft, Search, Edit, Delete, CopyDocument, Link, Document } from '@element-plus/icons-vue'
+import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload } from '@element-plus/icons-vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import SshConnectDialog from '@/components/SshConnectDialog.vue'
 import SftpTree from '@/components/SftpTree.vue'
 import QuickCommands from '@/components/QuickCommands.vue'
+import PortForwarding from '@/components/PortForwarding.vue'
+import KeyManager from '@/components/KeyManager.vue'
+import HostImportExport from '@/components/HostImportExport.vue'
 
 const sshStore = useSshStore()
 const modelStore = useModelStore()
 const configStore = useConfigStore()
+const isTauriMode = !!(window as any).__TAURI__
+
+const portForwardingRef = ref<InstanceType<typeof PortForwarding> | null>(null)
+const keyManagerRef = ref<InstanceType<typeof KeyManager> | null>(null)
+const hostImportExportRef = ref<InstanceType<typeof HostImportExport> | null>(null)
 
 const highlightedContent = computed(() => {
   const f = sshStore.openFiles[sshStore.activeFileIndex]
@@ -173,6 +216,37 @@ const highlightedContent = computed(() => {
 })
 
 const selectedServerId = ref('')
+
+// Group collapsing state (Termius style)
+const collapsedGroups = ref(new Set<string>())
+
+function toggleGroup(groupName: string) {
+  if (collapsedGroups.value.has(groupName)) {
+    collapsedGroups.value.delete(groupName)
+  } else {
+    collapsedGroups.value.add(groupName)
+  }
+  // Trigger reactivity
+  collapsedGroups.value = new Set(collapsedGroups.value)
+}
+
+// Grouped hosts computed
+const groupedHosts = computed(() => {
+  const groups = new Map<string, Array<typeof sshStore.filteredServers[number]>>()
+  const ungrouped = 'Ungrouped'
+
+  for (const server of sshStore.filteredServers) {
+    const groupName = server.group || ungrouped
+    if (!groups.has(groupName)) groups.set(groupName, [])
+    groups.get(groupName)!.push(server)
+  }
+
+  return Array.from(groups.entries()).map(([name, hosts]) => ({
+    name,
+    hosts,
+    onlineCount: hosts.filter(h => getServerStatus(h.id) === 'connected').length,
+  }))
+})
 
 // 服务器右键菜单状态
 const hostMenu = reactive({ visible: false, x: 0, y: 0, server: null as any })
@@ -210,6 +284,15 @@ function hostMenuAction(action: string) {
     case 'copyName':
       navigator.clipboard.writeText(server.name)
       ElMessage.success('Name copied')
+      break
+    case 'portForwarding':
+      portForwardingRef.value?.open()
+      break
+    case 'keyManager':
+      keyManagerRef.value?.open()
+      break
+    case 'importExport':
+      hostImportExportRef.value?.open()
       break
   }
 }
@@ -321,36 +404,47 @@ function handleNewConnection() {
 async function handleConnect(serverId: string) {
   const server = sshStore.servers.find(s => s.id === serverId)
   if (!server) return
-  try {
-    const session = sshStore.createSession(serverId)
-    sshStore.updateSessionStatus(session.id, 'connecting')
+  const session = sshStore.createSession(serverId)
+  sshStore.updateSessionStatus(session.id, 'connecting')
 
-    // Try real Rust SSH backend
-    try {
-      const { sshConnect } = await import('@/api/tauri')
-      const result = await sshConnect({
-        host: server.host,
-        port: server.port,
-        username: server.username,
-        auth: server.authType === 'password'
-          ? { type: 'password', password: server.password || '' }
-          : { type: 'private_key', key_path: server.keyPath || '' },
-        timeout_ms: 10000,
-        remark: '',
-        pinned: false,
-      })
-      // Store real session_id on the frontend session
-      session.realSessionId = result.session_id
-      sshStore.updateSessionStatus(session.id, 'connected')
-    } catch (e: any) {
-      // Fallback: demo mode (no real SSH backend available yet)
-      console.warn('Real SSH connect failed, using demo:', e?.message || e)
+  // Check if Tauri runtime is available
+  const isTauri = !!(window as any).__TAURI__
+
+  try {
+    const { sshConnect, sshOpenShell } = await import('@/utils/ssh-api')
+    const result = await sshConnect({
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      auth: server.authType === 'password'
+        ? { type: 'password', password: server.password || '' }
+        : { type: 'private_key', key_path: server.keyPath || '' },
+      timeout_ms: 10000,
+      remark: '',
+      pinned: false,
+    })
+    session.realSessionId = result.session_id
+    sshStore.updateSessionStatus(session.id, 'connected')
+    ElMessage.success(`Connected to ${server.name}`)
+
+    try { await sshOpenShell(result.session_id, 80, 24) } catch (shellErr: any) {
+      console.warn('Shell open failed:', shellErr?.message || shellErr)
+    }
+  } catch (e: any) {
+    const errMsg = e?.message || e?.toString() || 'Unknown error'
+    console.error('SSH connect error:', errMsg)
+
+    if (isTauri) {
+      // Tauri mode: real SSH failed — show error, don't fallback
+      sshStore.updateSessionStatus(session.id, 'error', errMsg)
+      ElMessage.error(`SSH connection failed: ${errMsg}`)
+    } else {
+      // No Tauri (npm run dev): fallback to demo
+      console.warn('No Tauri backend, using demo mode')
       setTimeout(() => {
         sshStore.updateSessionStatus(session.id, 'connected')
-      }, 800)
+      }, 600)
     }
-  } catch {
-    // error handled in store
   }
 }
 
@@ -358,7 +452,7 @@ async function handleCloseSession(sessionId: string) {
   const session = sshStore.sessions.find(s => s.id === sessionId)
   if (session?.realSessionId) {
     try {
-      const { sshDisconnect } = await import('@/api/tauri')
+      const { sshDisconnect } = await import('@/utils/ssh-api')
       await sshDisconnect(session.realSessionId)
     } catch (e) {
       console.warn('Disconnect error:', e)
@@ -404,16 +498,57 @@ onUnmounted(() => {
 
 .host-list-panel { border-right: 1px solid $color-border-light; display: flex; flex-direction: column; flex-shrink: 0; background-color: $color-bg-primary; overflow: hidden; }
 
-.host-list-top { flex-shrink: 0; padding: $spacing-xs $spacing-sm; border-bottom: 1px solid $color-border-light; display: flex; flex-direction: column; gap: $spacing-xs; }
+.host-list-top { flex-shrink: 0; padding: $spacing-sm; border-bottom: 1px solid $color-border-light; }
 
-.group-filter { display: flex; gap: 4px; flex-wrap: wrap; }
+.search-input { :deep(.el-input__wrapper) { background-color: $color-bg-input !important; height: 26px; font-size: 11px !important; } }
 
-.group-tag { font-size: $font-size-xs; padding: 2px 8px; border-radius: $border-radius-sm; cursor: pointer; color: $color-text-secondary; background-color: transparent; border: 1px solid transparent; transition: all $transition-fast; white-space: nowrap;
-  &:hover { color: $color-text-primary; background-color: $color-bg-hover; border-color: $color-border; }
-  &.active { color: $color-primary; background-color: rgba(91, 141, 239, 0.12); border-color: $color-primary; }
+// Termius-style group header
+.host-group {
+  // group header row
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px $spacing-md;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color $transition-fast;
+
+    &:hover { background-color: $color-bg-hover; }
+  }
+
+  .group-chevron {
+    color: $color-text-placeholder;
+    transition: transform $transition-normal;
+    flex-shrink: 0;
+
+    &.expanded {
+      transform: rotate(90deg);
+    }
+  }
+
+  .group-name {
+    font-size: $font-size-xs;
+    font-weight: 600;
+    color: $color-text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex: 1;
+  }
+
+  .group-count {
+    font-size: 10px;
+    color: $color-text-placeholder;
+    font-family: $font-family-mono;
+  }
+
+  .group-hosts {
+    // hosts inside a group have slight indent
+    .host-item {
+      padding-left: $spacing-xl;
+    }
+  }
 }
-
-.search-input { :deep(.el-input__wrapper) { background-color: $color-bg-input !important; height: 26px; } }
 
 .resize-bar-hostlist { width: 5px; flex-shrink: 0; cursor: col-resize; position: relative; z-index: 2;
   &::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: 1px; background-color: transparent; transition: background-color 0.15s ease; }

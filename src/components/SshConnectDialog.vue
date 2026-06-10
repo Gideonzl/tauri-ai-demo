@@ -144,8 +144,8 @@ async function handleTestConnection() {
 
   try {
     // Try real Rust backend first
-    const { sshTestConnect } = await import('@/api/tauri')
-    const config = {
+    const { sshTestConnect } = await import('@/utils/ssh-api')
+    const result = await sshTestConnect({
       host: formData.host,
       port: formData.port,
       username: formData.username,
@@ -155,8 +155,7 @@ async function handleTestConnection() {
       timeout_ms: 10000,
       remark: '',
       pinned: false,
-    }
-    const result = await sshTestConnect(config)
+    })
     if (result.reachable) {
       testResult.value = { success: true, message: `Connected to ${formData.host}:${formData.port} as ${formData.username} (${result.latency_ms}ms)` }
     } else {
