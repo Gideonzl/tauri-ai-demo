@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui/tauri-v2/main/tooling/cli/schema.json",
   "productName": "Tauri AI Demo",
-  "version": "3.0.0",
+  "version": "0.4.0",
   "identifier": "com.tauri-ai.demo",
   "build": {
     "beforeDevCommand": "npm run dev",

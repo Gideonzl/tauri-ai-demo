@@ -101,12 +101,6 @@ fn emit_status(app: &AppHandle, sid: &str, status: &str, error: &str) {
     let _ = app.emit("ssh-status", serde_json::json!({ "sessionId": sid, "status": status, "error": error }));
 }
 
-fn emit_data(app: &AppHandle, sid: &str, data: &[u8]) {
-    let text = String::from_utf8_lossy(data).to_string();
-    if text.is_empty() { return; }
-    let _ = app.emit("ssh-data", serde_json::json!({ "sessionId": sid, "data": text }));
-}
-
 // ============================================================
 // Shell channel task (owns channel, not handle)
 // ============================================================
@@ -120,33 +114,21 @@ async fn shell_task(
     emit_status(&app, &session_id, "connected", "");
 
     loop {
-        // Process queued commands
-        loop {
-            match cmd_rx.try_recv() {
-                Ok(ShellCmd::Data(data)) => {
-                    if channel.data(&data[..]).await.is_err() { return; }
+        tokio::select! {
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    Some(ShellCmd::Data(data)) => { channel.data(&data[..]).await.ok(); }
+                    Some(ShellCmd::Resize(c, r)) => { channel.window_change(c, r, 0, 0).await.ok(); }
+                    Some(ShellCmd::Close) | None => { channel.close().await.ok(); emit_status(&app, &session_id, "disconnected", ""); return; }
                 }
-                Ok(ShellCmd::Resize(c, r)) => {
-                    channel.window_change(c, r, 0, 0).await.ok();
-                }
-                Ok(ShellCmd::Close) => {
-                    channel.close().await.ok();
-                    emit_status(&app, &session_id, "disconnected", "");
-                    return;
-                }
-                Err(mpsc::error::TryRecvError::Empty) => break,
-                Err(mpsc::error::TryRecvError::Disconnected) => { return; }
             }
-        }
-
-        // Read from channel
-        match channel.wait().await {
-            Some(ChannelMsg::Data { data }) => emit_data(&app, &session_id, &data),
-            Some(ChannelMsg::ExitStatus { .. }) | Some(ChannelMsg::Eof) | None => {
-                emit_status(&app, &session_id, "disconnected", "");
-                return;
+            msg = channel.wait() => {
+                match msg {
+                    Some(ChannelMsg::Data { data }) => { let _ = app.emit("ssh-data", serde_json::json!({ "sessionId": &session_id, "data": String::from_utf8_lossy(&data) })); }
+                    Some(ChannelMsg::Eof) | None => { emit_status(&app, &session_id, "disconnected", ""); return; }
+                    _ => {}
+                }
             }
-            _ => {}
         }
     }
 }
@@ -226,7 +208,7 @@ pub async fn open_shell(app: AppHandle, session_id: &str, cols: u32, rows: u32) 
         .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
 
     // Open channel using borrowed handle
-    let mut channel = handle.channel_open_session().await
+    let channel = handle.channel_open_session().await
         .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Channel open: {}", e)))?;
 
     channel.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[]).await
@@ -279,14 +261,17 @@ pub async fn exec_command(session_id: &str, command: &str) -> AppResult<String> 
         .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Exec: {}", e)))?;
 
     let mut output = String::new();
+    let mut stderr = String::new();
     loop {
         match channel.wait().await {
             Some(ChannelMsg::Data { ref data }) => output.push_str(&String::from_utf8_lossy(data)),
-            Some(ChannelMsg::Eof) | None => break,
+            Some(ChannelMsg::ExtendedData { ref data, .. }) => stderr.push_str(&String::from_utf8_lossy(data)),
+            Some(ChannelMsg::ExitStatus { .. }) | Some(ChannelMsg::Eof) | None => break,
             _ => {}
         }
     }
     channel.close().await.ok();
+    if !stderr.is_empty() { output.push_str(&stderr); }
     Ok(output)
 }
 

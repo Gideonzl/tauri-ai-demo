@@ -144,7 +144,7 @@ async function handleTestConnection() {
 
   try {
     // Try real Rust backend first
-    const { sshTestConnect } = await import('@/utils/ssh-api')
+    const { sshTestConnect } = await import('@/api/tauri')
     const result = await sshTestConnect({
       host: formData.host,
       port: formData.port,

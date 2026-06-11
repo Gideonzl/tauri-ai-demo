@@ -202,7 +202,7 @@ import HostImportExport from '@/components/HostImportExport.vue'
 const sshStore = useSshStore()
 const modelStore = useModelStore()
 const configStore = useConfigStore()
-const isTauriMode = !!(window as any).__TAURI__
+const isTauriMode = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 
 const portForwardingRef = ref<InstanceType<typeof PortForwarding> | null>(null)
 const keyManagerRef = ref<InstanceType<typeof KeyManager> | null>(null)
@@ -407,11 +407,12 @@ async function handleConnect(serverId: string) {
   const session = sshStore.createSession(serverId)
   sshStore.updateSessionStatus(session.id, 'connecting')
 
-  // Check if Tauri runtime is available
-  const isTauri = !!(window as any).__TAURI__
+  // Check if Tauri runtime is available (v1: __TAURI__, v2: __TAURI_INTERNALS__)
+  const isTauri = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__
+  console.log('[handleConnect] isTauri:', isTauri, 'server:', server.host, 'port:', server.port)
 
   try {
-    const { sshConnect, sshOpenShell } = await import('@/utils/ssh-api')
+    const { sshConnect } = await import('@/api/tauri')
     const result = await sshConnect({
       host: server.host,
       port: server.port,
@@ -423,16 +424,18 @@ async function handleConnect(serverId: string) {
       remark: '',
       pinned: false,
     })
-    session.realSessionId = result.session_id
+    // CRITICAL: Must use store action to set realSessionId on the REACTIVE proxy,
+    // not on the raw object returned by createSession(). Otherwise the Pinia
+    // computed (activeSession) and TerminalPanel watchers never see the change.
+    sshStore.setRealSessionId(session.id, result.session_id)
     sshStore.updateSessionStatus(session.id, 'connected')
+    // Trigger PTY shell creation in TerminalPanel via counter watch (unambiguous)
+    sshStore.requestPtyShell()
+    console.log('[WorkspaceView] SSH connected, realSessionId:', result.session_id, 'ptyRequest:', sshStore.ptyRequestCount)
     ElMessage.success(`Connected to ${server.name}`)
-
-    try { await sshOpenShell(result.session_id, 80, 24) } catch (shellErr: any) {
-      console.warn('Shell open failed:', shellErr?.message || shellErr)
-    }
   } catch (e: any) {
     const errMsg = e?.message || e?.toString() || 'Unknown error'
-    console.error('SSH connect error:', errMsg)
+    console.error('[handleConnect] SSH connect error:', errMsg, 'isTauri:', isTauri)
 
     if (isTauri) {
       // Tauri mode: real SSH failed — show error, don't fallback
@@ -440,7 +443,7 @@ async function handleConnect(serverId: string) {
       ElMessage.error(`SSH connection failed: ${errMsg}`)
     } else {
       // No Tauri (npm run dev): fallback to demo
-      console.warn('No Tauri backend, using demo mode')
+      console.warn('[handleConnect] No Tauri backend, using demo mode — realSessionId NOT set')
       setTimeout(() => {
         sshStore.updateSessionStatus(session.id, 'connected')
       }, 600)
@@ -452,7 +455,7 @@ async function handleCloseSession(sessionId: string) {
   const session = sshStore.sessions.find(s => s.id === sessionId)
   if (session?.realSessionId) {
     try {
-      const { sshDisconnect } = await import('@/utils/ssh-api')
+      const { sshDisconnect } = await import('@/api/tauri')
       await sshDisconnect(session.realSessionId)
     } catch (e) {
       console.warn('Disconnect error:', e)

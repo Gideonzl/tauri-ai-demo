@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default capability granting event listen/emit for SSH terminal I/O","local":true,"windows":["main"],"permissions":["core:event:allow-listen","core:event:allow-emit","core:event:default"]}}

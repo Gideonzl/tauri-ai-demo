@@ -68,6 +68,40 @@ export async function sshExec(sessionId: string, command: string): Promise<strin
   return invoke<string>('ssh_exec', { sessionId, command })
 }
 
+/** 打开交互式Shell（PTY分配 + shell启动，双向流） */
+export async function sshOpenShell(sessionId: string, cols: number = 80, rows: number = 24): Promise<void> {
+  return invoke<void>('ssh_open_shell', { sessionId, cols, rows })
+}
+
+/** 向Shell写入数据（用户键盘输入，PTY模式） */
+export async function sshWrite(sessionId: string, data: string | Uint8Array): Promise<void> {
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data
+  return invoke<void>('ssh_write', { sessionId, data: Array.from(bytes) })
+}
+
+/** 调整PTY终端尺寸 */
+export async function sshResize(sessionId: string, cols: number, rows: number): Promise<void> {
+  return invoke<void>('ssh_resize', { sessionId, cols, rows })
+}
+
+/** 监听SSH终端数据输出（PTY shell数据） */
+export function onSshData(sessionId: string, callback: (data: string) => void): Promise<() => void> {
+  return listen<{ sessionId: string; data: string }>('ssh-data', (event) => {
+    if (event.payload.sessionId === sessionId) {
+      callback(event.payload.data)
+    }
+  })
+}
+
+/** 监听SSH连接状态变化 */
+export function onSshStatus(sessionId: string, callback: (status: string, error?: string) => void): Promise<() => void> {
+  return listen<{ sessionId: string; status: string; error?: string }>('ssh-status', (event) => {
+    if (event.payload.sessionId === sessionId) {
+      callback(event.payload.status, event.payload.error)
+    }
+  })
+}
+
 // ============================================================
 // SFTP 文件操作 API
 // ============================================================

@@ -132,8 +132,12 @@ async function onNodeDblClick(data: FileNode) {
   // Try real SSH if available
   const sid = getSessionId()
   if (sid && typeof sid === 'string' && sid.length > 0) {
-    try { const result = await sshExec(sid, 'cat ' + data.path); if (sshStore.openFiles[idx] && result) sshStore.openFiles[idx].content = result }
-    catch { /* keep local preview */ }
+    const safePath = data.path.replace(/'/g, `'\\''`)
+    try {
+      const result = await sshExec(sid, `cat '${safePath}' 2>/dev/null`)
+      if (sshStore.openFiles[idx] && result) sshStore.openFiles[idx].content = result
+    } catch { /* keep local preview */ }
+    if (sshStore.openFiles[idx]) sshStore.openFiles[idx].loading = false
   }
 }
 
