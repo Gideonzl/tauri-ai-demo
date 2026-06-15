@@ -118,6 +118,25 @@ export interface AiChatRequest {
   agent_id: string
   message: string
   history: AiChatMessage[]
+  /** 前端直传 API 配置，绕过 Rust 本地加密存储 */
+  api_base?: string
+  api_token?: string
+  api_model?: string
+  api_timeout_ms?: number
+}
+
+/** AI 连通性测试请求 */
+export interface AiTestRequest {
+  api_base: string
+  api_token: string
+  timeout_ms: number
+}
+
+/** AI 连通性测试响应 */
+export interface AiTestResponse {
+  success: boolean
+  message: string
+  status_code: number
 }
 
 /** AI 对话消息 */

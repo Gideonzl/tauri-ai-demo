@@ -5,12 +5,12 @@
 <template>
   <div class="settings-view">
     <div class="settings-header">
-      <span class="title">Settings</span>
+      <span class="title">{{ t('settings.title') }}</span>
     </div>
     <div class="settings-body">
       <!-- Color Theme -->
       <div class="setting-section">
-        <div class="section-title">Color Theme</div>
+        <div class="section-title">{{ t('settings.colorTheme') }}</div>
         <div class="theme-grid">
           <div v-for="(t, key) in themes" :key="key" class="theme-card" :class="{ active: configStore.colorScheme === key }" @click="configStore.setScheme(key)">
             <div class="theme-preview">
@@ -20,6 +20,23 @@
               <span class="tp-dot" :style="{ background: t.key }"></span>
             </div>
             <span class="theme-name">{{ key }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Language -->
+      <div class="setting-section">
+        <div class="section-title">{{ t('settings.language') }}</div>
+        <div class="lang-grid">
+          <div
+            v-for="loc in locales"
+            :key="loc.value"
+            class="lang-card"
+            :class="{ active: locale === loc.value }"
+            @click="setLocale(loc.value)"
+          >
+            <span class="lang-flag">{{ loc.value === 'zh-CN' ? '中' : 'A' }}</span>
+            <span class="lang-name">{{ loc.label }}</span>
           </div>
         </div>
       </div>
@@ -43,7 +60,10 @@
 
 <script setup lang="ts">
 import { useConfigStore } from '@/stores/config'
+import { useLocale } from '@/composables/useLocale'
+
 const configStore = useConfigStore()
+const { locale, setLocale, t, locales } = useLocale()
 const themes = {
   'termius-dark': { keyword: '#c792ea', string: '#c3e88d', number: '#f78c6c', key: '#89ddff' },
   'xterminal': { keyword: '#bb9af7', string: '#9ece6a', number: '#ff9e64', key: '#7dcfff' },
@@ -78,4 +98,12 @@ const themes = {
 .color-input-row { display: flex; gap: $spacing-xs; align-items: center; }
 .color-picker { width: 30px; height: 26px; border: none; border-radius: $border-radius-sm; cursor: pointer; background: transparent; &::-webkit-color-swatch-wrapper { padding: 0; } &::-webkit-color-swatch { border: 1px solid $color-border; border-radius: 2px; } }
 .color-text { flex: 1; background: $color-bg-input; border: 1px solid $color-border; border-radius: $border-radius-sm; color: $color-text-primary; font-family: $font-family-mono; font-size: $font-size-xs; padding: 2px 6px; outline: none; &:focus { border-color: $color-primary; } }
+
+.lang-grid { display: flex; gap: $spacing-md; flex-wrap: wrap; }
+.lang-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-fast; min-width: 80px;
+  &:hover { border-color: $color-primary; }
+  &.active { border-color: $color-primary; background-color: rgba($color-primary, 0.1); }
+}
+.lang-flag { font-size: 20px; font-weight: 700; color: $color-text-primary; }
+.lang-name { font-size: $font-size-xs; color: $color-text-regular; }
 </style>

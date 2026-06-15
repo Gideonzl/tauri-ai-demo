@@ -3,10 +3,12 @@
 //! 指令命名对齐规范：save_token / load_token / ai_chat / ai_chat_stream
 //! SSH增强：ssh_test_connect / sftp_read_dir / sftp_mkdir / sftp_remove / sftp_rename / sftp_upload / sftp_download
 
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::storage::{self, AppConfig};
 use crate::protocol::ssh::{self, SshConnectConfig, SshSessionInfo, SshTestResult};
 use crate::protocol::sftp::{self, DirectoryListing, FileEntry, TransferProgress};
+use crate::network;
+use crate::ai;
 use tauri::{AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
 
@@ -181,7 +183,18 @@ pub struct AiChatRequest {
     pub message: String,
     #[serde(default)]
     pub history: Vec<AiChatMessage>,
+    /// API 配置 —— 前端直接传入，绕过 Rust 本地加密存储
+    #[serde(default)]
+    pub api_base: String,
+    #[serde(default)]
+    pub api_token: String,
+    #[serde(default)]
+    pub api_model: String,
+    #[serde(default = "default_api_timeout")]
+    pub api_timeout_ms: u64,
 }
+
+fn default_api_timeout() -> u64 { 30000 }
 
 /// AI 对话消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,34 +213,263 @@ pub struct AiChatResponse {
     pub error: Option<String>,
 }
 
-/// AI 对话（普通模式）
+/// Look up an agent by ID from the built-in agent definitions
+fn get_agent_by_id(agent_id: &str) -> Option<crate::ai::Agent> {
+    ai::default_agents().into_iter().find(|a| a.id == agent_id)
+}
+
+/// AI 对话（普通模式）— 前端传入 API 配置，Rust 代理请求绕过 CORS
 #[tauri::command]
-pub async fn ai_chat(request: AiChatRequest) -> AppResult<AiChatResponse> {
+pub async fn ai_chat(app: AppHandle, request: AiChatRequest) -> AppResult<AiChatResponse> {
+    // 1) Resolve API config: prefer request fields, fall back to encrypted storage
+    let (api_base, api_key, model, timeout_ms) = resolve_api_config(&app, &request).await?;
+
+    if api_key.is_empty() {
+        return Ok(AiChatResponse {
+            agent_id: request.agent_id.clone(),
+            reply: String::new(),
+            success: false,
+            error: Some("No API token configured. Please configure an AI model in AI Models page.".to_string()),
+        });
+    }
+
+    // 2) Get agent system prompt
+    let agent = get_agent_by_id(&request.agent_id);
+
+    // 3) Build messages array: [system, ...history, user]
+    let mut messages: Vec<serde_json::Value> = Vec::new();
+
+    if let Some(ref agent) = agent {
+        messages.push(serde_json::json!({
+            "role": "system",
+            "content": agent.system_prompt,
+        }));
+    }
+
+    for msg in &request.history {
+        messages.push(serde_json::json!({
+            "role": msg.role,
+            "content": msg.content,
+        }));
+    }
+
+    messages.push(serde_json::json!({
+        "role": "user",
+        "content": request.message,
+    }));
+
+    // 4) Build HTTP request
+    let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
+    let body = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": false,
+    });
+
+    let mut headers = std::collections::HashMap::new();
+    headers.insert("Authorization".to_string(), format!("Bearer {}", api_key));
+    headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+    let http_config = network::HttpRequestConfig {
+        url,
+        method: network::HttpMethod::Post,
+        headers,
+        body: Some(body.to_string()),
+        timeout_ms,
+    };
+
+    // 5) Send request via real HTTP client (reqwest, no CORS)
+    let response = network::send_request(http_config).await?;
+
+    // 6) Parse response
+    let status_is_ok = response.status >= 200 && response.status < 300;
+    if !status_is_ok {
+        return Ok(AiChatResponse {
+            agent_id: request.agent_id.clone(),
+            reply: String::new(),
+            success: false,
+            error: Some(format!("API returned status {}: {}", response.status, response.body)),
+        });
+    }
+
+    let parsed: serde_json::Value = serde_json::from_str(&response.body)
+        .map_err(|e| AppError::with_source(ErrorCode::AiRequestFailed, "Failed to parse AI response", e.to_string()))?;
+
+    let reply = parsed["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
     Ok(AiChatResponse {
         agent_id: request.agent_id.clone(),
-        reply: format!("[Demo模式] 智能体 {} 收到消息: {}", request.agent_id, request.message),
+        reply,
         success: true,
         error: None,
     })
 }
 
-/// AI 流式对话（SSE模式，通过 Tauri Event 推送 chunk）
+/// Resolve API config: request fields take priority, falling back to Rust encrypted storage
+async fn resolve_api_config(
+    app: &AppHandle,
+    request: &AiChatRequest,
+) -> AppResult<(String, String, String, u64)> {
+    if !request.api_token.is_empty() && !request.api_base.is_empty() {
+        return Ok((
+            request.api_base.clone(),
+            request.api_token.clone(),
+            if request.api_model.is_empty() { "gpt-4o-mini".to_string() } else { request.api_model.clone() },
+            if request.api_timeout_ms == 0 { 30000 } else { request.api_timeout_ms },
+        ));
+    }
+    // Fallback: load from Rust encrypted storage
+    let proxy = network::load_ai_proxy_config(app).await?;
+    Ok((proxy.api_base, proxy.api_key, proxy.model, proxy.timeout_ms))
+}
+
+/// AI 流式对话（SSE模式，前端传入 API 配置，Rust 代理请求绕过 CORS）
 #[tauri::command]
 pub async fn ai_chat_stream(app: AppHandle, request: AiChatRequest) -> AppResult<()> {
-    let demo_reply = format!("[Demo流式] 智能体 {} 收到消息: {}", request.agent_id, request.message);
-    for (i, ch) in demo_reply.chars().enumerate() {
-        let _ = app.emit("ai-stream-chunk", serde_json::json!({
-            "agent_id": request.agent_id,
-            "chunk": ch.to_string(),
-            "index": i,
+    let agent_id = request.agent_id.clone();
+
+    // 1) Resolve API config: prefer request fields, fall back to encrypted storage
+    let (api_base, api_key, model, timeout_ms) = match resolve_api_config(&app, &request).await {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            let _ = app.emit("ai-stream-error", serde_json::json!({
+                "agent_id": &agent_id,
+                "error": format!("Failed to load config: {}", e),
+            }));
+            return Err(e);
+        }
+    };
+
+    if api_key.is_empty() {
+        let _ = app.emit("ai-stream-error", serde_json::json!({
+            "agent_id": &agent_id,
+            "error": "No API token configured. Please configure an AI model in AI Models page.",
         }));
-        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+        return Err(AppError::new(ErrorCode::AiTokenInvalid, "No API token configured"));
     }
-    let _ = app.emit("ai-stream-done", serde_json::json!({
-        "agent_id": request.agent_id,
-        "full_response": demo_reply,
+
+    // 2) Get agent system prompt
+    let agent = get_agent_by_id(&request.agent_id);
+
+    // 3) Build messages array
+    let mut messages: Vec<serde_json::Value> = Vec::new();
+
+    if let Some(ref agent) = agent {
+        messages.push(serde_json::json!({
+            "role": "system",
+            "content": agent.system_prompt,
+        }));
+    }
+
+    for msg in &request.history {
+        messages.push(serde_json::json!({
+            "role": msg.role,
+            "content": msg.content,
+        }));
+    }
+
+    messages.push(serde_json::json!({
+        "role": "user",
+        "content": request.message,
     }));
-    Ok(())
+
+    let messages_json = serde_json::to_string(&messages)
+        .unwrap_or_else(|_| "[]".to_string());
+
+    // 4) Build proxy config struct for the network layer
+    let proxy_config = network::AiProxyConfig {
+        api_base,
+        api_key,
+        model,
+        timeout_ms: if timeout_ms == 0 { 60000 } else { timeout_ms },
+        ..Default::default()
+    };
+
+    // 5) Start real SSE streaming via reqwest — events emitted inside ai_stream_request
+    match network::ai_stream_request(app.clone(), &proxy_config, &agent_id, &messages_json).await {
+        Ok(full_response) => {
+            if full_response.is_empty() {
+                let _ = app.emit("ai-stream-done", serde_json::json!({
+                    "agent_id": agent_id,
+                    "full_response": "",
+                }));
+            }
+            Ok(())
+        }
+        Err(e) => {
+            let _ = app.emit("ai-stream-error", serde_json::json!({
+                "agent_id": agent_id,
+                "error": e.to_string(),
+            }));
+            Err(e)
+        }
+    }
+}
+
+/// AI 连通性测试请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiTestRequest {
+    pub api_base: String,
+    pub api_token: String,
+    pub timeout_ms: u64,
+}
+
+/// AI 连通性测试响应
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiTestResponse {
+    pub success: bool,
+    pub message: String,
+    pub status_code: u16,
+}
+
+/// AI API 连通性测试 — POST /chat/completions with max_tokens=1，绕过 CORS
+#[tauri::command]
+pub async fn test_ai_connection(request: AiTestRequest) -> AppResult<AiTestResponse> {
+    let url = format!("{}/chat/completions", request.api_base.trim_end_matches('/'));
+
+    // 发送一条最小对话测试连通性和鉴权
+    let body = serde_json::json!({
+        "model": "deepseek-chat",  // 通用模型 ID，兼容所有 DeepSeek 版本
+        "messages": [{"role": "user", "content": "Hi"}],
+        "max_tokens": 1,
+        "stream": false,
+    });
+
+    let mut headers = std::collections::HashMap::new();
+    headers.insert("Authorization".to_string(), format!("Bearer {}", request.api_token));
+    headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+    let http_config = network::HttpRequestConfig {
+        url,
+        method: network::HttpMethod::Post,
+        headers,
+        body: Some(body.to_string()),
+        timeout_ms: if request.timeout_ms == 0 { 15000 } else { request.timeout_ms },
+    };
+
+    match network::send_request(http_config).await {
+        Ok(resp) => {
+            let success = resp.status >= 200 && resp.status < 300;
+            Ok(AiTestResponse {
+                success,
+                message: if success {
+                    "Connection successful".to_string()
+                } else {
+                    format!("API returned status {}: {}", resp.status,
+                        if resp.body.len() > 300 { format!("{}...", &resp.body[..300]) } else { resp.body.clone() })
+                },
+                status_code: resp.status,
+            })
+        }
+        Err(e) => Ok(AiTestResponse {
+            success: false,
+            message: e.to_string(),
+            status_code: 0,
+        }),
+    }
 }
 
 // ============================================================

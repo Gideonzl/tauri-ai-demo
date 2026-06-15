@@ -12,14 +12,14 @@
     <div class="tab-bar">
       <div class="tab-item hosts-tab" :class="{ active: !sshStore.activeSessionId }" @click="sshStore.activeSessionId = ''">
         <el-icon :size="14"><Monitor /></el-icon>
-        <span>Hosts</span>
+        <span>{{ t('workspace.hosts') }}</span>
       </div>
       <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId }" @click="sshStore.switchSession(session.id)">
         <span class="tab-status" :class="session.status"></span>
         <span class="tab-name">{{ session.serverName }}</span>
         <el-icon class="tab-close" :size="12" @click.stop="handleCloseSession(session.id)"><Close /></el-icon>
       </div>
-      <div class="tab-item add-tab" @click="handleNewConnection" title="New Host">
+      <div class="tab-item add-tab" @click="handleNewConnection" :title="t('workspace.newHost')">
         <el-icon :size="14"><Plus /></el-icon>
       </div>
       <!-- File tabs (Xterminal style) — multi-tab -->
@@ -37,7 +37,7 @@
       <div class="host-list-panel" :style="{ width: hostListWidth + 'px' }">
         <template v-if="leftPanelMode === 'hosts'">
           <div class="host-list-top">
-            <el-input v-model="sshStore.searchQuery" size="small" placeholder="Search hosts..." clearable class="search-input">
+            <el-input v-model="sshStore.searchQuery" size="small"  :placeholder="t('workspace.searchHosts')" clearable class="search-input">
               <template #prefix><el-icon :size="14"><Search /></el-icon></template>
             </el-input>
           </div>
@@ -74,13 +74,13 @@
             <!-- Empty state -->
             <div v-if="sshStore.filteredServers.length === 0" class="empty-hosts">
               <el-icon :size="28" class="empty-icon"><SetUp /></el-icon>
-              <p>{{ sshStore.servers.length === 0 ? 'No saved hosts' : 'No matching hosts' }}</p>
-              <p class="sub">Add a host to get started</p>
+              <p>{{ sshStore.servers.length === 0 ? t('workspace.noHosts') : t('workspace.noMatching') }}</p>
+              <p class="sub">{{ t('workspace.addHostHint') }}</p>
             </div>
           </div>
           <div class="host-list-footer">
             <el-button size="small" class="new-host-btn" @click="handleNewConnection">
-              <el-icon :size="14"><Plus /></el-icon>New Host
+              <el-icon :size="14"><Plus /></el-icon>{{ t('workspace.newHost') }}
             </el-button>
           </div>
         </template>
@@ -89,7 +89,7 @@
           <div class="sftp-panel">
             <div class="sftp-header">
               <span class="sftp-title">{{ sshStore.activeSession?.serverName }}</span>
-              <el-button text size="small" @click="leftPanelMode = 'hosts'" title="Back to hosts">
+              <el-button text size="small" @click="leftPanelMode = 'hosts'"  :title="t('workspace.backToHosts')">
                 <el-icon><ArrowLeft /></el-icon>
               </el-button>
             </div>
@@ -109,7 +109,7 @@
               <span class="fv-title">{{ sshStore.openFiles[sshStore.activeFileIndex].name }}</span>
               <span class="fv-path">{{ sshStore.openFiles[sshStore.activeFileIndex].path }}</span>
               <div class="fv-actions">
-                <el-button size="small" text @click="sshStore.activeFileIndex = -1" title="Close files">
+                <el-button size="small" text @click="sshStore.activeFileIndex = -1"  :title="t('workspace.closeFiles')">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
@@ -129,8 +129,8 @@
         <template v-else>
           <div class="terminal-empty">
             <el-icon :size="36" class="empty-icon"><SetUp /></el-icon>
-            <p>Select a host and connect</p>
-            <p class="sub">Double-click a host or use the connect button</p>
+            <p>{{ t('workspace.selectHost') }}</p>
+            <p class="sub">{{ t('workspace.selectHostHint') }}</p>
           </div>
         </template>
       </div>
@@ -139,20 +139,20 @@
     <footer class="status-bar">
       <span class="status-item" :style="{ color: isTauriMode ? '#4caf7d' : '#d4a24e', fontWeight: 600 }">
         <span class="status-dot" :style="{ background: isTauriMode ? '#4caf7d' : '#d4a24e' }"></span>
-        {{ isTauriMode ? 'TAURI' : 'DEMO' }}
+        {{ isTauriMode ? 'TAURI' : t('workspace.demo') }}
       </span>
       <span class="status-sep">|</span>
       <span class="status-item" v-if="sshStore.activeSession">
         {{ sshStore.activeSession.serverName }}
-        <span v-if="sshStore.activeSession.realSessionId" style="color:#4caf7d;font-weight:600"> REAL</span>
-        <span v-else style="color:#d4a24e"> DEMO</span>
+        <span v-if="sshStore.activeSession.realSessionId" style="color:#4caf7d;font-weight:600"> {{ t('workspace.real') }}</span>
+        <span v-else style="color:#d4a24e"> {{ t('workspace.demo') }}</span>
         -
         <span :class="'status-text-' + sshStore.activeSession.status">{{ sshStore.activeSession.status }}</span>
       </span>
       <span class="status-sep" v-if="sshStore.activeSession">|</span>
       <span class="status-item">
         <span class="status-dot" :class="{ online: modelStore.defaultConfig }"></span>
-        {{ modelStore.defaultConfig ? 'AI Ready' : 'AI N/A' }}
+        {{ modelStore.defaultConfig ? t('ai.ready') : t('ai.na') }}
       </span>
       <span class="status-sep">|</span>
       <span class="status-item">v0.1.0</span>
@@ -166,18 +166,18 @@
     <!-- 服务器右键菜单 -->
     <teleport to="body">
       <div v-if="hostMenu.visible" class="host-context-menu" :style="{ left: hostMenu.x + 'px', top: hostMenu.y + 'px' }">
-        <div class="hmenu-item" @click="hostMenuAction('connect')"><el-icon :size="13"><SetUp /></el-icon><span>Connect</span></div>
-        <div class="hmenu-item" @click="hostMenuAction('edit')"><el-icon :size="13"><Edit /></el-icon><span>Edit</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('connect')"><el-icon :size="13"><SetUp /></el-icon><span>{{ t('workspace.connect') }}</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('edit')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('workspace.edit') }}</span></div>
         <div class="hmenu-sep"></div>
-        <div class="hmenu-item" @click="hostMenuAction('copyAddr')"><el-icon :size="13"><CopyDocument /></el-icon><span>Copy Address</span></div>
-        <div class="hmenu-item" @click="hostMenuAction('copyName')"><el-icon :size="13"><Link /></el-icon><span>Copy Name</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('copyAddr')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('workspace.copyAddress') }}</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('copyName')"><el-icon :size="13"><Link /></el-icon><span>{{ t('workspace.copyName') }}</span></div>
         <div class="hmenu-sep"></div>
-        <div class="hmenu-item" @click="hostMenuAction('portForwarding')"><el-icon :size="13"><Connection /></el-icon><span>Port Forwarding</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('portForwarding')"><el-icon :size="13"><Connection /></el-icon><span>{{ t('workspace.portForwarding') }}</span></div>
         <div class="hmenu-sep"></div>
-        <div class="hmenu-item" @click="hostMenuAction('keyManager')"><el-icon :size="13"><Key /></el-icon><span>Key Manager</span></div>
-        <div class="hmenu-item" @click="hostMenuAction('importExport')"><el-icon :size="13"><Upload /></el-icon><span>Import / Export</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('keyManager')"><el-icon :size="13"><Key /></el-icon><span>{{ t('workspace.keyManager') }}</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('importExport')"><el-icon :size="13"><Upload /></el-icon><span>{{ t('workspace.importExport') }}</span></div>
         <div class="hmenu-sep"></div>
-        <div class="hmenu-item danger" @click="hostMenuAction('delete')"><el-icon :size="13"><Delete /></el-icon><span>Delete</span></div>
+        <div class="hmenu-item danger" @click="hostMenuAction('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
       </div>
     </teleport>
   </div>
@@ -187,6 +187,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, provide, watch } from 'vue'
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
+import { useLocale } from '@/composables/useLocale'
 import { highlightCode } from '@/utils/highlight'
 import { useModelStore } from '@/stores/model'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -201,6 +202,7 @@ import HostImportExport from '@/components/HostImportExport.vue'
 
 const sshStore = useSshStore()
 const modelStore = useModelStore()
+const { t } = useLocale()
 const configStore = useConfigStore()
 const isTauriMode = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 
@@ -272,18 +274,18 @@ function hostMenuAction(action: string) {
       sshStore.showConnectDialog = true
       break
     case 'delete':
-      ElMessageBox.confirm(`Delete "${server.name}"?`, 'Confirm', { type: 'warning', confirmButtonText: 'Delete', cancelButtonText: 'Cancel' }).then(() => {
+      ElMessageBox.confirm(`Delete "${server.name}"?`, t('workspace.confirm'), { type: 'warning', confirmButtonText: t('workspace.delete'), cancelButtonText: t('workspace.cancel') }).then(() => {
         sshStore.deleteServer(server.id)
-        ElMessage.success('Server deleted')
+        ElMessage.success(t('workspace.serverDeleted'))
       }).catch(() => {})
       break
     case 'copyAddr':
       navigator.clipboard.writeText(`${server.host}:${server.port}`)
-      ElMessage.success('Address copied')
+      ElMessage.success(t('workspace.addressCopied'))
       break
     case 'copyName':
       navigator.clipboard.writeText(server.name)
-      ElMessage.success('Name copied')
+      ElMessage.success(t('workspace.nameCopied'))
       break
     case 'portForwarding':
       portForwardingRef.value?.open()
@@ -432,7 +434,7 @@ async function handleConnect(serverId: string) {
     // Trigger PTY shell creation in TerminalPanel via counter watch (unambiguous)
     sshStore.requestPtyShell()
     console.log('[WorkspaceView] SSH connected, realSessionId:', result.session_id, 'ptyRequest:', sshStore.ptyRequestCount)
-    ElMessage.success(`Connected to ${server.name}`)
+    ElMessage.success(t('workspace.connectedTo', { name: server.name }))
   } catch (e: any) {
     const errMsg = e?.message || e?.toString() || 'Unknown error'
     console.error('[handleConnect] SSH connect error:', errMsg, 'isTauri:', isTauri)
@@ -440,7 +442,7 @@ async function handleConnect(serverId: string) {
     if (isTauri) {
       // Tauri mode: real SSH failed — show error, don't fallback
       sshStore.updateSessionStatus(session.id, 'error', errMsg)
-      ElMessage.error(`SSH connection failed: ${errMsg}`)
+      ElMessage.error(t('workspace.connectionFailed', { error: errMsg }))
     } else {
       // No Tauri (npm run dev): fallback to demo
       console.warn('[handleConnect] No Tauri backend, using demo mode — realSessionId NOT set')

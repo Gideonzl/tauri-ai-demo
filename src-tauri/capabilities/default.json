@@ -1,10 +1,17 @@
 {
   "identifier": "default",
-  "description": "Default capability granting event listen/emit for SSH terminal I/O",
+  "description": "Default capability granting event listen/emit for SSH terminal I/O and HTTP fetch for AI API",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-emit",
-    "core:event:default"
+    "core:event:default",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        { "url": "https://**" }
+      ]
+    }
   ]
 }

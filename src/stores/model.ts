@@ -5,6 +5,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useLocale } from '@/composables/useLocale'
 
 /** 单组AI模型配置 */
 export interface ModelConfig {
@@ -25,6 +26,8 @@ export interface TestResult {
 }
 
 export const useModelStore = defineStore('model', () => {
+  const { t } = useLocale()
+
   // 所有AI配置
   const configs = ref<ModelConfig[]>([])
   // 默认配置ID
@@ -87,26 +90,52 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  // 连通性测试（前端fetch方式）
+  // 连通性测试 — 自动选择 Tauri plugin-http fetch 或浏览器原生 fetch
   async function testConnection(id: string): Promise<boolean> {
     const config = configs.value.find(c => c.id === id)
     if (!config) return false
+
+    // 动态选择 fetch: Tauri → @tauri-apps/plugin-http (绕过CORS), 浏览器 → 原生
+    let $fetch = globalThis.fetch
+    try {
+      if ((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__) {
+        const mod = await import('@tauri-apps/plugin-http')
+        $fetch = mod.fetch as typeof globalThis.fetch
+      }
+    } catch { /* 保持原生 fetch */ }
 
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), config.timeout || 10000)
 
-      const response = await fetch(`${config.apiBase}/models`, {
-        method: 'GET',
+      const response = await $fetch(`${config.apiBase}/chat/completions`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${config.token}`,
         },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 1,
+          stream: false,
+        }),
         signal: controller.signal,
       })
 
       clearTimeout(timeoutId)
-      return response.ok
-    } catch {
+      if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        setTestResult(id, { success: false, message: `HTTP ${response.status}: ${body.slice(0, 200)}` })
+        return false
+      }
+      return true
+    } catch (e: any) {
+      let msg = t('common.unknownError')
+      if (e instanceof DOMException && e.name === 'AbortError') msg = t('common.requestTimeout')
+      else if (e instanceof TypeError && e.message.includes('Failed to fetch')) msg = t('common.corsError')
+      else msg = e.message || String(e)
+      setTestResult(id, { success: false, message: msg })
       return false
     }
   }
@@ -144,10 +173,10 @@ export const useModelStore = defineStore('model', () => {
     // 如果没有配置，添加默认示例
     if (configs.value.length === 0) {
       addConfig({
-        name: 'DeepSeek Demo',
+        name: `DeepSeek ${t('model.default')}`,
         provider: 'deepseek',
-        apiBase: 'https://api.deepseek.com/v1',
-        model: 'deepseek-chat',
+        apiBase: 'https://api.deepseek.com',
+        model: 'deepseek-v4-pro',
         token: '',
         timeout: 30000,
       })

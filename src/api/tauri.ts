@@ -7,7 +7,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type {
-  AppConfig, AiChatRequest, AiChatResponse, SystemInfo,
+  AppConfig, AiChatRequest, AiChatResponse, AiTestRequest, AiTestResponse, SystemInfo,
   SshConnectConfig, SshTestResult, SshSessionInfo,
   DirectoryListing, FileEntry, TransferProgress
 } from '../types/tauri'
@@ -182,6 +182,11 @@ export async function onAiStreamDone(
   return listen<{ agent_id: string; full_response: string }>('ai-stream-done', (event) => {
     callback(event.payload)
   })
+}
+
+/// AI API 连通性测试 — Rust reqwest 代理，绕过 CORS
+export async function testAiConnection(request: AiTestRequest): Promise<AiTestResponse> {
+  return invoke<AiTestResponse>('test_ai_connection', { request })
 }
 
 // ============================================================

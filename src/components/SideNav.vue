@@ -10,11 +10,11 @@
     <div class="nav-top">
       <div
         v-for="item in topItems"
-        :key="item.path"
+        :key="item.id"
         class="nav-item"
-        :class="{ active: isActive(item.path) }"
+        :class="{ active: isActive(item) }"
         :title="item.label"
-        @click="navigate(item.path)"
+        @click="navigate(item)"
       >
         <el-icon :size="18"><component :is="item.icon" /></el-icon>
         <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
@@ -25,11 +25,11 @@
     <div class="nav-bottom">
       <div
         v-for="item in bottomItems"
-        :key="item.path"
+        :key="item.id"
         class="nav-item"
-        :class="{ active: isActive(item.path) }"
+        :class="{ active: isActive(item) }"
         :title="item.label"
-        @click="navigate(item.path)"
+        @click="navigate(item)"
       >
         <el-icon :size="18"><component :is="item.icon" /></el-icon>
         <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
@@ -43,33 +43,37 @@ import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Monitor, Cpu, FolderOpened, Setting } from '@element-plus/icons-vue'
 import type { Ref } from 'vue'
+import { useLocale } from '@/composables/useLocale'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useLocale()
 
 // Sidebar width from parent → show labels when > 80px
 const sidebarWidth = inject<Ref<number>>('sidebarWidth')
 const showLabels = computed(() => (sidebarWidth?.value ?? 56) > 80)
 
-// Navigation items
-const topItems = [
-  { path: '/', label: 'Hosts', icon: Monitor },
-  { path: '/ai-config', label: 'AI Models', icon: Cpu },
-  { path: '/', label: 'SFTP', icon: FolderOpened },  // SFTP is part of workspace
-]
+// Navigation items — labels reactive to locale
+interface NavItem { id: string; path: string; label: string; icon: any }
+const topItems = computed<NavItem[]>(() => [
+  { id: 'hosts', path: '/', label: t('nav.hosts'), icon: Monitor },
+  { id: 'ai', path: '/ai-config', label: t('nav.aiModels'), icon: Cpu },
+  { id: 'sftp', path: '', label: t('nav.sftp'), icon: FolderOpened },
+])
+const bottomItems = computed<NavItem[]>(() => [
+  { id: 'settings', path: '/settings', label: t('nav.settings'), icon: Setting },
+])
 
-const bottomItems = [
-  { path: '/settings', label: 'Settings', icon: Setting },
-]
-
-function isActive(path: string): boolean {
-  if (path === '/') return route.path === '/' || route.path.startsWith('/?')
-  return route.path === path
+function isActive(item: NavItem): boolean {
+  if (item.id === 'sftp') return false  // SFTP is a panel toggle, never highlighted as route
+  if (item.id === 'hosts') return route.path === '/' || route.path.startsWith('/?')
+  return route.path === item.path
 }
 
-function navigate(path: string) {
-  if (path === route.path) return
-  router.push(path)
+function navigate(item: NavItem) {
+  if (item.id === 'sftp') { if (route.path !== '/') router.push('/'); return }
+  if (item.path === route.path) return
+  router.push(item.path)
 }
 </script>
 

@@ -7,10 +7,10 @@
 <template>
   <div class="ai-config-view">
     <div class="config-header">
-      <span class="title">AI Model Config</span>
+      <span class="title">{{ t('model.title') }}</span>
       <el-button size="small" type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>
-        Add Config
+        {{ t('model.addConfig') }}
       </el-button>
     </div>
 
@@ -25,19 +25,22 @@
         <div class="card-header">
           <div class="card-info">
             <span class="card-name">{{ config.name }}</span>
-            <span v-if="config.id === modelStore.defaultConfigId" class="default-badge">DEFAULT</span>
+            <span v-if="config.id === modelStore.defaultConfigId" class="default-badge">{{ t('model.default') }}</span>
           </div>
           <div class="card-actions">
+            <el-button size="small" text @click="handleEdit(config)">
+              <el-icon><Edit /></el-icon>
+            </el-button>
             <el-button size="small" text @click="handleTest(config)">
               <el-icon><Connection /></el-icon>
-              Test
+              {{ t('model.test') }}
             </el-button>
             <el-button
               v-if="config.id !== modelStore.defaultConfigId"
               size="small" text
               @click="handleSetDefault(config.id)"
             >
-              Set Default
+              {{ t('model.setDefault') }}
             </el-button>
             <el-button size="small" text type="danger" @click="handleDelete(config.id)">
               <el-icon><Delete /></el-icon>
@@ -46,19 +49,19 @@
         </div>
         <div class="card-body">
           <div class="card-field">
-            <span class="field-label">Provider</span>
+            <span class="field-label">{{ t('model.provider') }}</span>
             <span class="field-value">{{ config.provider }}</span>
           </div>
           <div class="card-field">
-            <span class="field-label">API Base</span>
+            <span class="field-label">{{ t('model.apiBase') }}</span>
             <span class="field-value mono">{{ config.apiBase }}</span>
           </div>
           <div class="card-field">
-            <span class="field-label">Model</span>
+            <span class="field-label">{{ t('model.model') }}</span>
             <span class="field-value mono">{{ config.model }}</span>
           </div>
           <div class="card-field">
-            <span class="field-label">Token</span>
+            <span class="field-label">{{ t('model.token') }}</span>
             <span class="field-value mono">{{ maskToken(config.token) }}</span>
           </div>
         </div>
@@ -71,49 +74,49 @@
       <!-- 空状态 -->
       <div v-if="modelStore.configs.length === 0" class="empty-state">
         <el-icon :size="36"><Cpu /></el-icon>
-        <p>No AI model configurations</p>
-        <p class="sub">Add a configuration to start using AI features</p>
+        <p>{{ t('model.noConfigs') }}</p>
+        <p class="sub">{{ t('model.noConfigsHint') }}</p>
       </div>
     </div>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog
       v-model="showDialog"
-      :title="editingConfig ? 'Edit Config' : 'Add Config'"
+      :title="editingConfig ? t('model.editConfig') : t('model.addConfig')"
       width="460px"
       :close-on-click-modal="false"
     >
       <el-form :model="formData" label-width="80px" label-position="left" size="small">
-        <el-form-item label="Name">
+        <el-form-item :label="t('model.name')">
           <el-input v-model="formData.name" placeholder="e.g. My DeepSeek" />
         </el-form-item>
-        <el-form-item label="Provider">
+        <el-form-item :label="t('model.provider')">
           <el-select v-model="formData.provider" @change="handleProviderChange">
-            <el-option label="OpenAI" value="openai" />
-            <el-option label="DeepSeek" value="deepseek" />
-            <el-option label="Qwen (Tongyi)" value="qwen" />
-            <el-option label="GLM (Zhipu)" value="glm" />
-            <el-option label="Wenxin (Baidu)" value="wenxin" />
-            <el-option label="Custom" value="custom" />
+            <el-option :label="t('model.providers.openai')" value="openai" />
+            <el-option :label="t('model.providers.deepseek')" value="deepseek" />
+            <el-option :label="t('model.providers.qwen')" value="qwen" />
+            <el-option :label="t('model.providers.glm')" value="glm" />
+            <el-option :label="t('model.providers.wenxin')" value="wenxin" />
+            <el-option :label="t('model.providers.custom')" value="custom" />
           </el-select>
         </el-form-item>
-        <el-form-item label="API Base">
+        <el-form-item :label="t('model.apiBase')">
           <el-input v-model="formData.apiBase" placeholder="https://api.openai.com/v1" />
         </el-form-item>
-        <el-form-item label="Model">
+        <el-form-item :label="t('model.model')">
           <el-input v-model="formData.model" placeholder="gpt-4o-mini" />
         </el-form-item>
-        <el-form-item label="Token">
+        <el-form-item :label="t('model.token')">
           <el-input v-model="formData.token" type="password" show-password placeholder="sk-..." />
         </el-form-item>
-        <el-form-item label="Timeout">
+        <el-form-item :label="t('model.timeout')">
           <el-input-number v-model="formData.timeout" :min="5000" :max="120000" :step="5000" />
           <span class="unit-label">ms</span>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button size="small" @click="showDialog = false">Cancel</el-button>
-        <el-button size="small" type="primary" @click="handleSave">Save</el-button>
+        <el-button size="small" @click="showDialog = false">{{ t('model.cancel') }}</el-button>
+        <el-button size="small" type="primary" @click="handleSave">{{ t('model.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -122,11 +125,13 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useModelStore } from '@/stores/model'
+import { useLocale } from '@/composables/useLocale'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Connection, Delete, Cpu } from '@element-plus/icons-vue'
+import { Plus, Edit, Connection, Delete, Cpu } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/model'
 
 const modelStore = useModelStore()
+const { t } = useLocale()
 
 const showDialog = ref(false)
 const editingConfig = ref<ModelConfig | null>(null)
@@ -143,7 +148,7 @@ const formData = reactive({
 // 厂商预设
 const providerPresets: Record<string, { apiBase: string; model: string }> = {
   openai: { apiBase: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-  deepseek: { apiBase: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  deepseek: { apiBase: 'https://api.deepseek.com', model: 'deepseek-v4-pro' },
   qwen: { apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-turbo' },
   glm: { apiBase: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
   wenxin: { apiBase: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1', model: 'ernie-4.0-8k' },
@@ -163,6 +168,19 @@ function maskToken(token: string): string {
   return token.slice(0, 4) + '****' + token.slice(-4)
 }
 
+function handleEdit(config: ModelConfig) {
+  editingConfig.value = config
+  Object.assign(formData, {
+    name: config.name,
+    provider: config.provider || 'custom',
+    apiBase: config.apiBase,
+    model: config.model,
+    token: config.token,
+    timeout: config.timeout || 30000,
+  })
+  showDialog.value = true
+}
+
 function handleAdd() {
   editingConfig.value = null
   Object.assign(formData, {
@@ -178,30 +196,30 @@ function handleAdd() {
 
 function handleSave() {
   if (!formData.name || !formData.apiBase || !formData.token) {
-    ElMessage.warning('Please fill in required fields')
+    ElMessage.warning(t('model.fillRequired'))
     return
   }
 
   if (editingConfig.value) {
     modelStore.updateConfig(editingConfig.value.id, { ...formData })
-    ElMessage.success('Config updated')
+    ElMessage.success(t('model.configUpdated'))
   } else {
     modelStore.addConfig({ ...formData })
-    ElMessage.success('Config added')
+    ElMessage.success(t('model.configAdded'))
   }
   showDialog.value = false
 }
 
 function handleSetDefault(id: string) {
   modelStore.setDefault(id)
-  ElMessage.success('Default config set')
+  ElMessage.success(t('model.defaultSet'))
 }
 
 async function handleDelete(id: string) {
   try {
-    await ElMessageBox.confirm('Delete this configuration?', 'Confirm', { type: 'warning' })
+    await ElMessageBox.confirm(t('model.confirmDelete'), t('common.error'), { type: 'warning' })
     modelStore.deleteConfig(id)
-    ElMessage.success('Config deleted')
+    ElMessage.success(t('model.configDeleted'))
   } catch { /* cancelled */ }
 }
 
@@ -211,9 +229,9 @@ async function handleTest(config: ModelConfig) {
     const ok = await modelStore.testConnection(config.id)
     modelStore.setTestResult(config.id, {
       success: ok,
-      message: ok ? 'Connection successful' : 'Connection failed',
+      message: ok ? t('model.connectionSuccessful') : t('model.connectionFailed'),
     })
-    ElMessage(ok ? 'success' : 'error', ok ? 'Connection OK' : 'Connection failed')
+    ElMessage({ message: ok ? t('model.connectionOk') : t('model.connectionFailed'), type: ok ? 'success' : 'error' })
   } catch (e) {
     modelStore.setTestResult(config.id, {
       success: false,

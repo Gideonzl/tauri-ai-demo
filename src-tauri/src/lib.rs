@@ -17,6 +17,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             // Token
             commands::save_token,
@@ -29,6 +30,7 @@ pub fn run() {
             // AI
             commands::ai_chat,
             commands::ai_chat_stream,
+            commands::test_ai_connection,
             // SSH
             commands::ssh_test_connect,
             commands::ssh_connect,
