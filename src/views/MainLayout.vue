@@ -31,11 +31,13 @@
 
 
     <!-- 中间服务器连接工作区 -->
-
+    <!-- KeepAlive: 防止切换标签时销毁 WorkspaceView，保持 SSH 会话不中断 -->
     <main class="workspace">
-
-      <router-view />
-
+      <router-view v-slot="{ Component }">
+        <keep-alive>
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </main>
 
 

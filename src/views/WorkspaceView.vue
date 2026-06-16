@@ -10,11 +10,11 @@
   <div class="workspace-view">
     <!-- 顶部标签栏 40px -->
     <div class="tab-bar">
-      <div class="tab-item hosts-tab" :class="{ active: !sshStore.activeSessionId }" @click="sshStore.activeSessionId = ''">
+      <div class="tab-item hosts-tab" :class="{ active: leftPanelMode === 'hosts' }" @click="showHostList">
         <el-icon :size="14"><Monitor /></el-icon>
         <span>{{ t('workspace.hosts') }}</span>
       </div>
-      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId }" @click="sshStore.switchSession(session.id)">
+      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts' }" @click="switchToSession(session.id)">
         <span class="tab-status" :class="session.status"></span>
         <span class="tab-name">{{ session.serverName }}</span>
         <el-icon class="tab-close" :size="12" @click.stop="handleCloseSession(session.id)"><Close /></el-icon>
@@ -331,6 +331,17 @@ watch(() => sshStore.activeSession?.status, (status) => {
     leftPanelMode.value = 'hosts'
   }
 })
+
+/** Switch to host list view without disconnecting the active session */
+function showHostList() {
+  leftPanelMode.value = 'hosts'
+}
+
+/** Switch to a session tab (show SFTP + terminal) */
+function switchToSession(sessionId: string) {
+  sshStore.switchSession(sessionId)
+  leftPanelMode.value = 'sftp'
+}
 
 // === 服务器列表伸缩 ===
 const HOST_LIST_MIN = 120

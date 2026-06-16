@@ -82,7 +82,7 @@ impl client::Handler for SshHandler {
 // Session storage
 // ============================================================
 
-enum ShellCmd { Data(Vec<u8>), Resize(u32, u32), Close }
+enum ShellCmd { Data(Vec<u8>), Resize(u32, u32), Close, Replace }
 
 struct SshSession {
     #[allow(dead_code)]
@@ -119,6 +119,7 @@ async fn shell_task(
                 match cmd {
                     Some(ShellCmd::Data(data)) => { channel.data(&data[..]).await.ok(); }
                     Some(ShellCmd::Resize(c, r)) => { channel.window_change(c, r, 0, 0).await.ok(); }
+                    Some(ShellCmd::Replace) => { channel.close().await.ok(); return; }
                     Some(ShellCmd::Close) | None => { channel.close().await.ok(); emit_status(&app, &session_id, "disconnected", ""); return; }
                 }
             }
@@ -203,6 +204,11 @@ pub async fn open_shell(app: AppHandle, session_id: &str, cols: u32, rows: u32) 
     let mut sessions = SESSIONS.lock().await;
     let session = sessions.get_mut(session_id)
         .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+
+    // If a previous shell channel exists, gracefully replace it without emitting "disconnected"
+    if let Some(old_tx) = session.cmd_tx.take() {
+        old_tx.send(ShellCmd::Replace).ok();
+    }
 
     let handle = session.handle.as_mut()
         .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
