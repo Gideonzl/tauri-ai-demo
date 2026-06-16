@@ -25,7 +25,17 @@
     "file": "File",
     "directory": "Directory",
     "ready": "AI Ready",
-    "na": "AI N/A"
+    "na": "AI N/A",
+    "connected": "Connected",
+    "runningDiagnostics": "Running diagnostic commands on server...",
+    "diagnosticsFailed": "Diagnostics failed",
+    "history": "History",
+    "noHistory": "No past conversations",
+    "deleteConversation": "Delete conversation",
+    "confirmDeleteConv": "Delete this conversation?",
+    "convDeleted": "Conversation deleted",
+    "renameConversation": "Enter new conversation title",
+    "messages": "messages"
   },
   "model": {
     "title": "AI Model Config",
@@ -172,13 +182,39 @@
     "diskUsage": "Disk Usage",
     "network": "Network",
     "processes": "Processes",
-    "security": "Security"
+    "security": "Security",
+    "systemHealthPrompt": "Please perform a system health check on the current server. Analyze CPU usage, memory usage, disk space, and identify any potential issues. Suggest diagnostic commands first.",
+    "diskUsagePrompt": "Analyze disk usage patterns on the current server. Identify large directories, potential cleanup targets, and space optimization strategies. Look for unusual growth patterns.",
+    "networkPrompt": "Analyze network configuration, open ports, and active connections on the current server. Check for security concerns, unusual listening services, and firewall rules.",
+    "processesPrompt": "Analyze running processes on the current server. Identify resource hogs, zombie processes, unnecessary services, and any suspicious or unexpected processes.",
+    "securityPrompt": "Perform a security assessment on the current server. Check authentication logs, sudo usage, failed login attempts, open ports, running services, file permissions on critical paths, and potential vulnerabilities."
   },
   "settings": {
     "title": "Settings",
     "colorTheme": "Color Theme",
     "language": "Language",
     "customColors": "Custom Colors"
+  },
+  "monitor": {
+    "title": "Monitor",
+    "noServer": "Not connected to server",
+    "connectHint": "Connect to a server to view real-time monitoring data",
+    "collecting": "Collecting data...",
+    "uptime": "Uptime",
+    "cpuModel": "CPU Model",
+    "cpuCores": "CPU Cores",
+    "cores": "cores",
+    "totalMemory": "Total Memory",
+    "cpuUsage": "CPU Usage",
+    "memoryUsage": "Memory Usage",
+    "diskIo": "Disk I/O",
+    "networkIo": "Network I/O",
+    "diskUsage": "Disk Usage",
+    "runningProcesses": "Running Processes",
+    "read": "Read",
+    "write": "Write",
+    "live": "Live",
+    "idle": "Idle"
   },
   "common": {
     "copy": "Copy",

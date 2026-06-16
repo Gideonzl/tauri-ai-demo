@@ -5,6 +5,7 @@
  * 返回 StreamControl 对象支持外部中止生成
  */
 import { useModelStore } from '@/stores/model'
+import { useLocale } from '@/composables/useLocale'
 import type { Agent } from '@/stores/agent'
 
 interface ChatMessage {
@@ -28,12 +29,21 @@ async function resolveFetch(): Promise<typeof globalThis.fetch> {
   return globalThis.fetch
 }
 
+export interface ServerContext {
+  serverName: string
+  host: string
+  port: number
+  username: string
+  status: string
+}
+
 export async function streamChat(
   agent: Agent,
   messages: ChatMessage[],
   onChunk: (chunk: string) => void,
   onDone: () => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  serverContext?: ServerContext | null
 ): Promise<StreamControl> {
   const modelStore = useModelStore()
   const config = modelStore.defaultConfig
@@ -45,8 +55,21 @@ export async function streamChat(
 
   const $fetch = await resolveFetch()
 
+  // Build system prompt with language instruction + server context
+  const { locale } = useLocale()
+  let systemContent = agent.systemPrompt
+
+  // Language instruction — prepend to ensure AI responds in the user's language
+  if (locale.value === 'zh-CN') {
+    systemContent = `IMPORTANT: You MUST respond in Chinese (Simplified Chinese / 简体中文). All your replies, explanations, code comments, and diagnostic notes must be written in Chinese. The user's preferred language is Chinese.\n\n` + systemContent
+  }
+
+  if (serverContext && serverContext.status === 'connected') {
+    systemContent += `\n\n=== CURRENT SERVER CONTEXT ===\nYou are currently assisting with a server the user is connected to. Use this context for all server-related questions:\n- Server Name: ${serverContext.serverName}\n- Host: ${serverContext.host}:${serverContext.port}\n- User: ${serverContext.username}\n\nWhen the user asks about "the server", "current server", "this server", CPU, memory, disk, processes, logs, or any system operations — they are referring to THIS server. Always include the specific host (${serverContext.host}) in your diagnostic commands. Do NOT ask the user to specify which server unless they have multiple contexts.`
+  }
+
   const requestMessages: ChatMessage[] = [
-    { role: 'system', content: agent.systemPrompt },
+    { role: 'system', content: systemContent },
     ...messages,
   ]
 

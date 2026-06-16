@@ -66,7 +66,7 @@
 
     >
 
-      <!-- 顶部栏：toggle箭头 + 标题，横向填满 -->
+      <!-- 顶部栏：toggle箭头 + 标签页切换 -->
 
       <div class="ai-top-bar">
 
@@ -80,15 +80,43 @@
 
         </div>
 
-        <span v-if="!aiPanelCollapsed" class="ai-title">{{ t('ai.title') }}</span>
+        <template v-if="!aiPanelCollapsed">
+
+          <div class="right-tabs">
+
+            <button
+
+              class="right-tab"
+
+              :class="{ active: rightPanelTab === 'ai' }"
+
+              @click="rightPanelTab = 'ai'"
+
+            >{{ t('ai.title') }}</button>
+
+            <button
+
+              class="right-tab"
+
+              :class="{ active: rightPanelTab === 'monitor' }"
+
+              @click="rightPanelTab = 'monitor'"
+
+            >{{ t('monitor.title') }}</button>
+
+          </div>
+
+        </template>
 
       </div>
 
-      <!-- 对话内容：填满剩余空间 -->
+      <!-- 内容区：AI对话 / 系统监控 -->
 
       <div v-if="!aiPanelCollapsed" class="ai-body">
 
-        <AiChat ref="aiChatRef" />
+        <AiChat v-if="rightPanelTab === 'ai'" ref="aiChatRef" />
+
+        <SystemMonitor v-else />
 
       </div>
 
@@ -113,10 +141,14 @@ import SideNav from '@/components/SideNav.vue'
 
 import AiChat from '@/components/AiChat.vue'
 
+import SystemMonitor from '@/components/SystemMonitor.vue'
+
 
 
 const configStore = useConfigStore()
 const { t } = useLocale()
+
+const rightPanelTab = ref<'ai' | 'monitor'>('ai')
 
 
 
@@ -493,6 +525,8 @@ onUnmounted(() => {
 
   transition: color 0.15s ease;
 
+  flex-shrink: 0;
+
 
 
   &:hover {
@@ -505,19 +539,65 @@ onUnmounted(() => {
 
 
 
-// 标题
+// 标签页切换
 
-.ai-title {
+.right-tabs {
 
-  font-size: $font-size-sm;
+  display: flex;
 
-  font-weight: 600;
+  gap: 2px;
 
-  color: $color-text-regular;
+  flex: 1;
 
-  text-transform: uppercase;
+  overflow: hidden;
 
-  letter-spacing: 0.5px;
+}
+
+
+
+.right-tab {
+
+  padding: 4px 10px;
+
+  border: none;
+
+  border-radius: $border-radius-sm;
+
+  cursor: pointer;
+
+  font-size: $font-size-xs;
+
+  font-weight: 500;
+
+  color: $color-text-secondary;
+
+  background: transparent;
+
+  transition: all $transition-fast;
+
+  white-space: nowrap;
+
+  font-family: inherit;
+
+
+
+  &:hover {
+
+    color: $color-text-regular;
+
+    background-color: $color-bg-hover;
+
+  }
+
+
+
+  &.active {
+
+    color: $color-primary;
+
+    background-color: $color-bg-active;
+
+  }
 
 }
 

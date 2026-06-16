@@ -4,9 +4,75 @@
  */
 <template>
   <div class="ai-chat">
-    <!-- 智能体切换栏 -->
+    <!-- 智能体切换栏 + 历史按钮 -->
     <div class="agent-bar">
       <AgentSwitch />
+      <div class="agent-bar-actions">
+        <el-button
+          size="small"
+          text
+          :class="{ active: showHistory }"
+          @click="showHistory = !showHistory"
+          :title="t('ai.history')"
+        >
+          <el-icon :size="14"><Clock /></el-icon>
+          <span v-if="historyCount > 0" class="history-count">{{ historyCount }}</span>
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 当前服务器上下文指示器 -->
+    <div v-if="serverContext && serverContext.status === 'connected'" class="server-context-bar">
+      <el-icon :size="12"><Monitor /></el-icon>
+      <span class="ctx-server-name">{{ serverContext.serverName }}</span>
+      <span class="ctx-sep">|</span>
+      <span class="ctx-addr">{{ serverContext.username }}@{{ serverContext.host }}:{{ serverContext.port }}</span>
+      <span class="ctx-badge connected">{{ t('ai.connected') }}</span>
+    </div>
+
+    <!-- 对话标题栏 -->
+    <div v-if="activeConv" class="conv-title-bar" @dblclick="handleRenameConv">
+      <el-icon :size="12"><ChatDotRound /></el-icon>
+      <span class="conv-title">{{ activeConv.title }}</span>
+      <span class="conv-meta">{{ activeConv.messages.length }} {{ t('ai.messages') }}</span>
+    </div>
+
+    <!-- 历史对话面板 -->
+    <div v-if="showHistory" class="conv-history-panel">
+      <div class="history-header">
+        <span class="history-label">{{ t('ai.history') }}</span>
+        <el-button size="small" text @click="handleNewChat">
+          <el-icon :size="12"><Plus /></el-icon>
+          {{ t('ai.newChat') }}
+        </el-button>
+      </div>
+      <div class="history-list" v-if="agentConversations.length > 0">
+        <div
+          v-for="conv in agentConversations"
+          :key="conv.id"
+          class="history-item"
+          :class="{ active: conv.id === chatStore.activeConversationId }"
+          @click="handleSwitchConv(conv.id)"
+        >
+          <div class="history-item-main">
+            <span class="history-title">{{ conv.title }}</span>
+            <span class="history-preview">{{ getPreview(conv) }}</span>
+            <span class="history-time">{{ formatTime(conv.updatedAt) }}</span>
+          </div>
+          <el-button
+            class="history-delete"
+            size="small"
+            text
+            @click.stop="handleDeleteConv(conv.id)"
+            :title="t('ai.deleteConversation')"
+          >
+            <el-icon :size="12"><Close /></el-icon>
+          </el-button>
+        </div>
+      </div>
+      <div v-else class="history-empty">
+        <span>{{ t('ai.noHistory') }}</span>
+      </div>
     </div>
 
     <!-- 快速分析按钮 -->
@@ -74,10 +140,10 @@
       <div class="input-actions">
         <el-button
           size="small"
-          @click="handleClear"
-          :disabled="messages.length === 0"
+          @click="handleNewChat"
           text
         >
+          <el-icon :size="12"><Plus /></el-icon>
           {{ t('ai.newChat') }}
         </el-button>
         <el-button
@@ -98,31 +164,118 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useAgentStore } from '@/stores/agent'
 import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/model'
+import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
 import { streamChat } from '@/utils/ai-chat'
-import type { StreamControl } from '@/utils/ai-chat'
+import type { StreamControl, ServerContext } from '@/utils/ai-chat'
+import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
-import { ElMessage } from 'element-plus'
-import { ChatDotRound } from '@element-plus/icons-vue'
+import { runDiagnostics, formatDiagnosticOutput } from '@/utils/server-diagnostics'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ChatDotRound, Monitor, Clock, Plus, Close } from '@element-plus/icons-vue'
 import AgentSwitch from '@/components/AgentSwitch.vue'
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
 const modelStore = useModelStore()
+const sshStore = useSshStore()
 const { t } = useLocale()
 
+const showHistory = ref(false)
 const inputText = ref('')
 const messageListRef = ref<HTMLElement>()
 const userScrolledUp = ref(false)
 let currentStream: StreamControl | null = null
 
-/** 快速分析预设 — labels 随 locale 变化 */
+/** Derive current server context from active SSH session */
+const serverContext = computed<ServerContext | null>(() => {
+  const session = sshStore.activeSession
+  if (!session) return null
+  const server = sshStore.servers.find((s: { id: string }) => s.id === session.serverId)
+  if (!server) return null
+  return {
+    serverName: session.serverName,
+    host: server.host,
+    port: server.port,
+    username: server.username,
+    status: session.status,
+  }
+})
+
+/** Active conversation (current) */
+const activeConv = computed(() => chatStore.activeConversation)
+
+/** All non-empty conversations for the current agent, sorted by last update */
+const agentConversations = computed(() => {
+  return chatStore.conversations
+    .filter((c: Conversation) => c.agentId === agentStore.activeAgentId && c.messages.length > 0)
+    .sort((a: Conversation, b: Conversation) => b.updatedAt - a.updatedAt)
+})
+
+/** Number of past conversations for badge */
+const historyCount = computed(() => agentConversations.value.length)
+
+/** Get preview text from last message in conversation */
+function getPreview(conv: { messages: Array<{ content: string }> }): string {
+  const last = conv.messages[conv.messages.length - 1]
+  if (!last) return ''
+  const text = last.content.replace(/```[\s\S]*?```/g, '').replace(/[#*`>\[\]()!\n\r]/g, ' ').trim()
+  return text.slice(0, 60) + (text.length > 60 ? '...' : '')
+}
+
+/** Switch to a conversation and close history panel */
+function handleSwitchConv(id: string) {
+  chatStore.switchConversation(id)
+  showHistory.value = false
+  userScrolledUp.value = false
+  nextTick(() => scrollToBottom())
+}
+
+/** Delete a conversation */
+function handleDeleteConv(id: string) {
+  ElMessageBox.confirm(
+    t('ai.confirmDeleteConv'),
+    t('common.confirm'),
+    { type: 'warning', confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel') }
+  ).then(() => {
+    chatStore.deleteConversation(id)
+    ElMessage.success(t('ai.convDeleted'))
+  }).catch(() => {})
+}
+
+/** Rename current conversation */
+function handleRenameConv() {
+  if (!activeConv.value) return
+  ElMessageBox.prompt(
+    t('ai.renameConversation'),
+    t('common.confirm'),
+    { inputValue: activeConv.value.title, confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel') }
+  ).then((result: { value: string }) => {
+    if (result.value && result.value.trim()) {
+      chatStore.renameConversation(activeConv.value!.id, result.value.trim())
+    }
+  }).catch(() => {})
+}
+
+/** Create a new chat */
+function handleNewChat() {
+  if (currentStream) {
+    currentStream.abort()
+    currentStream = null
+  }
+  chatStore.clearSession(agentStore.activeAgentId)
+  inputText.value = ''
+  showHistory.value = false
+  userScrolledUp.value = false
+}
+
+/** 快速分析预设 — labels 和 prompts 随 locale 变化 */
 const quickAnalyses = computed(() => [
-  { id: 'health', label: t('quickAnalysis.systemHealth'), prompt: 'Please perform a system health check. Analyze CPU usage, memory usage, disk space, and identify any potential issues. Suggest diagnostic commands first.' },
-  { id: 'disk', label: t('quickAnalysis.diskUsage'), prompt: 'Analyze disk usage patterns. Identify large directories, potential cleanup targets, and space optimization strategies. Look for unusual growth patterns.' },
-  { id: 'network', label: t('quickAnalysis.network'), prompt: 'Analyze network configuration, open ports, and active connections. Check for security concerns, unusual listening services, and firewall rules.' },
-  { id: 'process', label: t('quickAnalysis.processes'), prompt: 'Analyze running processes. Identify resource hogs, zombie processes, unnecessary services, and any suspicious or unexpected processes.' },
-  { id: 'security', label: t('quickAnalysis.security'), prompt: 'Perform a security assessment. Check authentication logs, sudo usage, failed login attempts, open ports, running services, file permissions on critical paths, and potential vulnerabilities.' },
+  { id: 'health', label: t('quickAnalysis.systemHealth'), prompt: t('quickAnalysis.systemHealthPrompt') },
+  { id: 'disk', label: t('quickAnalysis.diskUsage'), prompt: t('quickAnalysis.diskUsagePrompt') },
+  { id: 'network', label: t('quickAnalysis.network'), prompt: t('quickAnalysis.networkPrompt') },
+  { id: 'process', label: t('quickAnalysis.processes'), prompt: t('quickAnalysis.processesPrompt') },
+  { id: 'security', label: t('quickAnalysis.security'), prompt: t('quickAnalysis.securityPrompt') },
 ])
 
 // 跟踪已渲染的消息元素，用于在新 chunk 到达后给代码块加 copy 按钮
@@ -226,8 +379,8 @@ async function handleSend() {
   chatStore.startStreaming(agentStore.activeAgentId)
 
   const chatMessages = messages.value
-    .filter(m => !m.isStreaming && !m.error)
-    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    .filter((m: { isStreaming?: boolean; error?: string; role: string; content: string }) => !m.isStreaming && !m.error)
+    .map((m: { role: string; content: string }) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
   currentStream = await streamChat(
     agentStore.activeAgent,
@@ -244,7 +397,8 @@ async function handleSend() {
       chatStore.finishStreaming(agentStore.activeAgentId)
       currentStream = null
       ElMessage.error(error)
-    }
+    },
+    serverContext.value
   )
 }
 
@@ -256,24 +410,73 @@ function handleStop() {
   chatStore.finishStreaming(agentStore.activeAgentId)
 }
 
-function handleQuickAnalysis(prompt: string) {
+async function handleQuickAnalysis(prompt: string) {
   if (chatStore.isGenerating) return
   if (!modelStore.defaultConfig) {
     ElMessage.warning(t('ai.pleaseConfig'))
     return
   }
+
+  // If connected to a real server, auto-execute diagnostic commands first
+  const session = sshStore.activeSession
+  if (session?.realSessionId && session.status === 'connected') {
+    const groupId = quickAnalyses.value.find((q: { id: string; prompt: string }) => q.prompt === prompt)?.id
+    if (groupId) {
+      // Inject a placeholder message while running diagnostics
+      chatStore.addUserMessage(agentStore.activeAgentId, t('ai.runningDiagnostics'))
+      scrollToBottom()
+
+      try {
+        const output = await runDiagnostics(session.realSessionId, groupId)
+        // Replace placeholder with actual command output + analysis prompt
+        const conv = chatStore.activeConversation
+        if (conv) {
+          const placeholderMsg = conv.messages[conv.messages.length - 1]
+          if (placeholderMsg) {
+            placeholderMsg.content = formatDiagnosticOutput(
+              output,
+              session.serverName,
+              prompt
+            )
+          }
+        }
+      } catch (e: any) {
+        // On error, replace placeholder with prompt-only fallback
+        const conv = chatStore.activeConversation
+        if (conv) {
+          const placeholderMsg = conv.messages[conv.messages.length - 1]
+          if (placeholderMsg) {
+            placeholderMsg.content = `[${session.serverName}] ${t('ai.diagnosticsFailed')}: ${e?.message || e}\n\n${prompt}`
+          }
+        }
+      }
+
+      // Now send to AI (the message already contains the formatted output)
+      userScrolledUp.value = false
+      scrollToBottom()
+      chatStore.startStreaming(agentStore.activeAgentId)
+
+      const chatMessages = messages.value
+        .filter((m: { isStreaming?: boolean; error?: string; role: string; content: string }) => !m.isStreaming && !m.error)
+        .map((m: { role: string; content: string }) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+      currentStream = await streamChat(
+        agentStore.activeAgent,
+        chatMessages,
+        (chunk) => { chatStore.appendStreamingContent(chunk); scrollToBottom() },
+        () => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null },
+        (error) => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null; ElMessage.error(error) },
+        serverContext.value
+      )
+      return
+    }
+  }
+
+  // No server connected — just send the prompt as-is
   inputText.value = prompt
   handleSend()
 }
 
-function handleClear() {
-  if (currentStream) {
-    currentStream.abort()
-    currentStream = null
-  }
-  chatStore.clearSession(agentStore.activeAgentId)
-  inputText.value = ''
-}
 </script>
 
 <style lang="scss" scoped>
@@ -284,12 +487,207 @@ function handleClear() {
   overflow: hidden;
 }
 
+// === Agent bar ===
 .agent-bar {
-  padding: $spacing-xs $spacing-sm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 $spacing-sm;
   border-bottom: 1px solid $color-border-light;
   flex-shrink: 0;
+  min-height: 36px;
 }
 
+.agent-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+
+  .el-button {
+    position: relative;
+    &.active { color: $color-primary; }
+  }
+}
+
+.history-count {
+  position: absolute;
+  top: -2px;
+  right: -6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: $color-primary;
+  background: rgba(91, 155, 213, 0.15);
+  min-width: 14px;
+  height: 14px;
+  line-height: 14px;
+  border-radius: 7px;
+  text-align: center;
+  padding: 0 4px;
+}
+
+// === Server context ===
+.server-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px $spacing-sm;
+  font-size: 10px;
+  font-family: $font-family-mono;
+  color: $color-text-secondary;
+  background-color: rgba(76, 175, 125, 0.06);
+  border-bottom: 1px solid rgba(76, 175, 125, 0.15);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .ctx-server-name { font-weight: 600; color: $color-text-primary; }
+  .ctx-sep { color: $color-text-muted; }
+  .ctx-addr { color: $color-text-secondary; }
+  .ctx-badge {
+    margin-left: auto;
+    font-size: 9px;
+    padding: 0 5px;
+    border-radius: 2px;
+    letter-spacing: 0.3px;
+    &.connected { color: $color-success; background: rgba(76, 175, 125, 0.12); }
+  }
+}
+
+// === Conversation title bar ===
+.conv-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px $spacing-sm;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  border-bottom: 1px solid $color-border-light;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color $transition-fast;
+
+  &:hover { background-color: $color-bg-hover; }
+
+  .conv-title {
+    font-weight: 500;
+    color: $color-text-regular;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .conv-meta {
+    font-size: 10px;
+    color: $color-text-placeholder;
+    font-family: $font-family-mono;
+    flex-shrink: 0;
+  }
+}
+
+// === History panel ===
+.conv-history-panel {
+  flex-shrink: 0;
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid $color-border-light;
+  background-color: $color-bg-surface;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px $spacing-sm;
+  border-bottom: 1px solid $color-border-light;
+  flex-shrink: 0;
+
+  .history-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: $color-text-placeholder;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  padding: 0 $spacing-sm;
+  height: 52px;
+  cursor: pointer;
+  transition: background-color $transition-fast;
+  border-left: 2px solid transparent;
+
+  &:hover { background-color: $color-bg-hover; }
+  &.active {
+    background-color: $color-bg-active;
+    border-left-color: $color-primary;
+  }
+}
+
+.history-item-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.history-title {
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-preview {
+  font-size: 10px;
+  color: $color-text-placeholder;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: $font-family-mono;
+}
+
+.history-time {
+  font-size: 9px;
+  color: $color-text-muted;
+  font-family: $font-family-mono;
+}
+
+.history-delete {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity $transition-fast;
+  color: $color-text-muted;
+
+  &:hover { color: $color-danger; }
+}
+
+.history-item:hover .history-delete { opacity: 1; }
+
+.history-empty {
+  padding: $spacing-md;
+  text-align: center;
+  font-size: $font-size-xs;
+  color: $color-text-placeholder;
+}
+
+// === Message list ===
 .message-list {
   flex: 1;
   overflow-y: auto;
@@ -360,6 +758,7 @@ function handleClear() {
   border-radius: 2px;
 }
 
+// === Quick analysis ===
 .quick-analysis-bar {
   display: flex;
   flex-wrap: wrap;
@@ -369,6 +768,7 @@ function handleClear() {
   flex-shrink: 0;
 }
 
+// === Streaming ===
 .streaming-cursor {
   display: inline;
   animation: blink 0.6s step-end infinite;
@@ -398,6 +798,7 @@ function handleClear() {
   animation: blink 1s step-end infinite;
 }
 
+// === Input area ===
 .input-area {
   padding: $spacing-sm $spacing-md;
   border-top: 1px solid $color-border-light;

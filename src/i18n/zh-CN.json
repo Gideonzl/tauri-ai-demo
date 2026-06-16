@@ -25,7 +25,17 @@
     "file": "文件",
     "directory": "目录",
     "ready": "AI 就绪",
-    "na": "AI 未配置"
+    "na": "AI 未配置",
+    "connected": "已连接",
+    "runningDiagnostics": "正在服务器上执行诊断命令...",
+    "diagnosticsFailed": "诊断命令执行失败",
+    "history": "历史对话",
+    "noHistory": "暂无历史对话",
+    "deleteConversation": "删除对话",
+    "confirmDeleteConv": "确认删除此对话？",
+    "convDeleted": "对话已删除",
+    "renameConversation": "输入新的对话标题",
+    "messages": "条消息"
   },
   "model": {
     "title": "AI 模型配置",
@@ -172,13 +182,39 @@
     "diskUsage": "磁盘使用",
     "network": "网络",
     "processes": "进程",
-    "security": "安全"
+    "security": "安全",
+    "systemHealthPrompt": "请对当前服务器进行系统健康检查。分析 CPU 使用率、内存使用率、磁盘空间，并识别任何潜在问题。请先给出诊断命令建议。",
+    "diskUsagePrompt": "分析磁盘使用情况。找出大目录、可清理的目标以及空间优化策略。关注异常增长模式。",
+    "networkPrompt": "分析网络配置、开放端口和活跃连接。检查安全问题、异常监听服务和防火墙规则。",
+    "processesPrompt": "分析正在运行的进程。找出资源占用大户、僵尸进程、不必要的服务以及任何可疑或异常的进程。",
+    "securityPrompt": "进行安全评估。检查认证日志、sudo 使用记录、失败登录尝试、开放端口、运行中的服务、关键路径的文件权限以及潜在漏洞。"
   },
   "settings": {
     "title": "设置",
     "colorTheme": "配色主题",
     "language": "语言",
     "customColors": "自定义颜色"
+  },
+  "monitor": {
+    "title": "监控",
+    "noServer": "未连接到服务器",
+    "connectHint": "连接到服务器后可查看实时监控数据",
+    "collecting": "正在采集数据...",
+    "uptime": "运行时间",
+    "cpuModel": "CPU 型号",
+    "cpuCores": "CPU 核心",
+    "cores": "核",
+    "totalMemory": "总内存",
+    "cpuUsage": "CPU 使用率",
+    "memoryUsage": "内存使用率",
+    "diskIo": "磁盘 I/O",
+    "networkIo": "网络 I/O",
+    "diskUsage": "磁盘使用",
+    "runningProcesses": "运行中的进程",
+    "read": "读取",
+    "write": "写入",
+    "live": "实时",
+    "idle": "待机"
   },
   "common": {
     "copy": "复制",
