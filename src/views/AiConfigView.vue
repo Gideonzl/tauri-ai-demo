@@ -5,7 +5,7 @@
  * Termius极简风格，无emoji
  */
 <template>
-  <div class="ai-config-view">
+  <div class="ai-config-view" @contextmenu.prevent="onPageCtx">
     <div class="config-header">
       <span class="title">{{ t('model.title') }}</span>
       <el-button size="small" type="primary" @click="handleAdd">
@@ -119,19 +119,35 @@
         <el-button size="small" type="primary" @click="handleSave">{{ t('model.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 右键菜单 -->
+    <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+      <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { useModelStore } from '@/stores/model'
 import { useLocale } from '@/composables/useLocale'
+import { useContextMenu } from '@/composables/useContextMenu'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Connection, Delete, Cpu } from '@element-plus/icons-vue'
 import type { ModelConfig } from '@/stores/model'
 
+// 右键菜单
+const ctx = reactive({ visible: false, x: 0, y: 0 })
+function onPageCtx(e: MouseEvent) { ctx.x = e.clientX; ctx.y = e.clientY; ctx.visible = true }
+function hideCtx() { ctx.visible = false }
+function ctxAct(action: string) { hideCtx(); if (action === 'refresh') location.reload() }
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx) })
+
 const modelStore = useModelStore()
 const { t } = useLocale()
+const { register, unregister } = useContextMenu()
 
 const showDialog = ref(false)
 const editingConfig = ref<ModelConfig | null>(null)

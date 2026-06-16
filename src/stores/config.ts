@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { applyTheme } from '@/utils/theme'
 
 export type ColorScheme = 'termius-dark' | 'xterminal' | 'monokai' | 'one-dark' | 'custom'
 export interface ThemeColors { bg: string; surface: string; text: string; textSecondary: string; keyword: string; string: string; number: string; comment: string; key: string; section: string; error: string; warning: string; info: string; variable: string; terminalBg: string; terminalFg: string; terminalCursor: string }
@@ -15,8 +16,8 @@ export const useConfigStore = defineStore('config', () => {
   const defaultModel = ref('deepseek-chat'); const hasToken = ref(false)
   const colorScheme = ref<ColorScheme>('termius-dark'); const customColors = ref<ThemeColors>(THEMES['termius-dark'])
   const currentColors = computed<ThemeColors>(() => colorScheme.value === 'custom' ? customColors.value : (THEMES[colorScheme.value] || THEMES['termius-dark']))
-  async function init() { hasToken.value = !!localStorage.getItem('ai-model-configs'); try { const s = localStorage.getItem('color-scheme'); if (s) { const p = JSON.parse(s); colorScheme.value = p.scheme || 'termius-dark'; if (p.custom) customColors.value = { ...customColors.value, ...p.custom } } } catch {} }
-  function setScheme(scheme: ColorScheme) { colorScheme.value = scheme; localStorage.setItem('color-scheme', JSON.stringify({ scheme, custom: colorScheme.value === 'custom' ? customColors.value : undefined })) }
-  function updateCustomColor(key: keyof ThemeColors, value: string) { customColors.value = { ...customColors.value, [key]: value }; localStorage.setItem('color-scheme', JSON.stringify({ scheme: 'custom', custom: customColors.value })) }
+  async function init() { hasToken.value = !!localStorage.getItem('ai-model-configs'); try { const s = localStorage.getItem('color-scheme'); if (s) { const p = JSON.parse(s); colorScheme.value = p.scheme || 'termius-dark'; if (p.custom) customColors.value = { ...customColors.value, ...p.custom } } } catch {}; applyTheme(colorScheme.value, customColors.value) }
+  function setScheme(scheme: ColorScheme) { colorScheme.value = scheme; localStorage.setItem('color-scheme', JSON.stringify({ scheme, custom: colorScheme.value === 'custom' ? customColors.value : undefined })); applyTheme(scheme, scheme === 'custom' ? customColors.value : undefined) }
+  function updateCustomColor(key: keyof ThemeColors, value: string) { customColors.value = { ...customColors.value, [key]: value }; localStorage.setItem('color-scheme', JSON.stringify({ scheme: 'custom', custom: customColors.value })); applyTheme('custom', customColors.value) }
   return { defaultModel, hasToken, colorScheme, customColors, currentColors, init, setScheme, updateCustomColor }
 })

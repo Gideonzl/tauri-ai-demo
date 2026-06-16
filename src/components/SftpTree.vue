@@ -10,7 +10,9 @@
       <el-tree ref="treeRef" :data="treeData" :props="treeProps" lazy :load="loadNode" node-key="path" highlight-current @node-click="onNodeClick" @node-dblclick="onNodeDblClick" @node-contextmenu="onNodeContextMenu">
         <template #default="{ node, data }">
           <div class="tree-node" :class="{ 'is-dir': data.isDir, 'is-hidden': data.isHidden }" @dblclick.stop="onNodeDblClick(data)">
-            <el-icon :size="14" class="node-icon" :style="{ color: getFileIconColor(data) }"><component :is="getFileIcon(data)" /></el-icon>
+            <span class="file-icon-badge" :class="getFileTypeClass(data)" :style="{ backgroundColor: getFileColor(data) }">
+              <el-icon :size="12"><component :is="getFileIcon(data)" /></el-icon>
+            </span>
             <span class="node-label">{{ node.label }}</span>
             <span class="node-size" v-if="!data.isDir && data.size">{{ formatSize(data.size) }}</span>
           </div>
@@ -20,33 +22,35 @@
     </div>
     <!-- Context menu -->
     <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x+'px', top: ctx.y+'px' }">
-      <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>Refresh</span></div>
+      <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('sftp.refresh') }}</span></div>
       <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="ctxAct('newFile')"><el-icon :size="13"><Document /></el-icon><span>New File</span></div>
-      <div class="ctx-item" @click="ctxAct('newDir')"><el-icon :size="13"><FolderAdd /></el-icon><span>New Folder</span></div>
+      <div class="ctx-item" @click="ctxAct('newFile')"><el-icon :size="13"><Document /></el-icon><span>{{ t('sftp.newFile') }}</span></div>
+      <div class="ctx-item" @click="ctxAct('newDir')"><el-icon :size="13"><FolderAdd /></el-icon><span>{{ t('sftp.newFolder') }}</span></div>
       <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="ctxAct('rename')"><el-icon :size="13"><Edit /></el-icon><span>Rename</span></div>
-      <div class="ctx-item" @click="ctxAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>Delete</span></div>
+      <div class="ctx-item" @click="ctxAct('rename')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('sftp.rename') }}</span></div>
+      <div class="ctx-item" @click="ctxAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('sftp.delete') }}</span></div>
       <div class="ctx-sep"></div>
-      <div class="ctx-item" v-if="!ctxNode?.isDir" @click="ctxAct('download')"><el-icon :size="13"><Download /></el-icon><span>Download</span></div>
-      <div class="ctx-item" @click="ctxAct('chmod')"><el-icon :size="13"><Lock /></el-icon><span>Permissions</span></div>
+      <div class="ctx-item" v-if="!ctxNode?.isDir" @click="ctxAct('download')"><el-icon :size="13"><Download /></el-icon><span>{{ t('sftp.download') }}</span></div>
+      <div class="ctx-item" @click="ctxAct('chmod')"><el-icon :size="13"><Lock /></el-icon><span>{{ t('sftp.permissions') }}</span></div>
       <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="ctxAct('copyPath')"><el-icon :size="13"><Link /></el-icon><span>Copy Path</span></div>
-      <div class="ctx-item" @click="ctxAct('copyName')"><el-icon :size="13"><CopyDocument /></el-icon><span>Copy Name</span></div>
+      <div class="ctx-item" @click="ctxAct('copyPath')"><el-icon :size="13"><Link /></el-icon><span>{{ t('sftp.copyPath') }}</span></div>
+      <div class="ctx-item" @click="ctxAct('copyName')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('sftp.copyName') }}</span></div>
       <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="ctxAct('sendToAI')"><el-icon :size="13"><ChatDotRound /></el-icon><span>Send to AI</span></div>
+      <div class="ctx-item" @click="ctxAct('sendToAI')"><el-icon :size="13"><ChatDotRound /></el-icon><span>{{ t('sftp.sendToAI') }}</span></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, inject, onMounted, onUnmounted, watch } from 'vue'
-import { FolderOpened, FolderAdd, Document, Refresh, Edit, Delete, Download, Upload, Lock, SetUp, CopyDocument, Link, Files, ChatDotRound, DocumentCopy, VideoPlay, Picture, DataLine, Setting, Notebook } from '@element-plus/icons-vue'
+import { FolderOpened, FolderAdd, Document, Refresh, Edit, Delete, Download, Upload, Lock, SetUp, CopyDocument, Link, Files, ChatDotRound, DocumentCopy, VideoPlay, Picture, DataLine, Setting, Notebook, Coffee, Cpu, Monitor, MagicStick, Coin } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSshStore } from '@/stores/ssh'
 import { sftpReadDir, sftpMkdir, sftpRemove, sftpRename, sftpStat, sshExec } from '@/api/tauri'
 import type { FileEntry, DirectoryListing } from '@/types/tauri'
 import { FS as SharedFS, isDir as _d, getContent as _cat } from '@/utils/fs-data'
+import { useContextMenu } from '@/composables/useContextMenu'
+import { useLocale } from '@/composables/useLocale'
 
 interface FileNode { label: string; path: string; isDir: boolean; size?: number; modTime?: number; isHidden?: boolean; children?: FileNode[] }
 
@@ -62,6 +66,8 @@ const loading = ref(false)
 const ctx = reactive({ visible: false, x: 0, y: 0 })
 const ctxNode = ref<FileNode|null>(null)
 
+const { t } = useLocale()
+const { register, unregister } = useContextMenu()
 const terminalTargetPath = inject<any>('terminalTargetPath', ref(''))
 watch(terminalTargetPath, (newPath) => { if (newPath && newPath !== '/' && newPath !== currentPath.value) { currentPath.value = newPath; handleRefresh() } }, { deep: true })
 
@@ -73,28 +79,101 @@ function entryToNode(entry: FileEntry): FileNode {
   return { label: entry.name, path: entry.path, isDir: entry.file_type === 'DIRECTORY', size: entry.size, modTime: entry.modified, isHidden: entry.is_hidden }
 }
 
-// === File icon ===
+// === File icon — expanded mapping for richer visual differentiation ===
 function getFileIcon(data: FileNode) {
   if (data.isDir) return FolderOpened
   const n = data.label.toLowerCase()
-  if (['.ts','.js','.vue','.jsx','.tsx','.py','.rs','.go','.java','.c','.cpp','.h','.rb','.php','.sh','.bash'].some(e=>n.endsWith(e))) return DocumentCopy
-  if (['.json','.yaml','.yml','.toml','.ini','.conf','.env','.cfg','.xml'].some(e=>n.endsWith(e))) return Setting
-  if (n.endsWith('.log')||n.endsWith('.out')) return DataLine
+  // Source code by language
+  if (['.ts','.js','.tsx','.jsx','.mjs','.cjs'].some(e=>n.endsWith(e))) return DocumentCopy  // JS/TS family
+  if (['.vue','.svelte'].some(e=>n.endsWith(e))) return DocumentCopy
+  if (['.py','.pyi','.pyx'].some(e=>n.endsWith(e))) return DocumentCopy
+  if (['.rs'].some(e=>n.endsWith(e))) return DocumentCopy
+  if (['.go'].some(e=>n.endsWith(e))) return DocumentCopy
+  if (['.java','.jar','.class','.kt','.kts'].some(e=>n.endsWith(e))) return Coffee
+  if (['.c','.cpp','.h','.hpp','.cc','.cxx'].some(e=>n.endsWith(e))) return Cpu
+  if (['.rb','.rake'].some(e=>n.endsWith(e))) return DocumentCopy
+  if (['.php','.phtml'].some(e=>n.endsWith(e))) return DocumentCopy
+  if (['.sh','.bash','.zsh','.fish'].some(e=>n.endsWith(e))) return Monitor
+  // Styles
+  if (['.css','.scss','.sass','.less','.styl'].some(e=>n.endsWith(e))) return MagicStick
+  // Config & data
+  if (['.json','.yaml','.yml','.toml','.ini','.conf','.env','.cfg','.xml','.lock'].some(e=>n.endsWith(e))) return Setting
+  // Documents
+  if (['.md','.mdx','.txt','.rst','.readme'].some(e=>n.endsWith(e))) return Notebook
+  if (['.pdf'].some(e=>n.endsWith(e))) return Document
+  // Logs
+  if (n.endsWith('.log')||n.endsWith('.out')||n.endsWith('.err')) return DataLine
+  // Archives
   if (['.gz','.zip','.tar','.rar','.7z','.bz2','.xz','.tgz'].some(e=>n.endsWith(e))) return Files
+  // Images
   if (['.png','.jpg','.jpeg','.gif','.svg','.ico','.bmp','.webp'].some(e=>n.endsWith(e))) return Picture
-  if (['docker','node','npm','python3','pip3','git','curl','wget','vim','htop','bash','sh','ls','chmod','mkdir','jq','yq'].includes(n)) return VideoPlay
-  if (['.ibd','.sql','.db','.sqlite'].some(e=>n.endsWith(e))) return Notebook
+  // Database
+  if (['.ibd','.sql','.db','.sqlite','.sqlite3'].some(e=>n.endsWith(e))) return Coin
+  // Executables / binaries
+  if (['docker','node','npm','npx','python3','pip3','git','curl','wget','vim','htop','bash','sh','ls','chmod','mkdir','jq','yq'].includes(n)) return VideoPlay
   return Document
 }
-function getFileIconColor(data: FileNode): string {
-  if (data.isDir) return '#d4a24e'
+function getFileTypeClass(data: FileNode): string {
+  if (data.isDir) return 'ft-dir'
   const n = data.label.toLowerCase()
-  if (['.ts','.js','.vue','.py','.rs','.go','.java','.c','.cpp','.h','.rb','.php','.sh','.bash'].some(e=>n.endsWith(e))) return '#5b8def'
-  if (['.json','.yaml','.yml','.toml','.ini','.conf','.env','.cfg','.xml'].some(e=>n.endsWith(e))) return '#8888a0'
-  if (n.endsWith('.log')||n.endsWith('.out')) return '#555570'
-  if (['.gz','.zip','.tar','.rar','.7z','.bz2','.xz','.tgz'].some(e=>n.endsWith(e))) return '#d4a24e'
-  if (['docker','node','npm','python3','pip3','git','curl','wget','vim','htop','bash','sh','ls','chmod','mkdir','jq','yq'].includes(n)) return '#4caf7d'
-  return '#8888a0'
+  if (['.ts','.js','.vue','.tsx','.jsx','.py','.rs','.go','.java','.c','.cpp','.h','.rb','.php','.sh','.bash','.css','.scss','.less','.html','.svelte'].some(e=>n.endsWith(e))) return 'ft-code'
+  if (['.json','.yaml','.yml','.toml','.ini','.conf','.env','.cfg','.xml'].some(e=>n.endsWith(e))) return 'ft-config'
+  if (n.endsWith('.log')||n.endsWith('.out')) return 'ft-log'
+  if (['.gz','.zip','.tar','.rar','.7z','.bz2','.xz','.tgz'].some(e=>n.endsWith(e))) return 'ft-archive'
+  if (['.md','.mdx','.txt','.rst'].some(e=>n.endsWith(e))) return 'ft-doc'
+  if (['.png','.jpg','.jpeg','.gif','.svg','.ico','.webp'].some(e=>n.endsWith(e))) return 'ft-image'
+  if (['docker','node','npm','python3','pip3','git','curl','wget','vim','htop','bash','sh','ls','chmod','mkdir','jq','yq'].includes(n)) return 'ft-exec'
+  return 'ft-default'
+}
+
+/** VSCode-style brand colors for file type icon badges */
+function getFileColor(data: FileNode): string {
+  if (data.isDir) return '#dcb67a'  // folder gold
+  const n = data.label.toLowerCase()
+  // JavaScript / TypeScript
+  if (['.ts','.tsx'].some(e=>n.endsWith(e))) return '#3178c6'     // TS blue
+  if (['.js','.jsx','.mjs','.cjs'].some(e=>n.endsWith(e))) return '#f7df1e'  // JS yellow
+  // Frameworks
+  if (n.endsWith('.vue')) return '#42b883'    // Vue green
+  if (n.endsWith('.svelte')) return '#ff3e00' // Svelte orange
+  // Languages
+  if (n.endsWith('.py')) return '#3776ab'     // Python blue
+  if (n.endsWith('.rs')) return '#dea584'     // Rust brown
+  if (n.endsWith('.go')) return '#00add8'     // Go cyan
+  if (['.java','.jar','.class'].some(e=>n.endsWith(e))) return '#b07219'  // Java brown
+  if (['.c','.cpp','.h','.hpp','.cc'].some(e=>n.endsWith(e))) return '#555555'  // C/C++ gray
+  if (n.endsWith('.php')) return '#777bb3'    // PHP purple
+  if (n.endsWith('.rb')) return '#cc342d'     // Ruby red
+  // Shell
+  if (['.sh','.bash','.zsh','.fish'].some(e=>n.endsWith(e))) return '#4eaa25'  // Shell green
+  // Styles
+  if (['.css','.less'].some(e=>n.endsWith(e))) return '#1572b6'   // CSS blue
+  if (['.scss','.sass'].some(e=>n.endsWith(e))) return '#c6538c'  // SCSS pink
+  // HTML
+  if (['.html','.htm'].some(e=>n.endsWith(e))) return '#e34f26'   // HTML orange
+  // Config
+  if (['.json'].some(e=>n.endsWith(e))) return '#c0c0c0'  // JSON gray
+  if (['.yaml','.yml'].some(e=>n.endsWith(e))) return '#cb171e'   // YAML red
+  if (n.endsWith('.toml')) return '#9c4221'  // TOML brown
+  if (['.xml','.svg'].some(e=>n.endsWith(e))) return '#e67e22'   // XML/SVG orange
+  if ('.env'.includes(n) || n.endsWith('.env')) return '#ecd53f'  // ENV yellow
+  // Documents
+  if (['.md','.mdx'].some(e=>n.endsWith(e))) return '#42a5f5'    // Markdown blue
+  if (n.endsWith('.pdf')) return '#e53935'     // PDF red
+  // Logs
+  if (['.log','.out','.err'].some(e=>n.endsWith(e))) return '#78909c'  // Log gray
+  // Archives
+  if (['.gz','.zip','.tar','.rar','.7z'].some(e=>n.endsWith(e))) return '#8d6e63'  // Archive brown
+  // Images
+  if (['.png','.jpg','.jpeg','.gif','.webp'].some(e=>n.endsWith(e))) return '#26a69a'  // Image teal
+  // Database
+  if (['.sql','.db','.sqlite'].some(e=>n.endsWith(e))) return '#ff7043'  // DB orange-red
+  // Docker
+  if (n.includes('docker')) return '#2496ed'    // Docker blue
+  // Git
+  if (n.includes('git')) return '#f05032'       // Git orange
+  // Default
+  return '#7a8a9e'  // neutral gray
 }
 
 // === Lazy load from shared FS or real SSH ===
@@ -183,9 +262,10 @@ function formatSize(bytes: number): string { if(bytes<1024)return`${bytes}B`; if
 
 onMounted(() => {
   treeData.value = getDemoChildren(currentPath.value)
+  register(hideCtx)
   document.addEventListener('click', hideCtx)
 })
-onUnmounted(() => { document.removeEventListener('click', hideCtx) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx) })
 </script>
 
 <style lang="scss" scoped>
@@ -201,15 +281,30 @@ onUnmounted(() => { document.removeEventListener('click', hideCtx) })
   &.is-hidden{opacity:0.6}
   .node-icon{flex-shrink:0}
   .node-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .node-size{font-size:$font-size-xs;color:$color-text-muted;font-family:$font-family-mono;flex-shrink:0}
+  .node-size{font-size:$font-size-xs;color:$color-text-secondary;font-family:$font-family-mono;flex-shrink:0}
 }
 .empty-state { display:flex; align-items:center; justify-content:center; height:100%; color:$color-text-placeholder; font-size:$font-size-xs; }
-.ctx-menu { position:fixed; z-index:9999; background:$color-bg-toolbar; border:1px solid $color-border; border-radius:$border-radius-md; padding:$spacing-xs 0; min-width:180px; box-shadow:$shadow-md; }
-.ctx-item { display:flex; align-items:center; gap:8px; padding:6px 12px; cursor:pointer; color:$color-text-regular; font-size:$font-size-sm; transition:all $transition-fast;
-  &:hover{background:rgba(76,175,125,0.1);color:$color-text-primary}
-  .el-icon{color:$color-text-secondary}
-  &:hover .el-icon{color:$color-text-primary}
-}
-.ctx-sep { height:1px; background:$color-border-light; margin:$spacing-xs 0; }
+n	// .ctx-menu / .ctx-item / .ctx-sep styles now live in global.scss — shared with host context menu
 :deep(.el-input__wrapper){background:$color-bg-surface!important;box-shadow:none!important}
+
+// VSCode-style file icon badges
+.file-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  color: #fff; // White icon on colored background
+
+  // Dark text for light-colored badges (JS yellow, JSON gray)
+  &.ft-dir { color: #2c2c2c; }     // Gold BG → dark icon
+  &.ft-code.js-family { color: #2c2c2c; } // JS yellow → dark icon
+}
+
+// Old node-icon styling (now just for alignment)
+.node-icon {
+  color: inherit; // Inherit from badge
+}
 </style>

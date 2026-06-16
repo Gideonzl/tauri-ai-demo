@@ -112,6 +112,7 @@
             class="message-content markdown-body"
             :ref="(el) => onMsgEl(msg.id, el)"
             v-html="renderMarkdown(msg.content)"
+            @contextmenu.prevent="onMsgContextMenu($event, msg)"
           ></div>
           <div v-if="msg.isStreaming" class="streaming-cursor">_</div>
           <div v-if="msg.error" class="message-error">{{ msg.error }}</div>
@@ -156,11 +157,19 @@
         </el-button>
       </div>
     </div>
+
+    <!-- 消息右键菜单 — 复用全局 ctx-menu/ctx-item/ctx-sep 样式 -->
+    <div v-if="msgMenu.visible" class="ctx-menu" :style="{ left: msgMenu.x + 'px', top: msgMenu.y + 'px' }">
+      <div class="ctx-item" @click="msgMenuAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('common.copy') }}</span></div>
+      <div class="ctx-item" @click="msgMenuAct('copyAll')"><el-icon :size="13"><DocumentCopy /></el-icon><span>{{ t('common.copyMessage') }}</span></div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" @click="msgMenuAct('selectAll')"><el-icon :size="13"><Select /></el-icon><span>{{ t('common.selectAll') }}</span></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAgentStore } from '@/stores/agent'
 import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/model'
@@ -172,8 +181,9 @@ import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput } from '@/utils/server-diagnostics'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Monitor, Clock, Plus, Close } from '@element-plus/icons-vue'
+import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select } from '@element-plus/icons-vue'
 import AgentSwitch from '@/components/AgentSwitch.vue'
+import { useContextMenu } from '@/composables/useContextMenu'
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
@@ -181,7 +191,52 @@ const modelStore = useModelStore()
 const sshStore = useSshStore()
 const { t } = useLocale()
 
+const { register, unregister } = useContextMenu()
 const showHistory = ref(false)
+
+// 消息右键菜单
+const msgMenu = reactive({ visible: false, x: 0, y: 0, msg: null as any })
+
+function onMsgContextMenu(e: MouseEvent, msg: any) {
+  msgMenu.msg = msg
+  msgMenu.x = e.clientX
+  msgMenu.y = e.clientY
+  msgMenu.visible = true
+}
+
+function hideMsgMenu() { msgMenu.visible = false }
+
+function msgMenuAct(action: string) {
+  const msg = msgMenu.msg
+  hideMsgMenu()
+  if (!msg) return
+  switch (action) {
+    case 'copy': {
+      const sel = window.getSelection()
+      if (sel?.toString()) {
+        navigator.clipboard.writeText(sel.toString()).then(() => ElMessage.success('Copied'))
+      } else {
+        navigator.clipboard.writeText(msg.content).then(() => ElMessage.success('Message copied'))
+      }
+      break
+    }
+    case 'copyAll':
+      navigator.clipboard.writeText(msg.content).then(() => ElMessage.success('Message copied'))
+      break
+    case 'selectAll': {
+      const el = renderedMsgs.get(msg.id)
+      if (el) {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+      }
+      break
+    }
+  }
+}
+
 const inputText = ref('')
 const messageListRef = ref<HTMLElement>()
 const userScrolledUp = ref(false)
@@ -477,6 +532,9 @@ async function handleQuickAnalysis(prompt: string) {
   handleSend()
 }
 
+onMounted(() => { register(hideMsgMenu); document.addEventListener('click', hideMsgMenu) })
+onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click', hideMsgMenu) })
+
 </script>
 
 <style lang="scss" scoped>
@@ -654,18 +712,19 @@ async function handleQuickAnalysis(prompt: string) {
   white-space: nowrap;
 }
 
+.history-time {
+  font-size: 10px;
+  color: $color-info;
+  font-family: $font-family-mono;
+  margin-top: 1px;
+}
+
 .history-preview {
   font-size: 10px;
   color: $color-text-placeholder;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: $font-family-mono;
-}
-
-.history-time {
-  font-size: 9px;
-  color: $color-text-muted;
   font-family: $font-family-mono;
 }
 
@@ -711,15 +770,16 @@ async function handleQuickAnalysis(prompt: string) {
 
 .message-item {
   margin-bottom: $spacing-md;
+  animation: message-enter 0.25s ease-out;
 
   &.user {
     .message-role { color: $color-info; }
-    .message-body { background-color: $color-bg-message-user; }
+    .message-body { background-color: $color-bg-message-user; border-top-right-radius: 2px; }
   }
 
   &.assistant {
     .message-role { color: $color-primary; }
-    .message-body { background-color: $color-bg-message-ai; }
+    .message-body { background-color: $color-bg-message-ai; border-top-left-radius: 2px; }
   }
 }
 
@@ -738,7 +798,8 @@ async function handleQuickAnalysis(prompt: string) {
   font-size: 10px;
   font-weight: 400;
   text-transform: none;
-  color: $color-text-placeholder;
+  color: $color-info;
+  font-family: $font-family-mono;
 }
 
 .message-body {
@@ -811,6 +872,12 @@ async function handleQuickAnalysis(prompt: string) {
   justify-content: flex-end;
   gap: $spacing-xs;
   margin-top: $spacing-xs;
+}
+
+// Message entrance animation
+@keyframes message-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>
 

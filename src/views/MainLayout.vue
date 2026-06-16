@@ -12,7 +12,7 @@
 
 <template>
 
-  <div class="main-layout">
+  <div class="main-layout" @contextmenu.self.prevent="onPageCtx">
 
     <!-- 左侧导航菜单栏 -->
 
@@ -124,6 +124,10 @@
 
     </aside>
 
+    <!-- 右键菜单 -->
+    <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+      <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
+    </div>
   </div>
 
 </template>
@@ -132,23 +136,33 @@
 
 <script setup lang="ts">
 
-import { ref, onMounted, onUnmounted, provide } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, provide } from 'vue'
 
 import { useConfigStore } from '@/stores/config'
 import { useLocale } from '@/composables/useLocale'
 
-import { DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
+import { DArrowLeft, DArrowRight, Refresh } from '@element-plus/icons-vue'
 
 import SideNav from '@/components/SideNav.vue'
 
 import AiChat from '@/components/AiChat.vue'
 
 import SystemMonitor from '@/components/SystemMonitor.vue'
+import { useContextMenu } from '@/composables/useContextMenu'
 
 
 
 const configStore = useConfigStore()
 const { t } = useLocale()
+const { register, unregister } = useContextMenu()
+
+// 右键菜单
+const ctx = reactive({ visible: false, x: 0, y: 0 })
+function onPageCtx(e: MouseEvent) { ctx.x = e.clientX; ctx.y = e.clientY; ctx.visible = true }
+function hideCtx() { ctx.visible = false }
+function ctxAct(action: string) { hideCtx(); if (action === 'refresh') location.reload() }
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx) })
 
 const rightPanelTab = ref<'ai' | 'monitor'>('ai')
 

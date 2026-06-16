@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i \"s|import { useContextMenu } from '@/composables/useContextMenu'|&\\\\nimport { useLocale } from '@/composables/useLocale'|\" src/components/SftpTree.vue)",
+      "Bash(sed -i 's|const { register, unregister } = useContextMenu\\(\\)|const { t } = useLocale\\(\\)\\\\nconst { register, unregister } = useContextMenu\\(\\)|' src/components/SftpTree.vue)",
+      "Bash(sed -i \"s|<span>Copy</span>|<span>{{ t\\('common.copy'\\) }}</span>|g; s|<span>Select All</span>|<span>{{ t\\('common.selectAll'\\) }}</span>|g; s|<span>Print</span>|<span>{{ t\\('common.print'\\) }}</span>|g; s|<span>Copy Path</span>|<span>{{ t\\('sftp.copyPath'\\) }}</span>|g; s|<span>Copy Name</span>|<span>{{ t\\('sftp.copyName'\\) }}</span>|g; s|<span>Close File</span>|<span>{{ t\\('common.closeFile'\\) }}</span>|g\" src/views/WorkspaceView.vue)",
+      "Bash(sed -i \"s|<span>Execute</span>|<span>{{ t\\('common.execute'\\) }}</span>|g; s|<span>Copy Command</span>|<span>{{ t\\('common.copyCommand'\\) }}</span>|g; s|<span>Edit</span>|<span>{{ t\\('workspace.edit'\\) }}</span>|g; s|<span>Delete</span>|<span>{{ t\\('workspace.delete'\\) }}</span>|g\" src/components/QuickCommands.vue)",
+      "Bash(sed -i \"s|<span>Copy</span>|<span>{{ t\\('common.copy'\\) }}</span>|g; s|<span>Copy Message</span>|<span>{{ t\\('common.copyMessage'\\) }}</span>|g\" src/components/AiChat.vue)",
+      "Bash(sed -i \"s|<span>Refresh</span>|<span>{{ t\\('common.refresh'\\) }}</span>|g\" src/views/MainLayout.vue src/views/SettingsView.vue src/views/AiConfigView.vue)",
+      "Bash(sed -i 's|<span>Select All</span>|<span>{{ t\\('\\\\''common.selectAll'\\\\''\\) }}</span>|g' src/components/AiChat.vue)",
+      "Bash(sed -i \"s|import { useContextMenu } from '@/composables/useContextMenu'|&\\\\nimport { useLocale } from '@/composables/useLocale'|\" src/components/QuickCommands.vue)",
+      "Bash(sed -i 's|const sshStore = useSshStore\\(\\)|const { t } = useLocale\\(\\)\\\\nconst sshStore = useSshStore\\(\\)|' src/components/QuickCommands.vue)"
+    ]
+  }
+}

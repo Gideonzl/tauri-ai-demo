@@ -1,80 +1,97 @@
 // ============================================================
-// SCSS 全局变量 — Termius 1:1 精确复刻
-// Termius: 深蓝黑底 #16162a, 冷蓝强调 #5b8def, 极简无边框
+// SCSS 全局变量 — CSS Custom Properties 桥接层
+//
+// 所有变量值格式：var(--token-name, fallback)
+// - --token-name: 由 theme.ts applyTheme() 在运行时写入 :root
+// - fallback:    编译时回退值（termius-dark 默认色），保证 JS 加载前也能正常渲染
+//
+// 主题切换只需修改 :root 上的 CSS 自定义属性，全 UI 即时响应。
 // ============================================================
 
-// 品牌色 — Termius 冷蓝
-$color-primary: #5b8def;
-$color-primary-light: #7ba4f2;
-$color-primary-dark: #4a7de0;
+// 品牌色
+$color-primary: var(--color-primary, #5b8def);
+$color-primary-light: var(--color-primary-light, #7ba4f2);
+$color-primary-dark: var(--color-primary-dark, #4a7de0);
 
-// 功能色 — 低饱和
-$color-success: #4caf7d;
-$color-warning: #d4a24e;
-$color-danger: #d45454;
-$color-info: #7a8a9e;
+// 功能色
+$color-success: var(--color-success, #4caf7d);
+$color-warning: var(--color-warning, #d4a24e);
+$color-danger: var(--color-danger, #d45454);
+$color-info: var(--color-info, #7a8a9e);
 
-// 文字 — Termius 灰阶
-$color-text-primary: #e8e8f0;
-$color-text-regular: #c0c0d0;
-$color-text-secondary: #8888a0;
-$color-text-placeholder: #555570;
-$color-text-muted: #444460;
+// 文字
+$color-text-primary: var(--color-text-primary, #e8e8f0);
+$color-text-regular: var(--color-text-regular, #c0c0d0);
+$color-text-secondary: var(--color-text-secondary, #8888a0);
+$color-text-placeholder: var(--color-text-placeholder, #555570);
+$color-text-muted: var(--color-text-muted, #444460);
 
-// 背景 — Termius 深蓝黑系
-$color-bg-app: #0d0d1a;          // 最底层（终端区）
-$color-bg-primary: #12122a;      // 主背景
-$color-bg-sidebar: #16162a;      // 左侧栏（Termius sidebar底色）
-$color-bg-surface: #16162a;      // 表面
-$color-bg-toolbar: #1e1e32;      // 工具栏/卡片
-$color-bg-panel: #12122a;        // 面板
-$color-bg-input: #1e1e32;        // 输入框
-$color-bg-hover: rgba(91, 141, 239, 0.08);
-$color-bg-active: rgba(91, 141, 239, 0.14);
-$color-bg-message-user: #1e1e36;
-$color-bg-message-ai: #16162a;
+// 背景
+$color-bg-app: var(--color-bg-app, #0d0d1a);
+$color-bg-primary: var(--color-bg-primary, #12122a);
+$color-bg-sidebar: var(--color-bg-sidebar, #16162a);
+$color-bg-surface: var(--color-bg-surface, #16162a);
+$color-bg-toolbar: var(--color-bg-toolbar, #1e1e32);
+$color-bg-panel: var(--color-bg-panel, #12122a);
+$color-bg-input: var(--color-bg-input, #1e1e32);
+$color-bg-message-user: var(--color-bg-message-user, #1e1e36);
+$color-bg-message-ai: var(--color-bg-message-ai, #16162a);
 
-// 边框 — Termius 极细边框
-$color-border: rgba(255, 255, 255, 0.08);
-$color-border-light: rgba(255, 255, 255, 0.05);
-$color-border-focus: #5b8def;
+// 背景 — 半透明叠加（预计算，避免 SCSS rgba() 编译失败）
+$color-bg-hover: var(--color-bg-hover, rgba(91, 141, 239, 0.08));
+$color-bg-active: var(--color-bg-active, rgba(91, 141, 239, 0.14));
+$color-bg-primary-hover: var(--color-bg-primary-hover, rgba(91, 141, 239, 0.12));
+$color-bg-success-hover: var(--color-bg-success-hover, rgba(76, 175, 125, 0.12));
+$color-bg-warning-hover: var(--color-bg-warning-hover, rgba(212, 162, 78, 0.12));
+$color-bg-danger-hover: var(--color-bg-danger-hover, rgba(212, 84, 84, 0.12));
 
-// 尺寸 — 严格对齐规范
-$sidebar-width: 56px;            // 左侧菜单栏默认宽度（可拖拽伸缩 48~200px）
-$ai-panel-width: 320px;          // 右侧AI面板默认宽度（可拖拽伸缩 200~600px）
-$ai-panel-collapsed: 40px;       // 收起触发条（规范40px）
-$workspace-min-width: 200px;     // 中间工作区最小宽度
-$header-height: 40px;
-$status-bar-height: 24px;
+// 边框
+$color-border: var(--color-border, rgba(255, 255, 255, 0.08));
+$color-border-light: var(--color-border-light, rgba(255, 255, 255, 0.05));
+$color-border-focus: var(--color-border-focus, #5b8def);
+
+// 尺寸
+$sidebar-width: var(--sidebar-width, 56px);
+$ai-panel-width: var(--ai-panel-width, 320px);
+$ai-panel-collapsed: var(--ai-panel-collapsed, 40px);
+$workspace-min-width: var(--workspace-min-width, 200px);
+$header-height: var(--header-height, 40px);
+$status-bar-height: var(--status-bar-height, 24px);
 
 // 圆角
-$border-radius-sm: 3px;
-$border-radius-md: 6px;
-$border-radius-lg: 8px;
+$border-radius-sm: var(--border-radius-sm, 3px);
+$border-radius-md: var(--border-radius-md, 6px);
+$border-radius-lg: var(--border-radius-lg, 8px);
 
 // 阴影
-$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-$shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4);
-$shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+$shadow-sm: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.3));
+$shadow-md: var(--shadow-md, 0 2px 6px rgba(0, 0, 0, 0.4));
+$shadow-lg: var(--shadow-lg, 0 4px 12px rgba(0, 0, 0, 0.5));
 
 // 过渡
-$transition-fast: 0.12s ease;
-$transition-normal: 0.25s ease;   // 规范0.25s
-$transition-slow: 0.3s ease;
+$transition-fast: var(--transition-fast, 0.12s ease);
+$transition-normal: var(--transition-normal, 0.25s ease);
+$transition-slow: var(--transition-slow, 0.3s ease);
 
 // 字体
-$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-$font-family-mono: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Consolas', monospace;
-$font-size-xs: 11px;
-$font-size-sm: 12px;
-$font-size-md: 13px;
-$font-size-lg: 14px;
-$font-size-xl: 16px;
-$font-size-xxl: 18px;
+$font-family: var(--font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+$font-family-mono: var(--font-family-mono, 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Consolas', monospace);
+$font-size-xs: var(--font-size-xs, 11px);
+$font-size-sm: var(--font-size-sm, 12px);
+$font-size-md: var(--font-size-md, 13px);
+$font-size-lg: var(--font-size-lg, 14px);
+$font-size-xl: var(--font-size-xl, 17px);
+$font-size-xxl: var(--font-size-xxl, 20px);
 
 // 间距
-$spacing-xs: 4px;
-$spacing-sm: 8px;
-$spacing-md: 12px;
-$spacing-lg: 16px;
-$spacing-xl: 24px;
+// 图表色（监控面板）
+$color-chart-blue: var(--chart-cpu-normal, #5b9bd5);
+$color-chart-orange: var(--chart-cpu-warning, #e69138);
+$color-chart-red: var(--chart-cpu-danger, #e05555);
+$color-chart-green: var(--chart-net-tx, #6bc76b);
+
+$spacing-xs: var(--spacing-xs, 4px);
+$spacing-sm: var(--spacing-sm, 8px);
+$spacing-md: var(--spacing-md, 12px);
+$spacing-lg: var(--spacing-lg, 16px);
+$spacing-xl: var(--spacing-xl, 24px);

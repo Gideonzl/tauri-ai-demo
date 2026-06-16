@@ -14,7 +14,26 @@ import App from './App.vue'
 import router from './router'
 import { useModelStore } from './stores/model'
 import { useChatStore } from './stores/chat'
+import { applyTheme } from './utils/theme'
+import { initContextMenuCoordinator } from './composables/useContextMenu'
 import './assets/styles/global.scss'
+
+// Global right-click coordinator — capture phase closes all menus before any opens
+initContextMenuCoordinator()
+
+// Early theme application — prevents flash of unstyled content (FOUC)
+// Must run BEFORE app.mount() so CSS custom properties exist on :root
+try {
+  const raw = localStorage.getItem('color-scheme')
+  if (raw) {
+    const p = JSON.parse(raw)
+    applyTheme(p.scheme || 'termius-dark', p.custom)
+  } else {
+    applyTheme('termius-dark')
+  }
+} catch {
+  applyTheme('termius-dark')
+}
 
 const app = createApp(App)
 const pinia = createPinia()

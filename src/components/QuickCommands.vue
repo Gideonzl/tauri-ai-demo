@@ -43,7 +43,7 @@
           class="qc-item"
           :title="cmd.description"
           @click="handleExecute(cmd)"
-          @contextmenu.prevent="handleItemContextMenu(cmd)"
+          @contextmenu.prevent="showQcMenu($event, cmd)"
         >
           <span class="qc-cmd-name">{{ cmd.name }}</span>
           <span class="qc-cmd-text">{{ cmd.command }}</span>
@@ -71,19 +71,32 @@
         </div>
       </div>
     </div>
+
+    <!-- 右键菜单 — 复用全局 ctx-menu/ctx-item/ctx-sep 样式 -->
+    <div v-if="qcMenu.visible" class="ctx-menu" :style="{ left: qcMenu.x + 'px', top: qcMenu.y + 'px' }">
+      <div class="ctx-item" @click="qcMenuAct('execute')"><el-icon :size="13"><VideoPlay /></el-icon><span>{{ t('common.execute') }}</span></div>
+      <div class="ctx-item" @click="qcMenuAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('common.copyCommand') }}</span></div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" @click="qcMenuAct('edit')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('workspace.edit') }}</span></div>
+      <div class="ctx-item danger" @click="qcMenuAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useSshStore } from '@/stores/ssh'
-import { ElMessage } from 'element-plus'
-import { Setting, Delete, ArrowDown, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Setting, Delete, ArrowDown, ArrowRight, VideoPlay, CopyDocument, Edit } from '@element-plus/icons-vue'
 import type { QuickCommand } from '@/stores/ssh'
+import { useContextMenu } from '@/composables/useContextMenu'
+import { useLocale } from '@/composables/useLocale'
 
+const { t } = useLocale()
 const sshStore = useSshStore()
 const collapsed = ref(true)
 const manageMode = ref(false)
+const { register, unregister } = useContextMenu()
 const activeCategory = ref('All')
 
 const categories = computed(() => {
@@ -138,10 +151,55 @@ function handleExecute(cmd: QuickCommand) {
   }
 }
 
-function handleItemContextMenu(cmd: QuickCommand) {
-  const text = `Click to execute "${cmd.command}"`
-  ElMessage.info(text)
+// 右键菜单
+const qcMenu = reactive({ visible: false, x: 0, y: 0, cmd: null as QuickCommand | null })
+
+function showQcMenu(e: MouseEvent, cmd: QuickCommand) {
+  qcMenu.cmd = cmd
+  qcMenu.x = e.clientX
+  qcMenu.y = e.clientY
+  qcMenu.visible = true
 }
+
+function hideQcMenu() { qcMenu.visible = false }
+
+function qcMenuAct(action: string) {
+  const cmd = qcMenu.cmd
+  hideQcMenu()
+  if (!cmd) return
+  switch (action) {
+    case 'execute':
+      if (injectCommand) {
+        injectCommand(cmd.command)
+      } else {
+        navigator.clipboard.writeText(cmd.command).then(() => {
+          ElMessage.success('Copied to clipboard: ' + cmd.command)
+        })
+      }
+      break
+    case 'copy':
+      navigator.clipboard.writeText(cmd.command).then(() => {
+        ElMessage.success('Command copied')
+      })
+      break
+    case 'edit':
+      sshStore.editingQuickCommand = cmd.id
+      manageMode.value = true
+      newCmd.name = cmd.name
+      newCmd.command = cmd.command
+      newCmd.category = cmd.category
+      break
+    case 'delete':
+      ElMessageBox.confirm(`Delete "${cmd.name}"?`, 'Confirm', { type: 'warning', confirmButtonText: 'Delete', cancelButtonText: 'Cancel' }).then(() => {
+        sshStore.deleteQuickCommand(cmd.id)
+        ElMessage.success('Command deleted')
+      }).catch(() => {})
+      break
+  }
+}
+
+onMounted(() => { register(hideQcMenu); document.addEventListener('click', hideQcMenu) })
+onUnmounted(() => { unregister(hideQcMenu); document.removeEventListener('click', hideQcMenu) })
 
 // inject from parent (TerminalPanel sets this up)
 import { inject } from 'vue'

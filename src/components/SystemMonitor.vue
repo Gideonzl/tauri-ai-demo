@@ -98,7 +98,7 @@
             </div>
             <!-- CPU mini sparkline -->
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polyline :points="cpuSparkPoints" fill="none" stroke="#5b9bd5" stroke-width="1.5" />
+              <polyline :points="cpuSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-normal)' }" stroke-width="1.5" />
             </svg>
           </div>
 
@@ -119,12 +119,12 @@
             </div>
             <div class="mem-breakdown">
               <div class="mem-bitem">
-                <span class="bdot" style="background:#5b9bd5"></span>
+                <span class="bdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>
                 <span class="blabel">Used</span>
                 <span class="bval">{{ store.data.memory.used }}</span>
               </div>
               <div class="mem-bitem">
-                <span class="bdot" style="background:#4caf7d"></span>
+                <span class="bdot" :style="{ background: 'var(--color-success)' }"></span>
                 <span class="blabel">Buff/Cache</span>
                 <span class="bval">{{ store.data.memory.buffersCache }}</span>
               </div>
@@ -148,12 +148,12 @@
               </div>
             </div>
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polyline :points="diskReadSparkPoints" fill="none" stroke="#5b9bd5" stroke-width="1.5" />
-              <polyline :points="diskWriteSparkPoints" fill="none" stroke="#e69138" stroke-width="1.5" />
+              <polyline :points="diskReadSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-normal)' }" stroke-width="1.5" />
+              <polyline :points="diskWriteSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-warning)' }" stroke-width="1.5" />
             </svg>
             <div class="spark-legend">
-              <span class="sdot" style="background:#5b9bd5"></span>Read
-              <span class="sdot" style="background:#e69138;margin-left:8px"></span>Write
+              <span class="sdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>Read
+              <span class="sdot" :style="{ background: 'var(--chart-cpu-warning)', marginLeft: '8px' }"></span>Write
             </div>
           </div>
 
@@ -171,12 +171,12 @@
               </div>
             </div>
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polyline :points="netRxSparkPoints" fill="none" stroke="#5b9bd5" stroke-width="1.5" />
-              <polyline :points="netTxSparkPoints" fill="none" stroke="#6bc76b" stroke-width="1.5" />
+              <polyline :points="netRxSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-normal)' }" stroke-width="1.5" />
+              <polyline :points="netTxSparkPoints" fill="none" :style="{ stroke: 'var(--chart-net-tx)' }" stroke-width="1.5" />
             </svg>
             <div class="spark-legend">
-              <span class="sdot" style="background:#5b9bd5"></span>RX
-              <span class="sdot" style="background:#6bc76b;margin-left:8px"></span>TX
+              <span class="sdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>RX
+              <span class="sdot" :style="{ background: 'var(--chart-net-tx)', marginLeft: '8px' }"></span>TX
             </div>
           </div>
         </div>
@@ -281,10 +281,17 @@ const cpuDasharray = computed(() => {
 
 const cpuGradient = computed(() => {
   const pct = store.data?.cpu.usagePercent || 0
-  if (pct > 80) return '#e05555'
-  if (pct > 50) return '#e69138'
-  return '#5b9bd5'
+  if (pct > 80) return getCssVar('--chart-cpu-danger') || '#e05555'
+  if (pct > 50) return getCssVar('--chart-cpu-warning') || '#e69138'
+  return getCssVar('--chart-cpu-normal') || '#5b9bd5'
 })
+
+/** Read a CSS custom property from :root, with optional fallback */
+function getCssVar(name: string): string {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  } catch { return '' }
+}
 
 // Sparkline point generators
 function sparkPoints(values: number[], maxVal: number, w = 200, h = 36): string {
@@ -356,10 +363,9 @@ onUnmounted(() => stopRefresh())
 </script>
 
 <style lang="scss" scoped>
-// CSS custom properties for ring chart
+// CSS custom properties for ring chart — now theme-aware
 .system-monitor {
-  --ring-bg: rgba(255, 255, 255, 0.08);
-  --color-text-muted: #5e5e6e;
+  --ring-bg: #{$color-border};
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -373,9 +379,9 @@ onUnmounted(() => stopRefresh())
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #6e6e7e;
+  color: $color-text-secondary;
   p { margin: 0; font-size: 13px; }
-  .sub { font-size: 11px; color: #4e4e5e; }
+  .sub { font-size: 11px; color: $color-text-placeholder; }
 }
 
 .spinning { animation: spin 1.2s linear infinite; }
@@ -388,7 +394,7 @@ onUnmounted(() => stopRefresh())
   padding-bottom: 4px;
 
   &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+  &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 2px; }
 }
 
 // ====== Info Bar ======
@@ -397,19 +403,19 @@ onUnmounted(() => stopRefresh())
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: rgba(91, 155, 213, 0.06);
-  border-bottom: 1px solid rgba(91, 155, 213, 0.1);
-  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  background: $color-bg-hover;
+  border-bottom: 1px solid $color-bg-active;
+  font-family: $font-family-mono;
   font-size: 10px;
-  color: #8e8e9e;
+  color: $color-text-secondary;
   flex-shrink: 0;
 
   .info-left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
-  .info-os { color: #c0c0d0; font-weight: 600; white-space: nowrap; }
-  .info-sep { color: #3e3e4e; }
-  .info-label { color: #6e6e7e; }
-  .info-val { color: #aeaeb8; }
-  .info-time { color: #5e5e6e; }
+  .info-os { color: $color-primary-light; font-weight: 600; white-space: nowrap; }
+  .info-sep { color: $color-border; }
+  .info-label { color: $color-text-secondary; }
+  .info-val { color: $color-text-primary; }
+  .info-time { color: $color-info; font-family: $font-family-mono; }
   .info-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 }
 
@@ -426,14 +432,14 @@ onUnmounted(() => stopRefresh())
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.04);
+  background: $color-border-light;
+  border: 1px solid $color-border-light;
   border-radius: 4px;
-  color: #6e6e7e;
+  color: $color-text-secondary;
 
   .card-text { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
-  .card-label { font-size: 9px; color: #5e5e6e; text-transform: uppercase; letter-spacing: 0.4px; }
-  .card-val { font-size: 11px; color: #c0c0d0; font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-label { font-size: 9px; color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.4px; }
+  .card-val { font-size: 11px; color: $color-text-regular; font-family: $font-family-mono; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 // ====== Metrics Rows ======
@@ -445,8 +451,8 @@ onUnmounted(() => stopRefresh())
 }
 
 .metric-panel {
-  background: rgba(255,255,255,0.015);
-  border: 1px solid rgba(255,255,255,0.04);
+  background: $color-border-light;
+  border: 1px solid $color-border-light;
   border-radius: 4px;
   padding: 10px;
 }
@@ -454,7 +460,7 @@ onUnmounted(() => stopRefresh())
 .panel-title {
   font-size: 10px;
   font-weight: 600;
-  color: #8e8eae;
+  color: $color-text-secondary;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -473,8 +479,8 @@ onUnmounted(() => stopRefresh())
   height: 80px;
   flex-shrink: 0;
 
-  .ring-pct { font-size: 18px; font-weight: 700; fill: #e0e0f0; font-family: 'JetBrains Mono', monospace; }
-  .ring-label { font-size: 8px; fill: #6e6e7e; }
+  .ring-pct { font-size: 18px; font-weight: 700; fill: $color-text-primary; font-family: $font-family-mono; }
+  .ring-label { font-size: 8px; fill: $color-text-secondary; }
 }
 
 .cpu-ring-fill { transition: stroke-dasharray 0.6s ease; }
@@ -484,33 +490,33 @@ onUnmounted(() => stopRefresh())
   flex-direction: column;
   gap: 2px;
   font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: $font-family-mono;
 }
 
 .cpu-line { display: flex; gap: 8px; }
-.clabel { color: #6e6e7e; width: 40px; text-align: right; }
-.cval { color: #c0c0d0; }
+.clabel { color: $color-text-secondary; width: 40px; text-align: right; }
+.cval { color: $color-text-regular; }
 
 // ====== Memory ======
 .mem-main {
   text-align: center;
   margin-bottom: 6px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: $font-family-mono;
 }
-.mem-used { font-size: 20px; font-weight: 700; color: #e0e0f0; }
-.mem-sep { color: #5e5e6e; margin: 0 2px; }
-.mem-total { font-size: 13px; color: #8e8e9e; }
-.mem-pct { font-size: 11px; color: #5b9bd5; margin-left: 6px; }
+.mem-used { font-size: 20px; font-weight: 700; color: $color-text-primary; }
+.mem-sep { color: $color-text-muted; margin: 0 2px; }
+.mem-total { font-size: 13px; color: $color-text-secondary; }
+.mem-pct { font-size: 11px; color: $color-chart-blue; margin-left: 6px; }
 
 .mem-bar-wrap { padding: 0 4px; }
-.mem-bar { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
-.mem-bar-fill { height: 100%; background: linear-gradient(90deg, #5b9bd5, #4a8bc5); border-radius: 4px; transition: width 0.6s ease; }
+.mem-bar { height: 8px; background: $color-border; border-radius: 4px; overflow: hidden; }
+.mem-bar-fill { height: 100%; background: linear-gradient(90deg, $color-chart-blue, $color-primary-dark); border-radius: 4px; transition: width 0.6s ease; }
 
 .mem-breakdown { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; font-size: 10px; }
 .mem-bitem { display: flex; align-items: center; gap: 6px; }
 .bdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.blabel { color: #6e6e7e; flex: 1; }
-.bval { color: #c0c0d0; font-family: 'JetBrains Mono', monospace; }
+.blabel { color: $color-text-secondary; flex: 1; }
+.bval { color: $color-text-regular; font-family: $font-family-mono; }
 
 // ====== I/O Stats ======
 .io-stats {
@@ -520,10 +526,10 @@ onUnmounted(() => stopRefresh())
 }
 
 .io-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.io-label { font-size: 9px; color: #6e6e7e; text-transform: uppercase; }
-.io-val { font-size: 12px; font-family: 'JetBrains Mono', monospace; font-weight: 600;
-  &.read { color: #5b9bd5; }
-  &.write { color: #e69138; }
+.io-label { font-size: 9px; color: $color-text-secondary; text-transform: uppercase; }
+.io-val { font-size: 12px; font-family: $font-family-mono; font-weight: 600;
+  &.read { color: $color-chart-blue; }
+  &.write { color: $color-chart-orange; }
 }
 
 .mini-sparkline {
@@ -536,7 +542,7 @@ onUnmounted(() => stopRefresh())
   display: flex;
   align-items: center;
   font-size: 9px;
-  color: #6e6e7e;
+  color: $color-text-secondary;
   margin-top: 2px;
 }
 
@@ -563,25 +569,25 @@ onUnmounted(() => stopRefresh())
 }
 
 .disk-info { display: flex; flex-direction: column; gap: 1px; }
-.disk-dev { font-size: 11px; color: #c0c0d0; font-family: 'JetBrains Mono', monospace; }
-.disk-mount { font-size: 9px; color: #5e5e6e; }
+.disk-dev { font-size: 11px; color: $color-text-regular; font-family: $font-family-mono; }
+.disk-mount { font-size: 9px; color: $color-text-muted; }
 
 .disk-bar-wrap { }
-.disk-bar { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.disk-bar { height: 6px; background: $color-border; border-radius: 3px; overflow: hidden; }
 .disk-bar-fill {
   height: 100%;
-  background: #5b9bd5;
+  background: $color-chart-blue;
   border-radius: 3px;
   transition: width 0.6s ease;
-  &.warn { background: #e69138; }
-  &.danger { background: #e05555; }
+  &.warn { background: $color-chart-orange; }
+  &.danger { background: $color-chart-red; }
 }
 
-.disk-details { display: flex; justify-content: space-between; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
-.disk-used { color: #8e8e9e; }
-.disk-pct { color: #6e6e7e; font-weight: 600;
-  &.warn { color: #e69138; }
-  &.danger { color: #e05555; }
+.disk-details { display: flex; justify-content: space-between; font-size: 9px; font-family: $font-family-mono; }
+.disk-used { color: $color-text-secondary; }
+.disk-pct { color: $color-text-secondary; font-weight: 600;
+  &.warn { color: $color-chart-orange; }
+  &.danger { color: $color-chart-red; }
 }
 
 // ====== Process Table ======
@@ -599,27 +605,27 @@ onUnmounted(() => stopRefresh())
   th {
     text-align: left;
     padding: 4px 6px;
-    color: #5e5e6e;
+    color: $color-text-muted;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid $color-border-light;
     position: sticky;
     top: 0;
-    background: #14141e;
+    background: $color-bg-toolbar;
   }
 
   td {
     padding: 3px 6px;
-    color: #aeaeb8;
-    border-bottom: 1px solid rgba(255,255,255,0.02);
+    color: $color-text-regular;
+    border-bottom: 1px solid $color-border-light;
   }
 
-  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:hover td { background: $color-border-light; }
 
   .proc-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mono { font-family: 'JetBrains Mono', monospace; }
-  .warn { color: #e69138; }
+  .mono { font-family: $font-family-mono; }
+  .warn { color: $color-chart-orange; }
 }
 
 .proc-status {
@@ -627,11 +633,11 @@ onUnmounted(() => stopRefresh())
   padding: 1px 4px;
   border-radius: 2px;
   letter-spacing: 0.3px;
-  &.running { color: #4caf7d; background: rgba(76,175,125,0.12); }
-  &.sleeping { color: #6e6e7e; background: rgba(255,255,255,0.04); }
-  &.blocked { color: #e69138; background: rgba(230,145,56,0.12); }
-  &.zombie { color: #e05555; background: rgba(224,85,85,0.15); }
-  &.stopped { color: #d4a24e; background: rgba(212,162,78,0.12); }
+  &.running { color: $color-success; background: $color-bg-success-hover; }
+  &.sleeping { color: $color-text-secondary; background: $color-border-light; }
+  &.blocked { color: $color-chart-orange; background: $color-bg-warning-hover; }
+  &.zombie { color: $color-chart-red; background: $color-bg-danger-hover; }
+  &.stopped { color: $color-warning; background: $color-bg-warning-hover; }
 }
 
 // ====== Status Bar ======
@@ -639,17 +645,17 @@ onUnmounted(() => stopRefresh())
   display: flex;
   align-items: center;
   padding: 4px 10px;
-  border-top: 1px solid rgba(255,255,255,0.04);
+  border-top: 1px solid $color-border-light;
   font-size: 10px;
-  color: #6e6e7e;
-  font-family: 'JetBrains Mono', monospace;
+  color: $color-text-secondary;
+  font-family: $font-family-mono;
   flex-shrink: 0;
-  background: rgba(0,0,0,0.1);
+  background: $color-bg-app;
 
   .status-dot {
     width: 6px; height: 6px; border-radius: 50%;
-    background: #5e5e6e; margin-right: 6px;
-    &.connected { background: #4caf7d; }
+    background: $color-text-muted; margin-right: 6px;
+    &.connected { background: $color-success; }
   }
 }
 </style>

@@ -199,6 +199,38 @@ export class XTermFrontend {
     }
   }
 
+  // ── Theme ──
+
+  /** Update xterm theme from CSS custom properties on :root (called on theme change) */
+  updateTheme(): void {
+    const s = getComputedStyle(document.documentElement)
+    const read = (prop: string, fallback: string) => (s.getPropertyValue(prop).trim() || fallback)
+
+    this.terminal.options.theme = {
+      background: read('--terminal-bg', '#0d0d1a'),
+      foreground: read('--terminal-fg', '#e8e8f0'),
+      cursor: read('--terminal-cursor', '#5b8def'),
+      cursorAccent: read('--terminal-bg', '#0d0d1a'),
+      selectionBackground: read('--terminal-cursor', 'rgba(91,155,213,0.35)'),
+      black: read('--terminal-black', '#1a1a2e'),
+      red: read('--terminal-red', '#ff5370'),
+      green: read('--terminal-green', '#c3e88d'),
+      yellow: read('--terminal-yellow', '#ffcb6b'),
+      blue: read('--terminal-blue', '#82aaff'),
+      magenta: read('--terminal-magenta', '#c792ea'),
+      cyan: read('--terminal-cyan', '#89ddff'),
+      white: read('--terminal-white', '#e8e8f0'),
+      brightBlack: read('--terminal-bright-black', '#444460'),
+      brightRed: read('--terminal-bright-red', '#ff5370'),
+      brightGreen: read('--terminal-bright-green', '#c3e88d'),
+      brightYellow: read('--terminal-bright-yellow', '#ffcb6b'),
+      brightBlue: read('--terminal-bright-blue', '#82aaff'),
+      brightMagenta: read('--terminal-bright-magenta', '#c792ea'),
+      brightCyan: read('--terminal-bright-cyan', '#89ddff'),
+      brightWhite: read('--terminal-bright-white', '#fff'),
+    }
+  }
+
   // ── Getters ──
 
   get element(): HTMLElement | undefined {

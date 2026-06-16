@@ -115,7 +115,7 @@
               </div>
             </div>
             <div class="fv-body">
-              <pre class="fv-content" v-html="highlightedContent" @contextmenu.prevent="onFileViewerContextMenu"></pre>
+              <pre class="fv-content" v-html="highlightedContent"></pre>
             </div>
           </div>
           <!-- Resize handle between file viewer and terminal -->
@@ -163,34 +163,23 @@
     <KeyManager ref="keyManagerRef" />
     <HostImportExport ref="hostImportExportRef" />
 
-    <!-- 服务器右键菜单 — 与 SFTP 文件树右键完全一致（无 teleport，position:fixed 定位） -->
-    <div v-if="hostMenu.visible" class="ctx-menu" :style="{ left: hostMenu.x + 'px', top: hostMenu.y + 'px' }">
-      <div class="ctx-item" @click="hostMenuAction('connect')"><el-icon :size="13"><SetUp /></el-icon><span>{{ t('workspace.connect') }}</span></div>
-      <div class="ctx-item" @click="hostMenuAction('edit')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('workspace.edit') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="hostMenuAction('copyAddr')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('workspace.copyAddress') }}</span></div>
-      <div class="ctx-item" @click="hostMenuAction('copyName')"><el-icon :size="13"><Link /></el-icon><span>{{ t('workspace.copyName') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="hostMenuAction('portForwarding')"><el-icon :size="13"><Connection /></el-icon><span>{{ t('workspace.portForwarding') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="hostMenuAction('keyManager')"><el-icon :size="13"><Key /></el-icon><span>{{ t('workspace.keyManager') }}</span></div>
-      <div class="ctx-item" @click="hostMenuAction('importExport')"><el-icon :size="13"><Upload /></el-icon><span>{{ t('workspace.importExport') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item danger" @click="hostMenuAction('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
-    </div>
-
-    <!-- 文件查看器右键菜单 — 复用 ctx-menu 样式 -->
-    <div v-if="fvMenu.visible" class="ctx-menu" :style="{ left: fvMenu.x + 'px', top: fvMenu.y + 'px' }">
-      <div class="ctx-item" @click="fvMenuAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('common.copy') }}</span></div>
-      <div class="ctx-item" @click="fvMenuAct('selectAll')"><el-icon :size="13"><Select /></el-icon><span>{{ t('common.selectAll') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="fvMenuAct('print')"><el-icon :size="13"><Printer /></el-icon><span>{{ t('common.print') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="fvMenuAct('copyPath')"><el-icon :size="13"><Link /></el-icon><span>{{ t('sftp.copyPath') }}</span></div>
-      <div class="ctx-item" @click="fvMenuAct('copyName')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('sftp.copyName') }}</span></div>
-      <div class="ctx-sep"></div>
-      <div class="ctx-item" @click="fvMenuAct('close')"><el-icon :size="13"><Close /></el-icon><span>{{ t('common.closeFile') }}</span></div>
-    </div>
+    <!-- 服务器右键菜单 -->
+    <teleport to="body">
+      <div v-if="hostMenu.visible" class="host-context-menu" :style="{ left: hostMenu.x + 'px', top: hostMenu.y + 'px' }">
+        <div class="hmenu-item" @click="hostMenuAction('connect')"><el-icon :size="13"><SetUp /></el-icon><span>{{ t('workspace.connect') }}</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('edit')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('workspace.edit') }}</span></div>
+        <div class="hmenu-sep"></div>
+        <div class="hmenu-item" @click="hostMenuAction('copyAddr')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('workspace.copyAddress') }}</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('copyName')"><el-icon :size="13"><Link /></el-icon><span>{{ t('workspace.copyName') }}</span></div>
+        <div class="hmenu-sep"></div>
+        <div class="hmenu-item" @click="hostMenuAction('portForwarding')"><el-icon :size="13"><Connection /></el-icon><span>{{ t('workspace.portForwarding') }}</span></div>
+        <div class="hmenu-sep"></div>
+        <div class="hmenu-item" @click="hostMenuAction('keyManager')"><el-icon :size="13"><Key /></el-icon><span>{{ t('workspace.keyManager') }}</span></div>
+        <div class="hmenu-item" @click="hostMenuAction('importExport')"><el-icon :size="13"><Upload /></el-icon><span>{{ t('workspace.importExport') }}</span></div>
+        <div class="hmenu-sep"></div>
+        <div class="hmenu-item danger" @click="hostMenuAction('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -202,21 +191,20 @@ import { useLocale } from '@/composables/useLocale'
 import { highlightCode } from '@/utils/highlight'
 import { useModelStore } from '@/stores/model'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload, Printer, Select } from '@element-plus/icons-vue'
+import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload } from '@element-plus/icons-vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import SshConnectDialog from '@/components/SshConnectDialog.vue'
 import SftpTree from '@/components/SftpTree.vue'
 import QuickCommands from '@/components/QuickCommands.vue'
 import PortForwarding from '@/components/PortForwarding.vue'
 import KeyManager from '@/components/KeyManager.vue'
-import { useContextMenu } from '@/composables/useContextMenu'
+import HostImportExport from '@/components/HostImportExport.vue'
 
 const sshStore = useSshStore()
 const modelStore = useModelStore()
 const { t } = useLocale()
 const configStore = useConfigStore()
 const isTauriMode = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
-const { register, unregister } = useContextMenu()
 
 const portForwardingRef = ref<InstanceType<typeof PortForwarding> | null>(null)
 const keyManagerRef = ref<InstanceType<typeof KeyManager> | null>(null)
@@ -265,15 +253,14 @@ const groupedHosts = computed(() => {
 // 服务器右键菜单状态
 const hostMenu = reactive({ visible: false, x: 0, y: 0, server: null as any })
 
-function hideHostMenu() { hostMenu.visible = false }
-
-function hideAllMenus() { hideHostMenu(); hideFvMenu(); }
-
 function showHostMenu(e: MouseEvent, server: any) {
   hostMenu.server = server
   hostMenu.x = e.clientX
   hostMenu.y = e.clientY
   hostMenu.visible = true
+  setTimeout(() => {
+    document.addEventListener('click', () => { hostMenu.visible = false }, { once: true })
+  }, 10)
 }
 
 function hostMenuAction(action: string) {
@@ -308,59 +295,6 @@ function hostMenuAction(action: string) {
       break
     case 'importExport':
       hostImportExportRef.value?.open()
-      break
-  }
-}
-
-// 文件查看器右键菜单
-const fvMenu = reactive({ visible: false, x: 0, y: 0 })
-
-function onFileViewerContextMenu(e: MouseEvent) {
-  fvMenu.x = e.clientX
-  fvMenu.y = e.clientY
-  fvMenu.visible = true
-}
-
-function hideFvMenu() { fvMenu.visible = false }
-
-function fvMenuAct(action: string) {
-  hideFvMenu()
-  const file = sshStore.openFiles[sshStore.activeFileIndex]
-  const contentEl = document.querySelector('.fv-content')
-  switch (action) {
-    case 'copy': {
-      const sel = window.getSelection()
-      if (sel?.toString()) {
-        navigator.clipboard.writeText(sel.toString())
-        ElMessage.success('Copied')
-      }
-      break
-    }
-    case 'selectAll': {
-      if (contentEl) {
-        const range = document.createRange()
-        range.selectNodeContents(contentEl)
-        const sel = window.getSelection()
-        sel?.removeAllRanges()
-        sel?.addRange(range)
-      }
-      break
-    }
-    case 'print': window.print(); break
-    case 'copyPath':
-      if (file) {
-        navigator.clipboard.writeText(file.path)
-        ElMessage.success(t('workspace.addressCopied'))
-      }
-      break
-    case 'copyName':
-      if (file) {
-        navigator.clipboard.writeText(file.name)
-        ElMessage.success(t('workspace.nameCopied'))
-      }
-      break
-    case 'close':
-      sshStore.activeFileIndex = -1
       break
   }
 }
@@ -487,8 +421,7 @@ async function handleConnect(serverId: string) {
   sshStore.updateSessionStatus(session.id, 'connecting')
 
   // Check if Tauri runtime is available (v1: __TAURI__, v2: __TAURI_INTERNALS__)
-  const isTauri = !!(window as any).__TAURI__
-const { register, unregister } = useContextMenu() || !!(window as any).__TAURI_INTERNALS__
+  const isTauri = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__
   console.log('[handleConnect] isTauri:', isTauri, 'server:', server.host, 'port:', server.port)
 
   try {
@@ -546,13 +479,9 @@ async function handleCloseSession(sessionId: string) {
 
 onMounted(() => {
   sshStore.init()
-  register(hideAllMenus)
-  document.addEventListener('click', hideAllMenus)
 })
 
 onUnmounted(() => {
-  unregister(hideAllMenus)
-  document.removeEventListener('click', hideAllMenus)
   document.removeEventListener('mousemove', onHostListResizeMove)
   document.removeEventListener('mouseup', onHostListResizeEnd)
 })
@@ -681,7 +610,42 @@ onUnmounted(() => {
   .status-text-connected { color: $color-success; } .status-text-connecting { color: $color-warning; } .status-text-disconnected { color: $color-text-muted; } .status-text-error { color: $color-danger; } .status-text-reconnecting { color: $color-warning; }
 }
 
-n// .ctx-menu / .ctx-item / .ctx-sep now live in global.scss — shared with SFTP tree for 1:1 parity
+// 服务器右键菜单 — VSCode 风格
+.host-context-menu {
+  position: fixed; z-index: 9999;
+  background-color: $color-bg-toolbar;
+  border: 1px solid $color-border;
+  border-radius: $border-radius-md;
+  padding: $spacing-xs 0;
+  min-width: 180px;
+  box-shadow: $shadow-lg;
+  backdrop-filter: blur(8px);
+}
+
+.hmenu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 16px; cursor: pointer;
+  color: $color-text-regular; font-size: $font-size-sm;
+  transition: background $transition-fast;
+  margin: 0 4px;
+  border-radius: $border-radius-sm;
+
+  .el-icon { color: $color-text-secondary; transition: color $transition-fast; }
+  &:hover {
+    background-color: $color-bg-hover;
+    color: $color-text-primary;
+    .el-icon { color: $color-text-primary; }
+  }
+  &.danger {
+    color: $color-danger;
+    &:hover { background-color: $color-bg-danger-hover; color: $color-danger; }
+  }
+}
+
+.hmenu-sep {
+  height: 1px; background-color: $color-border-light;
+  margin: $spacing-xs 8px;
+}
 
 // File viewer (Xterminal style)
 .file-viewer {

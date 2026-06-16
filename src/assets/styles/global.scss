@@ -475,7 +475,7 @@ body {
 
 
 
-    background-color: rgba(91, 141, 239, 0.12) !important;
+    background-color: $color-bg-primary-hover !important;
 
 
 
@@ -531,7 +531,7 @@ body {
 
 
 
-    background-color: rgba(76, 175, 125, 0.12) !important;
+    background-color: $color-bg-success-hover !important;
 
 
 
@@ -579,7 +579,7 @@ body {
 
 
 
-    background-color: rgba(212, 162, 78, 0.12) !important;
+    background-color: $color-bg-warning-hover !important;
 
 
 
@@ -627,7 +627,7 @@ body {
 
 
 
-    background-color: rgba(212, 84, 84, 0.12) !important;
+    background-color: $color-bg-danger-hover !important;
 
 
 
@@ -923,9 +923,75 @@ body {
 
 
 
+// ============================================================
+// Context menu — canonical styles shared by SFTP tree & host list
+// Both menus use these exact same classes for 1:1 visual parity
+// ============================================================
+
+.ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  background: $color-bg-toolbar;
+  border: 1px solid $color-border;
+  border-radius: $border-radius-md;
+  padding: $spacing-xs 0;
+  min-width: 180px;
+  box-shadow: $shadow-lg;
+  backdrop-filter: blur(8px);
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  cursor: pointer;
+  color: $color-text-regular;
+  font-size: $font-size-sm;
+  transition: background $transition-fast;
+  margin: 0 4px;
+  border-radius: $border-radius-sm;
+
+  &:hover {
+    background: $color-bg-hover;
+    color: $color-text-primary;
+  }
+
+  .el-icon {
+    color: $color-text-secondary;
+    transition: color $transition-fast;
+  }
+
+  &:hover .el-icon {
+    color: $color-text-primary;
+  }
+
+  &.danger {
+    color: $color-danger;
+    &:hover {
+      background: $color-bg-danger-hover;
+      color: $color-danger;
+    }
+  }
+}
+
+.ctx-sep {
+  height: 1px;
+  background: $color-border-light;
+  margin: $spacing-xs 8px;
+}
+
 // 通用工具类
 
 
+
+// Status text colors
+.text-success { color: $color-success; }
+.text-warning { color: $color-warning; }
+.text-danger { color: $color-danger; }
+.text-primary { color: $color-primary; }
+.bg-success { background-color: $color-success; }
+.bg-warning { background-color: $color-warning; }
 
 .flex-center {
 
@@ -1030,4 +1096,24 @@ body {
 .file-preview ::-moz-selection {
   background-color: rgba(91, 155, 213, 0.45) !important;
   color: #ffffff !important;
+}
+
+// ============================================================
+// Focus rings — theme-aware keyboard navigation
+// ============================================================
+
+*:focus-visible {
+  outline: 2px solid $color-primary;
+  outline-offset: 1px;
+}
+
+// ============================================================
+// Theme transition — smooth color fades on theme switch
+// ============================================================
+
+:root {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease;
 }

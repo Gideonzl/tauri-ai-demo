@@ -5,7 +5,7 @@
   Settings icon pinned to bottom
 -->
 <template>
-  <nav class="side-nav">
+  <nav class="side-nav" @contextmenu.prevent>
     <!-- Top section: main navigation -->
     <div class="nav-top">
       <div

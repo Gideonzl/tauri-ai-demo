@@ -3,7 +3,7 @@
  * Termius极简风格
  */
 <template>
-  <div class="settings-view">
+  <div class="settings-view" @contextmenu.prevent="onSettingsCtx">
     <div class="settings-header">
       <span class="title">{{ t('settings.title') }}</span>
     </div>
@@ -55,15 +55,32 @@
         </div>
       </div>
     </div>
+
+    <!-- 右键菜单 -->
+    <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+      <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { useConfigStore } from '@/stores/config'
 import { useLocale } from '@/composables/useLocale'
+import { useContextMenu } from '@/composables/useContextMenu'
 
 const configStore = useConfigStore()
 const { locale, setLocale, t, locales } = useLocale()
+const { register, unregister } = useContextMenu()
+// 右键菜单
+const ctx = reactive({ visible: false, x: 0, y: 0 })
+function onSettingsCtx(e: MouseEvent) { ctx.x = e.clientX; ctx.y = e.clientY; ctx.visible = true }
+function hideCtx() { ctx.visible = false }
+function ctxAct(action: string) { hideCtx(); if (action === 'refresh') location.reload() }
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx) })
+
 const themes = {
   'termius-dark': { keyword: '#c792ea', string: '#c3e88d', number: '#f78c6c', key: '#89ddff' },
   'xterminal': { keyword: '#bb9af7', string: '#9ece6a', number: '#ff9e64', key: '#7dcfff' },
@@ -86,7 +103,7 @@ const themes = {
 .theme-grid { display: flex; gap: $spacing-md; flex-wrap: wrap; }
 .theme-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-fast; min-width: 100px;
   &:hover { border-color: $color-primary; }
-  &.active { border-color: $color-primary; background-color: rgba($color-primary, 0.1); }
+  &.active { border-color: $color-primary; background-color: $color-bg-active; }
 }
 .theme-preview { display: flex; gap: 4px; }
 .tp-dot { width: 12px; height: 12px; border-radius: 50%; }
@@ -102,7 +119,7 @@ const themes = {
 .lang-grid { display: flex; gap: $spacing-md; flex-wrap: wrap; }
 .lang-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-fast; min-width: 80px;
   &:hover { border-color: $color-primary; }
-  &.active { border-color: $color-primary; background-color: rgba($color-primary, 0.1); }
+  &.active { border-color: $color-primary; background-color: $color-bg-active; }
 }
 .lang-flag { font-size: 20px; font-weight: 700; color: $color-text-primary; }
 .lang-name { font-size: $font-size-xs; color: $color-text-regular; }
