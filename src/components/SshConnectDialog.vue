@@ -4,7 +4,7 @@
  * 新增：测试连接按钮，一键预检连通性
  */
 <template>
-  <el-dialog
+  <el-dialog @contextmenu.prevent
     v-model="sshStore.showConnectDialog"
     :title="sshStore.editingServer ? 'Edit Host' : 'New Host'"
     width="420px"
@@ -37,7 +37,13 @@
         <el-input v-model="formData.keyPath" placeholder="~/.ssh/id_rsa" />
       </el-form-item>
       <el-form-item label="Group">
-        <el-input v-model="formData.group" placeholder="Production (optional)" />
+        <el-autocomplete
+          v-model="formData.group"
+          :fetch-suggestions="queryGroupSuggestions"
+          placeholder="Select or type group name"
+          clearable
+          style="width:100%"
+        />
       </el-form-item>
     </el-form>
 
@@ -70,6 +76,12 @@ import { useSshStore } from '@/stores/ssh'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const sshStore = useSshStore()
+
+// Group autocomplete suggestions
+function queryGroupSuggestions(queryString: string, cb: (results: { value: string }[]) => void) {
+  const names = sshStore.allGroupNames.filter(n => n.toLowerCase().includes(queryString.toLowerCase()))
+  cb(names.map(n => ({ value: n })))
+}
 
 /** 测试连接状态 */
 const testing = ref(false)

@@ -53,9 +53,11 @@ import { DemoSession } from '@/sessions/DemoSession'
 import { Subject } from '@/sessions/Observable'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useLocale } from '@/composables/useLocale'
+import { useCommandHistoryStore } from '@/stores/commandHistory'
 
 // ── Props, Emits, Store ──
 const { t } = useLocale()
+const cmdHistory = useCommandHistoryStore()
 const props = defineProps<{ session?: any }>()
 const emit = defineEmits<{ cwdChange: [path: string] }>()
 const sshStore = useSshStore()
@@ -116,6 +118,35 @@ function insertEmoji(emoji: string) {
   tmenu.showEmoji = false
   tmenu.visible = false
   frontend.focus()
+}
+
+// ── Command history recording ──
+let cmdBuffer = ''
+
+function recordCommand(data: string) {
+  for (const ch of data) {
+    if (ch === '\r') {
+      // Enter pressed — flush buffer as a command
+      const cmd = cmdBuffer.trim()
+      if (cmd && sshStore.activeSession) {
+        cmdHistory.addEntry(
+          sshStore.activeSession.serverId,
+          sshStore.activeSession.serverName,
+          cmd
+        )
+      }
+      cmdBuffer = ''
+    } else if (ch === '\x7f' || ch === '\b') {
+      // Backspace — remove last char
+      cmdBuffer = cmdBuffer.slice(0, -1)
+    } else if (ch === '\x1b') {
+      // ANSI escape sequence start — skip until terminated
+      // (simplified: just ignore the escape char itself)
+    } else if (ch.charCodeAt(0) >= 32) {
+      // Printable character
+      cmdBuffer += ch
+    }
+  }
 }
 
 // ── Core objects (Tabby pattern: frontend + session) ──
@@ -192,6 +223,8 @@ async function createSession(): Promise<void> {
   subs = Subject.combine(
     frontend.input$.subscribe((data: string) => {
       session!.sendInput(data)
+      // Record commands for history (extract lines ending with \r)
+      recordCommand(data)
     }),
 
     session.output$.subscribe((data: string) => {

@@ -3,7 +3,7 @@
   Termius CLI feature parity: termius host import/export
 -->
 <template>
-  <el-dialog
+  <el-dialog @contextmenu.prevent
     v-model="visible"
     title="Import / Export Hosts"
     width="560px"

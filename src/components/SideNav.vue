@@ -41,7 +41,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Monitor, Cpu, FolderOpened, Setting } from '@element-plus/icons-vue'
+import { Monitor, Cpu, FolderOpened, Setting, Clock } from '@element-plus/icons-vue'
 import type { Ref } from 'vue'
 import { useLocale } from '@/composables/useLocale'
 
@@ -57,6 +57,7 @@ const showLabels = computed(() => (sidebarWidth?.value ?? 56) > 80)
 interface NavItem { id: string; path: string; label: string; icon: any }
 const topItems = computed<NavItem[]>(() => [
   { id: 'hosts', path: '/', label: t('nav.hosts'), icon: Monitor },
+  { id: 'history', path: '/history', label: t('nav.history'), icon: Clock },
   { id: 'ai', path: '/ai-config', label: t('nav.aiModels'), icon: Cpu },
   { id: 'sftp', path: '', label: t('nav.sftp'), icon: FolderOpened },
 ])

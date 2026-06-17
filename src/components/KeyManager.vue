@@ -7,7 +7,7 @@
   - Delete keys
 -->
 <template>
-  <el-dialog
+  <el-dialog @contextmenu.prevent
     v-model="visible"
     title="SSH Key Manager"
     width="600px"
@@ -54,7 +54,7 @@
     </div>
 
     <!-- Generate key dialog -->
-    <el-dialog v-model="showGenerate" title="Generate SSH Key" width="420px" append-to-body>
+    <el-dialog @contextmenu.prevent v-model="showGenerate" title="Generate SSH Key" width="420px" append-to-body>
       <el-form :model="genForm" label-width="100px" size="small">
         <el-form-item label="Key Type">
           <el-select v-model="genForm.type">
@@ -81,7 +81,7 @@
     </el-dialog>
 
     <!-- Import key dialog -->
-    <el-dialog v-model="showImport" title="Import SSH Key" width="420px" append-to-body>
+    <el-dialog @contextmenu.prevent v-model="showImport" title="Import SSH Key" width="420px" append-to-body>
       <el-form :model="impForm" label-width="100px" size="small">
         <el-form-item label="Key Path">
           <el-input v-model="impForm.path" placeholder="~/.ssh/id_rsa or absolute path" />

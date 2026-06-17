@@ -4,7 +4,7 @@
  * 数据来源：SSH exec 实时采集
  */
 <template>
-  <div class="system-monitor">
+  <div class="system-monitor" @contextmenu.prevent="onCtx">
     <!-- 无连接/无数据状态 -->
     <div v-if="!hasSession" class="monitor-empty">
       <el-icon :size="36"><Connection /></el-icon>
@@ -239,11 +239,16 @@
         <span v-if="refreshActive" style="margin-left:8px;color:var(--color-text-muted)">Auto {{ refreshIntervalSec }}s</span>
       </div>
     </template>
+
+    <!-- 右键菜单 -->
+    <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+      <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useMonitorStore } from '@/stores/monitor'
 import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
@@ -251,6 +256,14 @@ import { Connection, Loading, Refresh, Clock, Cpu, Grid, Coin } from '@element-p
 
 const store = useMonitorStore()
 const sshStore = useSshStore()
+
+// 右键菜单
+const ctx = reactive({ visible: false, x: 0, y: 0 })
+function onCtx(e: MouseEvent) { ctx.x = e.clientX; ctx.y = e.clientY; ctx.visible = true }
+function hideCtx() { ctx.visible = false }
+function ctxAct(action: string) { hideCtx(); if (action === 'refresh') store.fetchData() }
+onMounted(() => document.addEventListener('click', hideCtx))
+onUnmounted(() => document.removeEventListener('click', hideCtx))
 const { t, locale } = useLocale()
 
 const refreshActive = ref(false)

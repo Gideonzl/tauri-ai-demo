@@ -15,7 +15,7 @@ export const useSshStore = defineStore('ssh', () => {
   const showConnectDialog = ref(false)
   const editingServer = ref<SshServer | null>(null)
   const searchQuery = ref('')
-  const selectedGroupId = ref('')
+  const selectedGroupName = ref('')
   const quickCommands = ref<QuickCommand[]>([])
   const openFiles = ref<Array<{path: string; name: string; content: string; loading: boolean}>>([])
   const activeFileIndex = ref(-1)
@@ -25,9 +25,8 @@ export const useSshStore = defineStore('ssh', () => {
 
   const filteredServers = computed<SshServer[]>(() => {
     let list = servers.value
-    if (selectedGroupId.value) {
-      const g = groups.value.find(g => g.id === selectedGroupId.value)
-      if (g) list = list.filter(s => s.group === g.name)
+    if (selectedGroupName.value) {
+      list = list.filter(s => s.group === selectedGroupName.value)
     }
     const q = searchQuery.value.trim().toLowerCase()
     if (q) list = list.filter(s => s.name.toLowerCase().includes(q) || s.host.toLowerCase().includes(q) || s.username.toLowerCase().includes(q) || (s.group && s.group.toLowerCase().includes(q)))
@@ -46,7 +45,7 @@ export const useSshStore = defineStore('ssh', () => {
   function updateServer(id: string, data: Partial<SshServer>) { const i = servers.value.findIndex(s => s.id === id); if (i !== -1) { servers.value[i] = { ...servers.value[i], ...data, id }; saveToStorage() } }
   function deleteServer(id: string) { servers.value = servers.value.filter(s => s.id !== id); sessions.value = sessions.value.filter(s => s.serverId !== id); activeSessionId.value = sessions.value[0]?.id || ''; saveToStorage() }
   function addGroup(name: string) { if (!name.trim() || groups.value.find(g => g.name === name.trim())) return; groups.value.push({ id: genId(), name: name.trim(), sortOrder: groups.value.length }); saveToStorage() }
-  function deleteGroup(groupId: string) { const g = groups.value.find(g => g.id === groupId); if (!g) return; servers.value.forEach(s => { if (s.group === g.name) s.group = undefined }); groups.value = groups.value.filter(g => g.id !== groupId); if (selectedGroupId.value === groupId) selectedGroupId.value = ''; saveToStorage() }
+  function deleteGroup(groupId: string) { const g = groups.value.find(g => g.id === groupId); if (!g) return; servers.value.forEach(s => { if (s.group === g.name) s.group = undefined }); groups.value = groups.value.filter(g => g.id !== groupId); if (selectedGroupName.value === g.name) selectedGroupName.value = ''; saveToStorage() }
   function renameGroup(groupId: string, newName: string) { const g = groups.value.find(g => g.id === groupId); if (!g || !newName.trim()) return; const old = g.name; g.name = newName.trim(); servers.value.forEach(s => { if (s.group === old) s.group = newName.trim() }); saveToStorage() }
   function addQuickCommand(cmd: Omit<QuickCommand, 'id'>) { const qc: QuickCommand = { id: genId(), ...cmd }; quickCommands.value.push(qc); saveToStorage(); return qc }
   function updateQuickCommand(id: string, data: Partial<QuickCommand>) { const i = quickCommands.value.findIndex(c => c.id === id); if (i !== -1) { quickCommands.value[i] = { ...quickCommands.value[i], ...data, id }; saveToStorage() } }
@@ -61,5 +60,5 @@ export const useSshStore = defineStore('ssh', () => {
   function saveToStorage() { try { const d = localStorage; d.setItem(STORAGE_KEYS.servers, JSON.stringify(servers.value)); d.setItem(STORAGE_KEYS.groups, JSON.stringify(groups.value)); d.setItem(STORAGE_KEYS.quickCommands, JSON.stringify(quickCommands.value)) } catch (e) { console.error(e) } }
   function loadFromStorage() { try { const d = localStorage; const sr = d.getItem(STORAGE_KEYS.servers); if (sr) servers.value = JSON.parse(sr); const gr = d.getItem(STORAGE_KEYS.groups); if (gr) groups.value = JSON.parse(gr); const qr = d.getItem(STORAGE_KEYS.quickCommands); if (qr) quickCommands.value = JSON.parse(qr) } catch (e) { console.error(e) } }
   function init() { loadFromStorage(); if (servers.value.length === 0) { addServer({ name: 'Web Server', host: '192.168.1.100', port: 22, username: 'root', authType: 'password', password: 'demo123', group: 'Production' }); addServer({ name: 'DB Server', host: '192.168.1.101', port: 22, username: 'admin', authType: 'key', keyPath: '~/.ssh/id_rsa', group: 'Production' }); addServer({ name: 'Dev Server', host: '192.168.1.200', port: 22, username: 'dev', authType: 'password', password: 'dev123', group: 'Development' }); addServer({ name: 'Staging', host: 'staging.example.com', port: 22, username: 'deploy', authType: 'password', password: '', group: 'Staging' }); addServer({ name: 'Monitor', host: '10.0.0.50', port: 2222, username: 'monitor', authType: 'password', password: 'mon123', group: 'Infrastructure' }); addQuickCommand({ name: 'Disk Usage', command: 'df -h', description: 'Check disk' }); addQuickCommand({ name: 'Memory', command: 'free -h', description: 'Check memory' }); addQuickCommand({ name: 'Uptime', command: 'uptime', description: 'Uptime' }); addQuickCommand({ name: 'Docker PS', command: 'docker ps', description: 'Containers' }); addQuickCommand({ name: 'Nginx Status', command: 'systemctl status nginx', description: 'Nginx' }); addQuickCommand({ name: 'Open Ports', command: 'ss -tlnp', description: 'Ports' }) } }
-  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupId, quickCommands, openFiles, activeFileIndex, ptyRequestCount, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, init }
+  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, init }
 })

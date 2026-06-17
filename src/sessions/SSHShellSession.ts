@@ -21,6 +21,7 @@
 
 import { BaseSession } from './BaseSession'
 import { sshOpenShell, sshWrite, sshResize, onSshData, onSshStatus } from '@/api/tauri'
+import { colorizeTerminalOutput } from '@/utils/terminalColorizer'
 
 export class SSHShellSession extends BaseSession {
   readonly name: string
@@ -51,7 +52,7 @@ export class SSHShellSession extends BaseSession {
     // 1) Set up event listeners FIRST (before shell is opened)
     //    Tabby equivalent: channel.stream.on('data') before channel.shell()
     this.unlistenData = await onSshData(this.sessionId, (data: string) => {
-      this.emitOutput(data)
+      this.emitOutput(colorizeTerminalOutput(data))
     })
     console.log('[SSHShellSession] onSshData listener set up')
 

@@ -28,7 +28,7 @@
       <div class="ctx-item" @click="ctxAct('newDir')"><el-icon :size="13"><FolderAdd /></el-icon><span>{{ t('sftp.newFolder') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item" @click="ctxAct('rename')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('sftp.rename') }}</span></div>
-      <div class="ctx-item" @click="ctxAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('sftp.delete') }}</span></div>
+      <div class="ctx-item danger" @click="ctxAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('sftp.delete') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item" v-if="!ctxNode?.isDir" @click="ctxAct('download')"><el-icon :size="13"><Download /></el-icon><span>{{ t('sftp.download') }}</span></div>
       <div class="ctx-item" @click="ctxAct('chmod')"><el-icon :size="13"><Lock /></el-icon><span>{{ t('sftp.permissions') }}</span></div>
@@ -284,7 +284,7 @@ onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', h
   .node-size{font-size:$font-size-xs;color:$color-text-secondary;font-family:$font-family-mono;flex-shrink:0}
 }
 .empty-state { display:flex; align-items:center; justify-content:center; height:100%; color:$color-text-placeholder; font-size:$font-size-xs; }
-n	// .ctx-menu / .ctx-item / .ctx-sep styles now live in global.scss — shared with host context menu
+// .ctx-menu / .ctx-item / .ctx-sep styles now live in global.scss — shared with host context menu
 :deep(.el-input__wrapper){background:$color-bg-surface!important;box-shadow:none!important}
 
 // VSCode-style file icon badges

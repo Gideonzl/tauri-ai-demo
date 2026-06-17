@@ -40,12 +40,40 @@
             <el-input v-model="sshStore.searchQuery" size="small"  :placeholder="t('workspace.searchHosts')" clearable class="search-input">
               <template #prefix><el-icon :size="14"><Search /></el-icon></template>
             </el-input>
+            <!-- Group filter + manage -->
+            <div class="group-filter-bar">
+              <el-select
+                v-model="sshStore.selectedGroupName"
+                size="small"
+                :placeholder="t('workspace.allGroups')"
+                clearable
+                class="group-select"
+                @clear="sshStore.selectedGroupName = ''"
+              >
+                <el-option :label="t('workspace.allServers')" value="" />
+                <el-option
+                  v-for="name in sshStore.allGroupNames"
+                  :key="name"
+                  :label="name"
+                  :value="name"
+                />
+              </el-select>
+              <el-button size="small" text @click="showAddGroup" :title="t('workspace.addGroup')">
+                <el-icon :size="12"><Plus /></el-icon>
+              </el-button>
+              <el-button v-if="sshStore.selectedGroupName" size="small" text @click="renameCurrentGroup" :title="t('workspace.renameGroup')">
+                <el-icon :size="12"><Edit /></el-icon>
+              </el-button>
+              <el-button v-if="sshStore.selectedGroupName" size="small" text @click="deleteCurrentGroup" :title="t('workspace.deleteGroup')">
+                <el-icon :size="12"><Delete /></el-icon>
+              </el-button>
+            </div>
           </div>
           <div class="host-list">
             <!-- Grouped host list (Termius style) -->
             <template v-for="group in groupedHosts" :key="group.name">
-              <div class="host-group" v-if="group.hosts.length > 0">
-                <div class="group-header" @click="toggleGroup(group.name)">
+              <div class="host-group">
+                <div class="group-header" @click="toggleGroup(group.name)" @contextmenu.prevent="showGroupMenu($event, group)">
                   <el-icon :size="12" class="group-chevron" :class="{ expanded: !collapsedGroups.has(group.name) }">
                     <ArrowRight />
                   </el-icon>
@@ -167,6 +195,7 @@
     <div v-if="hostMenu.visible" class="ctx-menu" :style="{ left: hostMenu.x + 'px', top: hostMenu.y + 'px' }">
       <div class="ctx-item" @click="hostMenuAction('connect')"><el-icon :size="13"><SetUp /></el-icon><span>{{ t('workspace.connect') }}</span></div>
       <div class="ctx-item" @click="hostMenuAction('edit')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('workspace.edit') }}</span></div>
+      <div class="ctx-item" @click="hostMenuAction('changeGroup')"><el-icon :size="13"><FolderOpened /></el-icon><span>{{ t('workspace.changeGroup') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item" @click="hostMenuAction('copyAddr')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('workspace.copyAddress') }}</span></div>
       <div class="ctx-item" @click="hostMenuAction('copyName')"><el-icon :size="13"><Link /></el-icon><span>{{ t('workspace.copyName') }}</span></div>
@@ -177,6 +206,13 @@
       <div class="ctx-item" @click="hostMenuAction('importExport')"><el-icon :size="13"><Upload /></el-icon><span>{{ t('workspace.importExport') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item danger" @click="hostMenuAction('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
+    </div>
+
+    <!-- 分组右键菜单 -->
+    <div v-if="groupCtxMenu.visible" class="ctx-menu" :style="{ left: groupCtxMenu.x + 'px', top: groupCtxMenu.y + 'px' }">
+      <div class="ctx-item" @click="groupMenuAct('rename')"><el-icon :size="13"><Edit /></el-icon><span>{{ t('workspace.renameGroup') }}</span></div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item danger" @click="groupMenuAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
     </div>
 
     <!-- 文件查看器右键菜单 — 复用 ctx-menu 样式 -->
@@ -202,7 +238,7 @@ import { useLocale } from '@/composables/useLocale'
 import { highlightCode } from '@/utils/highlight'
 import { useModelStore } from '@/stores/model'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload, Printer, Select } from '@element-plus/icons-vue'
+import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload, Printer, Select, FolderOpened } from '@element-plus/icons-vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import SshConnectDialog from '@/components/SshConnectDialog.vue'
 import SftpTree from '@/components/SftpTree.vue'
@@ -231,6 +267,42 @@ const highlightedContent = computed(() => {
 
 const selectedServerId = ref('')
 
+// Group management
+function renameCurrentGroup() {
+  const g = sshStore.groups.find(g => g.name === sshStore.selectedGroupName)
+  if (g) handleGroupRename(g.id, g.name)
+}
+
+function deleteCurrentGroup() {
+  const g = sshStore.groups.find(g => g.name === sshStore.selectedGroupName)
+  if (g) handleGroupDelete(g.id, g.name)
+}
+
+function showAddGroup() {
+  ElMessageBox.prompt(t('workspace.groupName'), t('workspace.newGroup'), {
+    confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel')
+  }).then(({ value }) => {
+      if (value?.trim()) sshStore.addGroup(value.trim())
+    }).catch(() => {})
+}
+
+function handleGroupRename(groupId: string, currentName: string) {
+  ElMessageBox.prompt(t('workspace.newName'), t('workspace.renameGroup'), {
+    inputValue: currentName,
+    confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel')
+  }).then(({ value }) => {
+      if (value?.trim()) sshStore.renameGroup(groupId, value.trim())
+    }).catch(() => {})
+}
+
+function handleGroupDelete(groupId: string, groupName: string) {
+  ElMessageBox.confirm(
+    t('workspace.confirmDeleteGroup', { name: groupName }),
+    t('workspace.deleteGroup'),
+    { type: 'warning', confirmButtonText: t('workspace.delete'), cancelButtonText: t('common.cancel') }
+  ).then(() => sshStore.deleteGroup(groupId)).catch(() => {})
+}
+
 // Group collapsing state (Termius style)
 const collapsedGroups = ref(new Set<string>())
 
@@ -244,22 +316,50 @@ function toggleGroup(groupName: string) {
   collapsedGroups.value = new Set(collapsedGroups.value)
 }
 
-// Grouped hosts computed
-const groupedHosts = computed(() => {
-  const groups = new Map<string, Array<typeof sshStore.filteredServers[number]>>()
-  const ungrouped = 'Ungrouped'
+// Group context menu
+const groupCtxMenu = reactive({ visible: false, x: 0, y: 0, groupId: '', groupName: '' })
 
-  for (const server of sshStore.filteredServers) {
-    const groupName = server.group || ungrouped
-    if (!groups.has(groupName)) groups.set(groupName, [])
-    groups.get(groupName)!.push(server)
+function showGroupMenu(e: MouseEvent, group: { name: string }) {
+  const g = sshStore.groups.find(x => x.name === group.name)
+  if (!g) return
+  groupCtxMenu.groupId = g.id
+  groupCtxMenu.groupName = g.name
+  groupCtxMenu.x = e.clientX
+  groupCtxMenu.y = e.clientY
+  groupCtxMenu.visible = true
+}
+
+function groupMenuAct(action: string) {
+  const gid = groupCtxMenu.groupId
+  const gn = groupCtxMenu.groupName
+  groupCtxMenu.visible = false
+  if (action === 'rename') handleGroupRename(gid, gn)
+  if (action === 'delete') handleGroupDelete(gid, gn)
+}
+
+// Grouped hosts computed — always shows ALL groups (even empty ones)
+const groupedHosts = computed(() => {
+  const map = new Map<string, Array<typeof sshStore.filteredServers[number]>>()
+
+  // Seed with ALL groups from store (including empty ones)
+  for (const g of sshStore.groups) {
+    map.set(g.name, [])
   }
 
-  return Array.from(groups.entries()).map(([name, hosts]) => ({
+  // Distribute servers into their groups
+  const ungrouped = 'Ungrouped'  // label uses i18n via t('workspace.ungrouped') for display
+  for (const server of sshStore.filteredServers) {
+    const gn = server.group || ungrouped
+    if (!map.has(gn)) map.set(gn, [])
+    map.get(gn)!.push(server)
+  }
+
+  // Ungrouped always last
+  return Array.from(map.entries()).map(([name, hosts]) => ({
     name,
     hosts,
     onlineCount: hosts.filter(h => getServerStatus(h.id) === 'connected').length,
-  }))
+  })).sort((a, b) => a.name === ungrouped ? 1 : b.name === ungrouped ? -1 : a.name.localeCompare(b.name))
 })
 
 // 服务器右键菜单状态
@@ -267,7 +367,7 @@ const hostMenu = reactive({ visible: false, x: 0, y: 0, server: null as any })
 
 function hideHostMenu() { hostMenu.visible = false }
 
-function hideAllMenus() { hideHostMenu(); hideFvMenu(); }
+function hideAllMenus() { hideHostMenu(); hideFvMenu(); groupCtxMenu.visible = false }
 
 function showHostMenu(e: MouseEvent, server: any) {
   hostMenu.server = server
@@ -286,6 +386,28 @@ function hostMenuAction(action: string) {
       sshStore.editingServer = { ...server }
       sshStore.showConnectDialog = true
       break
+    case 'changeGroup': {
+      const existing = sshStore.allGroupNames.filter(n => n !== server.group)
+      const hint = existing.length > 0 ? `\n\n${t('workspace.existingGroups')} ${existing.join(', ')}` : ''
+      const currentGroup = server.group || ''
+      ElMessageBox.prompt(
+        `${t('workspace.currentGroup')} ${currentGroup || t('workspace.noGroup')}${hint}\n\n${t('workspace.changeGroupHint')}`,
+        t('workspace.changeGroup'),
+        {
+          inputValue: currentGroup,
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+        }
+      ).then(({ value }) => {
+        const newGroup = value?.trim()
+        sshStore.updateServer(server.id, { group: newGroup || undefined })
+        if (newGroup && !sshStore.groups.find(g => g.name === newGroup)) {
+          sshStore.addGroup(newGroup)
+        }
+        ElMessage.success(t('workspace.movedTo', { group: newGroup || t('workspace.ungrouped') }))
+      }).catch(() => {})
+      break
+    }
     case 'delete':
       ElMessageBox.confirm(`Delete "${server.name}"?`, t('workspace.confirm'), { type: 'warning', confirmButtonText: t('workspace.delete'), cancelButtonText: t('workspace.cancel') }).then(() => {
         sshStore.deleteServer(server.id)
@@ -585,7 +707,19 @@ onUnmounted(() => {
 
 .host-list-panel { border-right: 1px solid $color-border-light; display: flex; flex-direction: column; flex-shrink: 0; background-color: $color-bg-primary; overflow: hidden; }
 
-.host-list-top { flex-shrink: 0; padding: $spacing-sm; border-bottom: 1px solid $color-border-light; }
+.host-list-top { flex-shrink: 0; padding: $spacing-sm $spacing-sm 0 $spacing-sm; border-bottom: 1px solid $color-border-light; }
+
+.group-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: $spacing-xs 0;
+  margin-top: $spacing-xs;
+}
+
+.group-select {
+  flex: 1;
+}
 
 .search-input { :deep(.el-input__wrapper) { background-color: $color-bg-input !important; height: 26px; font-size: 11px !important; } }
 
@@ -681,7 +815,6 @@ onUnmounted(() => {
   .status-text-connected { color: $color-success; } .status-text-connecting { color: $color-warning; } .status-text-disconnected { color: $color-text-muted; } .status-text-error { color: $color-danger; } .status-text-reconnecting { color: $color-warning; }
 }
 
-n// .ctx-menu / .ctx-item / .ctx-sep now live in global.scss — shared with SFTP tree for 1:1 parity
 
 // File viewer (Xterminal style)
 .file-viewer {

@@ -4,7 +4,7 @@
  * 编程/运维/分析/通用
  */
 <template>
-  <div class="agent-switch">
+  <div class="agent-switch" @contextmenu.prevent>
     <div
       v-for="agent in agentStore.agents"
       :key="agent.id"

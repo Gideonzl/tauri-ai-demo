@@ -18,6 +18,7 @@
 
 import { BaseSession } from './BaseSession'
 import { FS, isDir as _d, isHidden as _h, getContent as _cat } from '@/utils/fs-data'
+import { colorizeTerminalOutput } from '@/utils/terminalColorizer'
 
 // ── Helpers ──
 function _r(p: string): string[] { return FS[p] || [] }
@@ -163,7 +164,8 @@ export class DemoSession extends BaseSession {
   // ── Shortcut ──
 
   private echo(s: string): void {
-    this.emitOutput(s)
+    // Colorize output longer than 3 chars (skip single keystrokes & control sequences)
+    this.emitOutput(s.length > 3 ? colorizeTerminalOutput(s) : s)
   }
 
   // ── Path resolution ──
@@ -275,11 +277,31 @@ export class DemoSession extends BaseSession {
           for (const item of items) {
             const d = item.endsWith('/'); const name = d ? item.slice(0, -1) : item
             const sz = d ? 4096 : Math.floor(Math.random() * 90000 + 1024)
-            this.echo(`${d ? 'd' : '-'}rwxr-xr-x 1 root root ${String(sz).padStart(6)} Jun  8 10:00 ${name}\r\n`)
+            const color = d ? '\x1b[1;34m' : name.includes('.') ? '\x1b[1;32m' : '\x1b[0m'
+            this.echo(`${d ? 'd' : '-'}rwxr-xr-x 1 root root ${String(sz).padStart(6)} Jun  8 10:00 ${color}${name}\x1b[0m\r\n`)
           }
         } else {
           if (!items.length) return
-          const display = items.map((i: string) => i.endsWith('/') ? `\x1b[1;34m${i.slice(0, -1)}\x1b[0m` : i)
+          const display = items.map((i: string) => {
+            if (i.endsWith('/')) return `\x1b[1;34m${i.slice(0, -1)}\x1b[0m`  // dir = blue bold
+            const n = i.toLowerCase()
+            // Colors matching LS_COLORS from ssh session init
+            if (n.endsWith('.tar')||n.endsWith('.gz')||n.endsWith('.bz2')||n.endsWith('.xz')||n.endsWith('.zip')||n.endsWith('.deb')||n.endsWith('.rpm')||n.endsWith('.7z')) return `\x1b[1;31m${i}\x1b[0m`  // archive = red
+            if (n.endsWith('.jpg')||n.endsWith('.png')||n.endsWith('.gif')||n.endsWith('.svg')||n.endsWith('.bmp')) return `\x1b[1;35m${i}\x1b[0m`  // image = magenta
+            if (n.endsWith('.log')||n.endsWith('.out')) return `\x1b[1;33m${i}\x1b[0m`  // log = yellow
+            if (n.endsWith('.sh')||n.endsWith('.bash')) return `\x1b[1;32m${i}\x1b[0m`  // script = green bold
+            if (n.endsWith('.py')||n.endsWith('.rs')) return `\x1b[0;33m${i}\x1b[0m`  // py/rs = yellow
+            if (n.endsWith('.js')||n.endsWith('.mjs')) return `\x1b[0;33m${i}\x1b[0m`  // js = yellow
+            if (n.endsWith('.go')) return `\x1b[0;36m${i}\x1b[0m`  // go = cyan
+            if (n.endsWith('.ts')||n.endsWith('.tsx')) return `\x1b[0;34m${i}\x1b[0m`  // ts = blue
+            if (n.endsWith('.vue')||n.endsWith('.svelte')) return `\x1b[1;32m${i}\x1b[0m`  // vue = green
+            if (n.endsWith('.md')||n.endsWith('.txt')||n.endsWith('.rst')) return `\x1b[0;36m${i}\x1b[0m`  // doc = cyan
+            if (n.endsWith('.conf')||n.endsWith('.cfg')||n.endsWith('.ini')||n.endsWith('.yml')||n.endsWith('.yaml')||n.endsWith('.toml')||n.endsWith('.json')) return `\x1b[0;37m${i}\x1b[0m`  // config = white
+            if (n.endsWith('.lock')) return `\x1b[0;37m${i}\x1b[0m`  // lock = white
+            if (i.startsWith('.')&&!i.endsWith('/')) return `\x1b[2;37m${i}\x1b[0m`  // hidden = gray
+            if (i.indexOf('.')===-1 && i===i.toUpperCase()) return `\x1b[1;32m${i}\x1b[0m`  // executable-ish = green
+            return i  // normal file = default color
+          })
           const rl = display.map((d: string) => d.replace(/\x1b\[[0-9;]*m/g, '').length)
           const cw = Math.max(...rl) + 2
           const cols = Math.max(1, Math.floor(80 / cw))

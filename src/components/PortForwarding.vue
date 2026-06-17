@@ -4,7 +4,7 @@
   Right-click host → Port Forwarding
 -->
 <template>
-  <el-dialog
+  <el-dialog @contextmenu.prevent
     v-model="visible"
     title="Port Forwarding"
     width="560px"
