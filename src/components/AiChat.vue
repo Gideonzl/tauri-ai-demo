@@ -257,6 +257,16 @@ const serverContext = computed<ServerContext | null>(() => {
   }
 })
 
+// Auto-switch to OPS agent when a server connects
+watch(
+  () => sshStore.activeSession?.status,
+  (status) => {
+    if (status === 'connected') {
+      agentStore.switchAgent('ops')
+    }
+  }
+)
+
 /** Active conversation (current) */
 const activeConv = computed(() => chatStore.activeConversation)
 
@@ -453,7 +463,9 @@ async function handleSend() {
       currentStream = null
       ElMessage.error(error)
     },
-    serverContext.value
+    serverContext.value,
+    sshStore.activeSession?.realSessionId || null,
+    (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`)
   )
 }
 
@@ -521,7 +533,9 @@ async function handleQuickAnalysis(prompt: string) {
         (chunk) => { chatStore.appendStreamingContent(chunk); scrollToBottom() },
         () => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null },
         (error) => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null; ElMessage.error(error) },
-        serverContext.value
+        serverContext.value,
+        sshStore.activeSession?.realSessionId || null,
+        (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`)
       )
       return
     }
