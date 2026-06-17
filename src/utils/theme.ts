@@ -190,6 +190,73 @@ const THEME_DEFS: Record<string, ThemeDef> = {
       info: '#61afef', variable: '#e06c75',
     },
   },
+
+  // ═══ New high-contrast themes ═══
+
+  'dracula': {
+    primary: '#bd93f9',
+    bg: '#282a36',
+    surface: '#343746',
+    text: '#f8f8f2',
+    textSecondary: '#6272a4',
+    syntax: {
+      keyword: '#ff79c6', string_: '#50fa7b', number: '#bd93f9', comment: '#6272a4',
+      key: '#8be9fd', section: '#f1fa8c', error: '#ff5555', warning: '#f1fa8c',
+      info: '#8be9fd', variable: '#ffb86c',
+    },
+  },
+
+  'nord': {
+    primary: '#88c0d0',
+    bg: '#2e3440',
+    surface: '#3b4252',
+    text: '#eceff4',
+    textSecondary: '#81a1c1',
+    syntax: {
+      keyword: '#81a1c1', string_: '#a3be8c', number: '#b48ead', comment: '#4c566a',
+      key: '#88c0d0', section: '#ebcb8b', error: '#bf616a', warning: '#d08770',
+      info: '#5e81ac', variable: '#d08770',
+    },
+  },
+
+  'high-contrast': {
+    primary: '#4da6ff',
+    bg: '#000000',
+    surface: '#1a1a1a',
+    text: '#ffffff',
+    textSecondary: '#cccccc',
+    syntax: {
+      keyword: '#569cd6', string_: '#ce9178', number: '#b5cea8', comment: '#6a9955',
+      key: '#9cdcfe', section: '#dcdcaa', error: '#f44747', warning: '#cca700',
+      info: '#4ec9b0', variable: '#9cdcfe',
+    },
+  },
+
+  'catppuccin': {
+    primary: '#cba6f7',
+    bg: '#1e1e2e',
+    surface: '#313244',
+    text: '#cdd6f4',
+    textSecondary: '#6c7086',
+    syntax: {
+      keyword: '#cba6f7', string_: '#a6e3a1', number: '#fab387', comment: '#6c7086',
+      key: '#89b4fa', section: '#f9e2af', error: '#f38ba8', warning: '#f9e2af',
+      info: '#89dceb', variable: '#f38ba8',
+    },
+  },
+
+  'gruvbox-dark': {
+    primary: '#83a598',
+    bg: '#282828',
+    surface: '#3c3836',
+    text: '#ebdbb2',
+    textSecondary: '#a89984',
+    syntax: {
+      keyword: '#d3869b', string_: '#b8bb26', number: '#fe8019', comment: '#928374',
+      key: '#83a598', section: '#fabd2f', error: '#fb4934', warning: '#fabd2f',
+      info: '#8ec07c', variable: '#fb4934',
+    },
+  },
 }
 
 function buildPalette(def: ThemeDef): Record<string, string> {

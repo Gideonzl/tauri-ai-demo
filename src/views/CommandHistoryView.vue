@@ -15,7 +15,7 @@
           :popper-append-to-body="false"
         >
           <el-option
-            v-for="s in cmdStore.historyServers"
+            v-for="s in visibleHistoryServers"
             :key="s.serverId"
             :label="`${s.serverName} (${s.count})`"
             :value="s.serverId"
@@ -72,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Clock, Connection, Delete, VideoPlay, CopyDocument } from '@element-plus/icons-vue'
 import { useCommandHistoryStore } from '@/stores/commandHistory'
 import { useSshStore } from '@/stores/ssh'
@@ -86,20 +86,49 @@ const { t } = useLocale()
 const selectedServerId = ref('')
 const menu = reactive({ visible: false, x: 0, y: 0, cmd: null as any })
 
-// Auto-select current server
+// Active server from SSH session
 const activeServer = computed(() => {
   const session = sshStore.activeSession
   if (!session) return null
   return sshStore.servers.find(s => s.id === session.serverId) || null
 })
 
+// Only show history for servers that currently exist — prevents leaking old IPs
+const existingServerIds = computed(() => new Set(sshStore.servers.map(s => s.id)))
+
+const visibleHistoryServers = computed(() => {
+  return cmdStore.historyServers.filter(h => existingServerIds.value.has(h.serverId))
+})
+
+// Purge orphaned history + sync selection when servers change
+function syncWithServers() {
+  cmdStore.purgeOrphaned(sshStore.servers.map(s => s.id))
+  // Reset selection if selected server no longer exists
+  if (selectedServerId.value && !existingServerIds.value.has(selectedServerId.value)) {
+    selectedServerId.value = visibleHistoryServers.value[0]?.serverId || ''
+  }
+}
+
 // Auto-select active server on mount
 onMounted(() => {
   document.addEventListener('click', hideMenu)
-  if (activeServer.value) {
+  syncWithServers()
+  if (activeServer.value && existingServerIds.value.has(activeServer.value.id)) {
     selectedServerId.value = activeServer.value.id
-  } else if (cmdStore.historyServers.length > 0) {
-    selectedServerId.value = cmdStore.historyServers[0].serverId
+  } else if (visibleHistoryServers.value.length > 0) {
+    selectedServerId.value = visibleHistoryServers.value[0].serverId
+  }
+})
+
+// Watch server list changes — purge and re-sync
+watch(() => sshStore.servers.length, () => {
+  syncWithServers()
+})
+
+// Also watch when entries change (from purge) to keep selection valid
+watch(() => cmdStore.entries.length, () => {
+  if (selectedServerId.value && !existingServerIds.value.has(selectedServerId.value)) {
+    selectedServerId.value = visibleHistoryServers.value[0]?.serverId || ''
   }
 })
 

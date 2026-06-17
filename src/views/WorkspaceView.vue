@@ -151,7 +151,10 @@
           <!-- Terminal bottom section -->
           <div class="term-section" :class="{ 'has-files': sshStore.activeFileIndex >= 0 && sshStore.openFiles[sshStore.activeFileIndex] }">
             <QuickCommands />
-            <TerminalPanel :session="sshStore.activeSession" @cwd-change="onCwdChange" />
+            <!-- Render independent TerminalPanel per session — only active one visible -->
+            <div v-for="s in sshStore.sessions" :key="s.id" v-show="s.id === sshStore.activeSessionId" class="term-panel-wrapper">
+              <TerminalPanel :session="s" @cwd-change="onCwdChange" />
+            </div>
           </div>
         </template>
         <template v-else>

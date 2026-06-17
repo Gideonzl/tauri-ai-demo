@@ -82,6 +82,25 @@ export const useCommandHistoryStore = defineStore('commandHistory', () => {
     saveToStorage()
   }
 
+  /**
+   * Remove history entries for servers that no longer exist.
+   * Call this when servers change. If no servers remain, purge everything (privacy).
+   */
+  function purgeOrphaned(existingServerIds: string[]) {
+    if (existingServerIds.length === 0) {
+      if (entries.value.length > 0) {
+        entries.value = []
+        saveToStorage()
+      }
+      return
+    }
+    const before = entries.value.length
+    entries.value = entries.value.filter(e => existingServerIds.includes(e.serverId))
+    if (entries.value.length !== before) {
+      saveToStorage()
+    }
+  }
+
   function loadFromStorage() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -111,5 +130,6 @@ export const useCommandHistoryStore = defineStore('commandHistory', () => {
     deleteEntry,
     clearServer,
     clearAll,
+    purgeOrphaned,
   }
 })

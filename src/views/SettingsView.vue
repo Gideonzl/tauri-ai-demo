@@ -184,6 +184,11 @@ const themes = {
   'xterminal': { keyword: '#bb9af7', string: '#9ece6a', number: '#ff9e64', key: '#7dcfff' },
   'monokai': { keyword: '#f92672', string: '#e6db74', number: '#ae81ff', key: '#66d9ef' },
   'one-dark': { keyword: '#c678dd', string: '#98c379', number: '#d19a66', key: '#61afef' },
+  'dracula': { keyword: '#ff79c6', string: '#50fa7b', number: '#bd93f9', key: '#8be9fd' },
+  'nord': { keyword: '#81a1c1', string: '#a3be8c', number: '#b48ead', key: '#88c0d0' },
+  'high-contrast': { keyword: '#569cd6', string: '#ce9178', number: '#b5cea8', key: '#9cdcfe' },
+  'catppuccin': { keyword: '#cba6f7', string: '#a6e3a1', number: '#fab387', key: '#89b4fa' },
+  'gruvbox-dark': { keyword: '#d3869b', string: '#b8bb26', number: '#fe8019', key: '#83a598' },
 }
 </script>
 

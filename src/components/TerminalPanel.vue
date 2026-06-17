@@ -149,7 +149,7 @@ function recordCommand(data: string) {
   }
 }
 
-// ── Core objects (Tabby pattern: frontend + session) ──
+// ── Core objects — one fixed session per TerminalPanel instance ──
 let frontend: XTermFrontend | null = null
 let session: BaseSession | null = null
 let subs: ReturnType<typeof Subject.combine> | null = null
@@ -168,12 +168,11 @@ const status = computed(() => sshStore.activeSession?.status || '')
 
 // ── Session factory ──
 async function createSession(): Promise<void> {
-  console.log('[TerminalPanel] createSession() called, isReal:', isReal.value, 'realSessionId:', sshStore.activeSession?.realSessionId, 'current session type:', session?.constructor.name)
+  console.log('[TerminalPanel] createSession() called, isReal:', isReal.value)
 
-  // Tear down existing session
+  // Each TerminalPanel instance owns exactly one session — no switching
   subs?.unsubscribe()
-  session?.destroy()
-  session = null
+  subs = null
 
   if (!frontend) return
 
@@ -257,21 +256,6 @@ onMounted(() => {
 })
 
 /**
- * Watch activeSessionId — when the user closes a tab or switches to another,
- * recreate the session for the new active session.
- */
-watch(
-  () => sshStore.activeSessionId,
-  (newId, oldId) => {
-    console.log('[TerminalPanel] activeSessionId changed:', oldId, '→', newId)
-    if (newId && frontend && oldId !== undefined) {
-      console.log('[TerminalPanel] → recreating session for new activeSessionId:', newId)
-      createSession()
-    }
-  }
-)
-
-/**
  * Watch Pinia ptyRequestCount — a simple numeric counter incremented
  * after sshConnect succeeds and realSessionId is set. A counter change
  * is unambiguous and always fires the watcher regardless of Vue's
@@ -328,7 +312,9 @@ onUnmounted(() => {
   unregister(hideTermMenu)
   document.removeEventListener('click', hideTermMenu)
   subs?.unsubscribe()
+  subs = null
   session?.destroy()
+  session = null
   frontend?.dispose()
   frontend = null
 })

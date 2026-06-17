@@ -71,6 +71,16 @@ const { register, unregister } = useContextMenu()
 const terminalTargetPath = inject<any>('terminalTargetPath', ref(''))
 watch(terminalTargetPath, (newPath) => { if (newPath && newPath !== '/' && newPath !== currentPath.value) { currentPath.value = newPath; handleRefresh() } }, { deep: true })
 
+// When switching server sessions, reload file tree for the new server
+watch(
+  () => sshStore.activeSessionId,
+  () => {
+    currentPath.value = '/'
+    treeData.value = []
+    handleRefresh()
+  }
+)
+
 const treeProps = { label: 'label', children: 'children', isLeaf: (data: FileNode) => !data.isDir }
 
 function getSessionId(): string|null { return sshStore.activeSession?.realSessionId || null }
