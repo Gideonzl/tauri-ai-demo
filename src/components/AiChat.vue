@@ -3,7 +3,7 @@
  * Termius极简风格 Markdown渲染 + 代码高亮 + Stop/Abort
  */
 <template>
-  <div class="ai-chat">
+  <div class="ai-chat" @contextmenu.prevent>
     <!-- 智能体切换栏 + 历史按钮 -->
     <div class="agent-bar">
       <AgentSwitch />
@@ -139,6 +139,16 @@
         :disabled="chatStore.isGenerating"
       />
       <div class="input-actions">
+        <div class="mode-select-wrapper">
+          <el-select v-model="agentStore.activeMode" size="small" class="mode-select" popper-class="mode-select-popper" :popper-append-to-body="false">
+            <el-option label="智能问答" value="qa">
+              <span class="mode-opt"><span class="mode-opt-label">💬 智能问答</span><span class="mode-opt-desc">仅分析与建议</span></span>
+            </el-option>
+            <el-option label="智能体" value="agent">
+              <span class="mode-opt"><span class="mode-opt-label">⚡ 智能体</span><span class="mode-opt-desc">可执行服务器命令</span></span>
+            </el-option>
+          </el-select>
+        </div>
         <el-button
           size="small"
           @click="handleNewChat"
@@ -465,7 +475,8 @@ async function handleSend() {
     },
     serverContext.value,
     sshStore.activeSession?.realSessionId || null,
-    (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`)
+    (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
+    agentStore.activeMode
   )
 }
 
@@ -535,7 +546,8 @@ async function handleQuickAnalysis(prompt: string) {
         (error) => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null; ElMessage.error(error) },
         serverContext.value,
         sshStore.activeSession?.realSessionId || null,
-        (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`)
+        (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
+        agentStore.activeMode
       )
       return
     }
@@ -883,15 +895,45 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 
 .input-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: $spacing-xs;
   margin-top: $spacing-xs;
 }
+
+.mode-select-wrapper { flex-shrink: 0; }
+.mode-select { width: 155px; }
+.mode-opt { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
+.mode-opt-label { font-size: $font-size-sm; font-weight: 500; color: $color-text-primary; }
+.mode-opt-desc { font-size: 10px; color: $color-text-placeholder; }
 
 // Message entrance animation
 @keyframes message-enter {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
+<style lang="scss">
+.ai-chat .mode-select {
+  .el-input__wrapper {
+    background-color: var(--color-bg-input, #1e1e32);
+    border-color: var(--color-border, rgba(255,255,255,0.08));
+    box-shadow: none !important;
+    &:hover { border-color: var(--color-border-focus, #5b8def); }
+  }
+  .el-input__inner { color: var(--color-text-primary, #e8e8f0); }
+}
+.mode-select-popper {
+  background: var(--color-bg-surface, #16162a) !important;
+  border: 1px solid var(--color-border, rgba(255,255,255,0.08)) !important;
+  border-radius: var(--border-radius-md, 6px);
+  box-shadow: var(--shadow-lg);
+  .el-select-dropdown__item {
+    color: var(--color-text-primary, #e8e8f0); background: transparent; padding: 8px 12px;
+    &:hover { background-color: var(--color-bg-hover); }
+    &.selected { background-color: var(--color-bg-active); color: var(--color-primary); }
+  }
 }
 </style>
 

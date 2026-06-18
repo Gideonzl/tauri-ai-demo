@@ -1,7 +1,6 @@
 /**
- * 智能体切换组件 — 左侧AI面板内
- * Termius极简风格，无emoji，使用Element Plus图标
- * 编程/运维/分析/通用
+ * 智能体切换 — Agent 选择栏（编程/运维/分析/通用）
+ * 模式切换（智能问答/智能体）已移至输入框旁的下拉选择器
  */
 <template>
   <div class="agent-switch" @contextmenu.prevent>
@@ -25,7 +24,6 @@ import { Edit, SetUp, DataLine, ChatDotRound } from '@element-plus/icons-vue'
 
 const agentStore = useAgentStore()
 
-// 智能体图标映射（无emoji）
 const agentIcons: Record<string, any> = {
   coder: Edit,
   ops: SetUp,

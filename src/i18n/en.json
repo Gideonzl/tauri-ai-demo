@@ -80,7 +80,11 @@
     "coder": { "name": "Coder", "desc": "Code generation, debugging, shell scripting" },
     "ops": { "name": "Ops", "desc": "Server management, deployment, troubleshooting" },
     "analyst": { "name": "Analyst", "desc": "Data processing, log analysis, metrics" },
-    "assistant": { "name": "Assistant", "desc": "Q&A, command explanation, documentation" }
+    "assistant": { "name": "Assistant", "desc": "Q&A, command explanation, documentation" },
+    "qaMode": "Smart Q&A",
+    "agentMode": "Agent",
+    "qaModeDesc": "Analysis & advice only",
+    "agentModeDesc": "Can execute server commands"
   },
   "workspace": {
     "hosts": "Hosts",
@@ -274,6 +278,11 @@
     "corsError": "CORS/network unreachable",
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "close": "Close"
+    "close": "Close",
+    "editFile": "Edit",
+    "save": "Save",
+    "cancelEdit": "Cancel",
+    "fileSaved": "File saved",
+    "fileSaveFailed": "Save failed"
   }
 }

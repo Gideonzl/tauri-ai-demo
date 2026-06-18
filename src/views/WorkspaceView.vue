@@ -7,7 +7,7 @@
  * Termius极简风格
  */
 <template>
-  <div class="workspace-view">
+  <div class="workspace-view" @contextmenu.prevent>
     <!-- 顶部标签栏 40px -->
     <div class="tab-bar">
       <div class="tab-item hosts-tab" :class="{ active: leftPanelMode === 'hosts' }" @click="showHostList">
@@ -137,13 +137,27 @@
               <span class="fv-title">{{ sshStore.openFiles[sshStore.activeFileIndex].name }}</span>
               <span class="fv-path">{{ sshStore.openFiles[sshStore.activeFileIndex].path }}</span>
               <div class="fv-actions">
-                <el-button size="small" text @click="sshStore.activeFileIndex = -1"  :title="t('workspace.closeFiles')">
-                  <el-icon><Close /></el-icon>
+                <template v-if="!fileEditMode">
+                  <el-button size="small" text @click="enterEditMode" :title="t('common.editFile')">
+                    <el-icon :size="13"><Edit /></el-icon>
+                  </el-button>
+                </template>
+                <template v-else>
+                  <el-button size="small" text type="primary" @click="saveCurrentFile" :loading="savingFile" :title="t('common.save')">
+                    <el-icon :size="13"><Check /></el-icon>
+                  </el-button>
+                  <el-button size="small" text @click="cancelEdit" :title="t('common.cancelEdit')">
+                    <el-icon :size="13"><Close /></el-icon>
+                  </el-button>
+                </template>
+                <el-button size="small" text @click="sshStore.activeFileIndex = -1" :title="t('workspace.closeFiles')">
+                  <el-icon :size="13"><Close /></el-icon>
                 </el-button>
               </div>
             </div>
             <div class="fv-body">
-              <pre class="fv-content" v-html="highlightedContent" @contextmenu.prevent="onFileViewerContextMenu"></pre>
+              <pre v-if="!fileEditMode" class="fv-content" v-html="highlightedContent" @contextmenu.prevent="onFileViewerContextMenu"></pre>
+              <textarea v-else ref="editTextareaRef" class="fv-editor" v-model="editContent" @keydown="onEditorKeydown" spellcheck="false"></textarea>
             </div>
           </div>
           <!-- Resize handle between file viewer and terminal -->
@@ -234,14 +248,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, provide, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, provide, watch, nextTick } from 'vue'
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
 import { useLocale } from '@/composables/useLocale'
 import { highlightCode } from '@/utils/highlight'
 import { useModelStore } from '@/stores/model'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload, Printer, Select, FolderOpened } from '@element-plus/icons-vue'
+import { Monitor, Plus, Close, SetUp, ArrowLeft, ArrowRight, Search, Edit, Delete, CopyDocument, Link, Document, Connection, Key, Upload, Printer, Select, FolderOpened, Check } from '@element-plus/icons-vue'
 import TerminalPanel from '@/components/TerminalPanel.vue'
 import SshConnectDialog from '@/components/SshConnectDialog.vue'
 import SftpTree from '@/components/SftpTree.vue'
@@ -266,6 +280,84 @@ const highlightedContent = computed(() => {
   if (!f) return ''
   const ext = f.name.split('.').pop()?.toLowerCase() || ''
   return highlightCode(f.content, ext)
+})
+
+// File edit mode
+const fileEditMode = ref(false)
+const editContent = ref('')
+const savingFile = ref(false)
+const editTextareaRef = ref<HTMLTextAreaElement>()
+
+function enterEditMode() {
+  const file = sshStore.openFiles[sshStore.activeFileIndex]
+  if (file) {
+    editContent.value = file.content
+    fileEditMode.value = true
+    nextTick(() => editTextareaRef.value?.focus())
+  }
+}
+
+function cancelEdit() {
+  fileEditMode.value = false
+  editContent.value = ''
+}
+
+async function saveCurrentFile() {
+  const file = sshStore.openFiles[sshStore.activeFileIndex]
+  if (!file) return
+  savingFile.value = true
+  const content = editContent.value
+  const sid = sshStore.activeSession?.realSessionId
+  if (sid) {
+    try {
+      // Base64-encode to safely write any file content (handles quotes, newlines, special chars)
+      const encoder = new TextEncoder()
+      const bytes = encoder.encode(content)
+      const chunkSize = 0x8000
+      const parts: string[] = []
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        parts.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
+      }
+      const b64 = btoa(parts.join(''))
+      const safePath = file.path.replace(/'/g, `'\\''`)
+      const { sshExec } = await import('@/api/tauri')
+      await sshExec(sid, `echo '${b64}' | base64 -d > '${safePath}'`)
+      file.content = content
+      ElMessage.success(t('common.fileSaved'))
+      fileEditMode.value = false
+    } catch (e: any) {
+      ElMessage.error(t('common.fileSaveFailed') + ': ' + (e?.message || String(e)))
+    }
+  } else {
+    file.content = content
+    ElMessage.success(t('common.fileSaved'))
+    fileEditMode.value = false
+  }
+  savingFile.value = false
+}
+
+function onEditorKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault()
+    saveCurrentFile()
+    return
+  }
+  if (e.key === 'Escape') {
+    cancelEdit()
+    return
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const ta = e.target as HTMLTextAreaElement
+    const s = ta.selectionStart, en = ta.selectionEnd
+    editContent.value = editContent.value.slice(0, s) + '  ' + editContent.value.slice(en)
+    void nextTick(() => { ta.selectionStart = ta.selectionEnd = s + 2 })
+  }
+}
+
+// Cancel edit when switching files
+watch(() => sshStore.activeFileIndex, () => {
+  if (fileEditMode.value) cancelEdit()
 })
 
 const selectedServerId = ref('')
@@ -867,6 +959,15 @@ onUnmounted(() => {
   color: $color-text-primary; white-space: pre; user-select: text; -webkit-user-select: text;
 }
 
+.fv-editor {
+  width: 100%; height: 100%; border: none; outline: none; resize: none;
+  padding: $spacing-sm $spacing-md;
+  font-family: $font-family-mono; font-size: $font-size-sm; line-height: 1.5;
+  color: $color-text-primary; background-color: $color-bg-app;
+  tab-size: 2; white-space: pre; overflow-wrap: normal; overflow-x: auto;
+  &::selection { background-color: rgba(91, 141, 239, 0.3); }
+}
+
 .split-handle {
   height: 4px; flex-shrink: 0; cursor: row-resize; position: relative; z-index: 3;
   background-color: transparent; transition: background-color 0.15s;
@@ -875,5 +976,8 @@ onUnmounted(() => {
 }
 
 .term-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 100px; }
+
+.term-panel-wrapper { flex: 1; overflow: hidden; min-height: 0; }
+
 .tab-loading { font-size: 10px; color: $color-text-muted; animation: pulse 1s infinite; }
 </style>

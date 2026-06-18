@@ -120,10 +120,13 @@ Strengths:
   ]
 }
 
+export type AgentMode = 'qa' | 'agent'
+
 export const useAgentStore = defineStore('agent', () => {
   const { t } = useLocale()
   const agents = ref<Agent[]>(createAgents(t))
   const activeAgentId = ref<string>('ops')
+  const activeMode = ref<AgentMode>('agent')
 
   const activeAgent = computed<Agent>(() => {
     return agents.value.find(a => a.id === activeAgentId.value) || agents.value[0]
@@ -136,5 +139,9 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
-  return { agents, activeAgentId, activeAgent, switchAgent }
+  function setMode(mode: AgentMode) {
+    activeMode.value = mode
+  }
+
+  return { agents, activeAgentId, activeMode, activeAgent, switchAgent, setMode }
 })

@@ -3,13 +3,13 @@
   Termius CLI feature parity: termius host import/export
 -->
 <template>
-  <el-dialog @contextmenu.prevent
+  <el-dialog
     v-model="visible"
     title="Import / Export Hosts"
     width="560px"
     :close-on-click-modal="false"
   >
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @contextmenu.prevent="onInputCtx">
       <!-- Tab 1: Import from SSH Config -->
       <el-tab-pane label="Import SSH Config" name="import">
         <div class="ie-section">
@@ -89,6 +89,17 @@
       </el-tab-pane>
     </el-tabs>
 
+    <div v-if="ictx.visible" class="ctx-menu" :style="{ left: ictx.x + 'px', top: ictx.y + 'px' }">
+      <div class="ctx-item" @click="ictxAct('undo')"><el-icon :size="13"><RefreshLeft /></el-icon><span>撤销</span></div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" @click="ictxAct('cut')"><el-icon :size="13"><Scissor /></el-icon><span>剪切</span></div>
+      <div class="ctx-item" @click="ictxAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>复制</span></div>
+      <div class="ctx-item" @click="ictxAct('paste')"><el-icon :size="13"><DocumentCopy /></el-icon><span>粘贴</span></div>
+      <div class="ctx-item" @click="ictxAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>删除</span></div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" @click="ictxAct('selectAll')"><el-icon :size="13"><Select /></el-icon><span>全选</span></div>
+    </div>
+
     <template #footer>
       <el-button size="small" @click="visible = false">Close</el-button>
     </template>
@@ -96,10 +107,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, reactive, onMounted, onUnmounted } from 'vue'
 import { useSshStore } from '@/stores/ssh'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Download, Upload } from '@element-plus/icons-vue'
+
+const ictx = reactive({ visible: false, x: 0, y: 0, target: null as HTMLInputElement | HTMLTextAreaElement | null })
+function onInputCtx(e: MouseEvent) {
+  let el = e.target as HTMLElement
+  if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') el = (el.closest('input, textarea') || el) as HTMLElement
+  if (!el) return
+  ictx.target = el as HTMLInputElement | HTMLTextAreaElement
+  ictx.x = e.clientX; ictx.y = e.clientY; ictx.visible = true
+}
+function hideIctx() { ictx.visible = false }
+function ictxAct(action: string) {
+  const el = ictx.target; hideIctx()
+  if (!el) return
+  el.focus()
+  switch (action) {
+    case 'undo': document.execCommand('undo'); break
+    case 'cut': document.execCommand('cut'); break
+    case 'copy': document.execCommand('copy'); break
+    case 'paste': document.execCommand('paste'); break
+    case 'delete': { const s=el.selectionStart||0,e=el.selectionEnd||0; if(s!==e){el.value=el.value.slice(0,s)+el.value.slice(e);el.selectionStart=el.selectionEnd=s;el.dispatchEvent(new Event('input',{bubbles:true}))} break }
+    case 'selectAll': el.select(); break
+  }
+}
+onMounted(() => document.addEventListener('click', hideIctx))
+onUnmounted(() => document.removeEventListener('click', hideIctx))
 
 const sshStore = useSshStore()
 const visible = ref(false)

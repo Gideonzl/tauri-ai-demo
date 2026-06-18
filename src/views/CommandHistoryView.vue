@@ -17,7 +17,7 @@
           <el-option
             v-for="s in visibleHistoryServers"
             :key="s.serverId"
-            :label="`${s.serverName} (${s.count})`"
+            :label="s.serverName"
             :value="s.serverId"
           />
         </el-select>

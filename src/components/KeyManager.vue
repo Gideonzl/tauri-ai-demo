@@ -103,9 +103,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Refresh, Key, DocumentCopy, Delete } from '@element-plus/icons-vue'
+
+const ictx = reactive({ visible: false, x: 0, y: 0, target: null as HTMLInputElement | HTMLTextAreaElement | null })
+function onInputCtx(e: MouseEvent) {
+  let el = e.target as HTMLElement
+  if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') el = (el.closest('input, textarea') || el) as HTMLElement
+  if (!el) return
+  ictx.target = el as HTMLInputElement | HTMLTextAreaElement
+  ictx.x = e.clientX; ictx.y = e.clientY; ictx.visible = true
+}
+function hideIctx() { ictx.visible = false }
+function ictxAct(action: string) {
+  const el = ictx.target; hideIctx()
+  if (!el) return
+  el.focus()
+  switch (action) {
+    case 'undo': document.execCommand('undo'); break
+    case 'cut': document.execCommand('cut'); break
+    case 'copy': document.execCommand('copy'); break
+    case 'paste': document.execCommand('paste'); break
+    case 'delete': { const s=el.selectionStart||0,e=el.selectionEnd||0; if(s!==e){el.value=el.value.slice(0,s)+el.value.slice(e);el.selectionStart=el.selectionEnd=s;el.dispatchEvent(new Event('input',{bubbles:true}))} break }
+    case 'selectAll': el.select(); break
+  }
+}
+onMounted(() => document.addEventListener('click', hideIctx))
+onUnmounted(() => document.removeEventListener('click', hideIctx))
 
 interface SshKey {
   name: string

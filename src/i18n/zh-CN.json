@@ -80,7 +80,11 @@
     "coder": { "name": "编程助手", "desc": "代码生成、调试、Shell 脚本" },
     "ops": { "name": "运维助手", "desc": "服务器管理、部署、故障排查" },
     "analyst": { "name": "数据分析", "desc": "数据处理、日志分析、指标解读" },
-    "assistant": { "name": "通用助手", "desc": "问答、命令解释、文档撰写" }
+    "assistant": { "name": "通用助手", "desc": "问答、命令解释、文档撰写" },
+    "qaMode": "智能问答",
+    "agentMode": "智能体",
+    "qaModeDesc": "仅分析与建议",
+    "agentModeDesc": "可执行服务器命令"
   },
   "workspace": {
     "hosts": "主机",
@@ -274,6 +278,11 @@
     "corsError": "CORS/网络不可达",
     "confirm": "确认",
     "cancel": "取消",
-    "close": "关闭"
+    "close": "关闭",
+    "editFile": "编辑",
+    "save": "保存",
+    "cancelEdit": "取消",
+    "fileSaved": "文件已保存",
+    "fileSaveFailed": "保存失败"
   }
 }
