@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui/tauri-v2/main/tooling/cli/schema.json",
-  "productName": "Tauri AI Demo",
-  "version": "0.4.0",
-  "identifier": "com.tauri-ai.demo",
+  "productName": "AITerminal",
+  "version": "1.0.0",
+  "identifier": "com.aiterminal.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Tauri AI Demo - 远程SSH/RDP+AI工具",
+        "title": "AITerminal",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

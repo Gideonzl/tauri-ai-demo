@@ -200,7 +200,7 @@
         {{ modelStore.defaultConfig ? t('ai.ready') : t('ai.na') }}
       </span>
       <span class="status-sep">|</span>
-      <span class="status-item">v0.1.0</span>
+      <span class="status-item">v1.0.0</span>
     </footer>
 
     <SshConnectDialog />

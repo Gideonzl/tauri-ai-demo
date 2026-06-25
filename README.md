@@ -5,7 +5,7 @@
 ## 🏗️ 项目结构
 
 ```
-tauri-ai-demo/
+aiterminal/
 ├── index.html                    # 前端入口HTML
 ├── package.json                  # 前端依赖配置
 ├── vite.config.ts                # Vite构建配置（路径别名、SCSS、Tauri端口）
@@ -64,7 +64,7 @@ tauri-ai-demo/
 
 ```bash
 # 1. 进入项目目录
-cd tauri-ai-demo
+cd aiterminal
 
 # 2. 安装前端依赖
 npm install

@@ -202,7 +202,7 @@ async function createSession(): Promise<void> {
     // Welcome banner (demo only — real server sends its own MOTD)
     const h = srvName.value
     frontend.writeln(`\x1b[1;36m╔══════════════════════════════════════════╗\x1b[0m`)
-    frontend.writeln(`\x1b[1;36m║\x1b[0m  \x1b[1;37mTauri AI Demo — Terminal\x1b[0m`)
+    frontend.writeln(`\x1b[1;36m║\x1b[0m  \x1b[1;37mAITerminal\x1b[0m`)
     frontend.writeln(`\x1b[1;36m║\x1b[0m  \x1b[2;37mroot@${h}\x1b[0m`)
     frontend.writeln(`\x1b[1;36m║\x1b[0m  \x1b[2;37mTab=complete  ↑↓=history  help\x1b[0m`)
     frontend.writeln(`\x1b[1;36m╚══════════════════════════════════════════╝\x1b[0m`)

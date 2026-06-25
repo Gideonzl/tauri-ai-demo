@@ -1,4 +1,4 @@
-// Tauri AI Demo - Rust backend core entry
+// AITerminal - Rust backend core entry
 // Register all Tauri commands, plugins, start app
 // Command naming aligned with DEMO_SPEC.md: save_token / load_token / ai_chat / ai_chat_stream
 
@@ -12,6 +12,7 @@ pub mod protocol;
 pub mod storage;
 
 use tauri::Manager;
+use tauri::image::Image;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -57,7 +58,28 @@ pub fn run() {
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("Cannot get app data dir");
             std::fs::create_dir_all(&app_dir).expect("Cannot create app data dir");
-            println!("[Tauri AI Demo] started, data dir: {:?}", app_dir);
+            println!("[AITerminal] started, data dir: {:?}", app_dir);
+
+            // Set window icon (taskbar + title bar)
+            if let Some(window) = app.get_webview_window("main") {
+                let icon_bytes = include_bytes!("../icons/app-icon.png");
+                match image::load_from_memory(icon_bytes) {
+                    Ok(img) => {
+                        let rgba = img.into_rgba8();
+                        let (w, h) = rgba.dimensions();
+                        let icon_image = Image::new_owned(rgba.into_raw(), w, h);
+                        if let Err(e) = window.set_icon(icon_image) {
+                            eprintln!("[AITerminal] Failed to set window icon: {}", e);
+                        } else {
+                            println!("[AITerminal] Window icon set successfully");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[AITerminal] Failed to decode icon: {}", e);
+                    }
+                }
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

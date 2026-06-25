@@ -188,7 +188,11 @@ const themes = {
   'nord': { keyword: '#81a1c1', string: '#a3be8c', number: '#b48ead', key: '#88c0d0' },
   'high-contrast': { keyword: '#569cd6', string: '#ce9178', number: '#b5cea8', key: '#9cdcfe' },
   'catppuccin': { keyword: '#cba6f7', string: '#a6e3a1', number: '#fab387', key: '#89b4fa' },
-  'gruvbox-dark': { keyword: '#d3869b', string: '#b8bb26', number: '#fe8019', key: '#83a598' },
+  'gruvbox-dark': { keyword: '#d3869b', string: '#b8bb26', number: '#fe8019', key: '#8ec07c' },
+    'one-light': { keyword: '#a626a4', string: '#50a14f', number: '#986801', key: '#4078f2' },
+    'github-light': { keyword: '#cf222e', string: '#0a3069', number: '#0550ae', key: '#8250df' },
+    'solarized-light': { keyword: '#cb4b16', string: '#859900', number: '#2aa198', key: '#268bd2' },
+    'min-light': { keyword: '#8b00c9', string: '#007b00', number: '#b35c00', key: '#0066cc' },
 }
 </script>
 

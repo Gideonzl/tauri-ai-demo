@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { applyTheme } from '@/utils/theme'
 
-export type ColorScheme = 'termius-dark' | 'xterminal' | 'monokai' | 'one-dark' | 'dracula' | 'nord' | 'high-contrast' | 'catppuccin' | 'gruvbox-dark' | 'custom'
+export type ColorScheme = 'termius-dark' | 'xterminal' | 'monokai' | 'one-dark' | 'dracula' | 'nord' | 'high-contrast' | 'catppuccin' | 'gruvbox-dark' | 'one-light' | 'github-light' | 'solarized-light' | 'min-light' | 'custom'
 export interface ThemeColors { bg: string; surface: string; text: string; textSecondary: string; keyword: string; string: string; number: string; comment: string; key: string; section: string; error: string; warning: string; info: string; variable: string; terminalBg: string; terminalFg: string; terminalCursor: string }
 
 const THEMES: Record<string, ThemeColors> = {

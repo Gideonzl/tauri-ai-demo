@@ -1,229 +1,249 @@
-/**
- * 服务器系统监控面板
- * Termius暗色主题 + SVG图表（无第三方依赖）
- * 数据来源：SSH exec 实时采集
- */
+<!-- SystemMonitor — optimized typography, layout, responsive sizing -->
 <template>
   <div class="system-monitor" @contextmenu.prevent="onCtx">
-    <!-- 无连接/无数据状态 -->
+    <!-- No session -->
     <div v-if="!hasSession" class="monitor-empty">
-      <el-icon :size="36"><Connection /></el-icon>
-      <p>{{ t('monitor.noServer') }}</p>
-      <p class="sub">{{ t('monitor.connectHint') }}</p>
+      <div class="empty-icon-wrap">
+        <el-icon :size="32"><Connection /></el-icon>
+      </div>
+      <p class="empty-title">{{ t('monitor.noServer') }}</p>
+      <p class="empty-sub">{{ t('monitor.connectHint') }}</p>
     </div>
 
+    <!-- Loading -->
     <div v-else-if="!store.hasData && store.loading" class="monitor-loading">
-      <el-icon :size="28" class="spinning"><Loading /></el-icon>
-      <p>{{ t('monitor.collecting') }}</p>
+      <el-icon :size="24" class="spinning"><Loading /></el-icon>
+      <p class="loading-text">{{ t('monitor.collecting') }}</p>
     </div>
 
     <template v-else-if="store.data">
       <div class="monitor-scroll">
-        <!-- ====== 服务器信息栏 ====== -->
+        <!-- ═══ Info bar ═══ -->
         <div class="info-bar">
           <div class="info-left">
             <span class="info-os">{{ store.data.info.os }}</span>
-            <span class="info-sep">|</span>
-            <span class="info-label">IP:</span>
+            <span class="info-sep">·</span>
+            <span class="info-label">IP</span>
             <span class="info-val">{{ store.data.info.ip }}</span>
-            <span class="info-sep">|</span>
-            <span class="info-label">Kernel:</span>
+            <span class="info-sep">·</span>
+            <span class="info-label">Kernel</span>
             <span class="info-val">{{ store.data.info.kernel }}</span>
           </div>
           <div class="info-right">
             <span class="info-time">{{ formatDate(store.data.timestamp) }}</span>
             <el-button size="small" text @click="doRefresh" :loading="store.loading">
-              <el-icon :size="14"><Refresh /></el-icon>
+              <el-icon :size="13"><Refresh /></el-icon>
             </el-button>
           </div>
         </div>
 
-        <!-- ====== 4 概览卡片 ====== -->
+        <!-- ═══ Overview cards — 2-col auto-fit ═══ -->
         <div class="overview-cards">
           <div class="over-card">
-            <el-icon :size="18"><Clock /></el-icon>
-            <div class="card-text">
+            <div class="card-icon"><el-icon :size="16"><Clock /></el-icon></div>
+            <div class="card-body">
               <span class="card-label">{{ t('monitor.uptime') }}</span>
               <span class="card-val">{{ store.data.info.uptime }}</span>
             </div>
           </div>
           <div class="over-card">
-            <el-icon :size="18"><Cpu /></el-icon>
-            <div class="card-text">
+            <div class="card-icon"><el-icon :size="16"><Cpu /></el-icon></div>
+            <div class="card-body">
               <span class="card-label">{{ t('monitor.cpuModel') }}</span>
               <span class="card-val">{{ store.data.info.cpuModel }}</span>
             </div>
           </div>
           <div class="over-card">
-            <el-icon :size="18"><Grid /></el-icon>
-            <div class="card-text">
+            <div class="card-icon"><el-icon :size="16"><Grid /></el-icon></div>
+            <div class="card-body">
               <span class="card-label">{{ t('monitor.cpuCores') }}</span>
               <span class="card-val">{{ store.data.info.cpuCores }} {{ t('monitor.cores') }}</span>
             </div>
           </div>
           <div class="over-card">
-            <el-icon :size="18"><Coin /></el-icon>
-            <div class="card-text">
+            <div class="card-icon"><el-icon :size="16"><Coin /></el-icon></div>
+            <div class="card-body">
               <span class="card-label">{{ t('monitor.totalMemory') }}</span>
               <span class="card-val">{{ store.data.info.memoryTotal }}</span>
             </div>
           </div>
         </div>
 
-        <!-- ====== CPU + Memory 双栏 ====== -->
-        <div class="metrics-row">
-          <!-- CPU 圆环图 -->
-          <div class="metric-panel">
-            <div class="panel-title">{{ t('monitor.cpuUsage') }}</div>
-            <div class="cpu-ring-wrap">
-              <svg viewBox="0 0 120 120" class="cpu-ring">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--ring-bg)" stroke-width="8" />
-                <circle cx="60" cy="60" r="52" fill="none"
-                  :stroke="cpuGradient"
-                  stroke-width="8"
-                  stroke-linecap="round"
-                  :stroke-dasharray="cpuDasharray"
-                  :stroke-dashoffset="0"
-                  transform="rotate(-90 60 60)"
-                  class="cpu-ring-fill" />
-                <text x="60" y="54" text-anchor="middle" class="ring-pct">{{ store.data.cpu.usagePercent }}%</text>
-                <text x="60" y="72" text-anchor="middle" class="ring-label">CPU</text>
-              </svg>
-              <div class="cpu-details">
-                <div class="cpu-line"><span class="clabel">user</span><span class="cval">{{ store.data.cpu.user }}%</span></div>
-                <div class="cpu-line"><span class="clabel">system</span><span class="cval">{{ store.data.cpu.system }}%</span></div>
-                <div class="cpu-line"><span class="clabel">idle</span><span class="cval">{{ store.data.cpu.idle }}%</span></div>
-                <div class="cpu-line"><span class="clabel">iowait</span><span class="cval">{{ store.data.cpu.iowait }}%</span></div>
-              </div>
-            </div>
-            <!-- CPU mini sparkline -->
-            <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polyline :points="cpuSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-normal)' }" stroke-width="1.5" />
-            </svg>
+        <!-- ═══ CPU full-width ═══ -->
+        <div class="metric-panel">
+          <div class="panel-header">
+            <span class="panel-dot" :style="{ background: cpuGradient }"></span>
+            <span class="panel-title">{{ t('monitor.cpuUsage') }}</span>
+            <span class="panel-badge" :class="cpuLoadClass">{{ store.data.cpu.usagePercent }}%</span>
           </div>
+          <div class="cpu-ring-wrap">
+            <svg viewBox="0 0 120 120" class="cpu-ring">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--ring-bg)" stroke-width="7" />
+              <circle cx="60" cy="60" r="50" fill="none"
+                :stroke="cpuGradient" stroke-width="7" stroke-linecap="round"
+                :stroke-dasharray="cpuDasharray" :stroke-dashoffset="0"
+                transform="rotate(-90 60 60)" class="cpu-ring-fill" />
+              <text x="60" y="54" text-anchor="middle" class="ring-pct">{{ store.data.cpu.usagePercent }}%</text>
+              <text x="60" y="70" text-anchor="middle" class="ring-label">CPU</text>
+            </svg>
+            <div class="cpu-details">
+              <div class="cpu-line"><span class="clabel">user</span><span class="cval">{{ store.data.cpu.user }}%</span></div>
+              <div class="cpu-line"><span class="clabel">system</span><span class="cval">{{ store.data.cpu.system }}%</span></div>
+              <div class="cpu-line"><span class="clabel">iowait</span><span class="cval">{{ store.data.cpu.iowait }}%</span></div>
+              <div class="cpu-line"><span class="clabel">idle</span><span class="cval idle-val">{{ store.data.cpu.idle }}%</span></div>
+            </div>
+          </div>
+          <svg viewBox="0 0 300 40" class="mini-sparkline">
+            <polygon :points="cpuSparkFillWide" :style="{ fill: cpuGradient }" opacity="0.12" />
+            <polyline :points="cpuSparkPointsWide" fill="none" :style="{ stroke: cpuGradient }" stroke-width="1.5" />
+          </svg>
+        </div>
 
-          <!-- 内存横向条形图 -->
-          <div class="metric-panel">
-            <div class="panel-title">{{ t('monitor.memoryUsage') }}</div>
-            <div class="mem-main">
-              <span class="mem-used">{{ store.data.memory.used }}</span>
-              <span class="mem-sep">/</span>
-              <span class="mem-total">{{ store.data.memory.total }}</span>
-              <span class="mem-pct">({{ store.data.memory.percent }}%)</span>
-            </div>
-            <!-- 内存条形图 -->
-            <div class="mem-bar-wrap">
-              <div class="mem-bar">
-                <div class="mem-bar-fill" :style="{ width: store.data.memory.percent + '%' }"></div>
+        <!-- ═══ Memory full-width ═══ -->
+        <div class="metric-panel">
+          <div class="panel-header">
+            <span class="panel-dot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>
+            <span class="panel-title">{{ t('monitor.memoryUsage') }}</span>
+            <span class="panel-badge" :class="memLoadClass">{{ store.data.memory.percent }}%</span>
+          </div>
+          <div class="mem-main">
+            <span class="mem-used">{{ store.data.memory.used }}</span>
+            <span class="mem-sep">/</span>
+            <span class="mem-total">{{ store.data.memory.total }}</span>
+          </div>
+          <div class="mem-bar-wrap">
+            <div class="mem-bar">
+              <div class="mem-bar-fill" :style="{ width: store.data.memory.percent + '%' }">
+                <div class="mem-bar-shine"></div>
               </div>
             </div>
-            <div class="mem-breakdown">
-              <div class="mem-bitem">
-                <span class="bdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>
-                <span class="blabel">Used</span>
-                <span class="bval">{{ store.data.memory.used }}</span>
-              </div>
-              <div class="mem-bitem">
-                <span class="bdot" :style="{ background: 'var(--color-success)' }"></span>
-                <span class="blabel">Buff/Cache</span>
-                <span class="bval">{{ store.data.memory.buffersCache }}</span>
-              </div>
+          </div>
+          <div class="mem-breakdown">
+            <div class="mem-bitem">
+              <span class="bdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>
+              <span class="blabel">Used</span>
+              <span class="bval">{{ store.data.memory.used }}</span>
+            </div>
+            <div class="mem-bitem">
+              <span class="bdot" :style="{ background: 'var(--color-success)' }"></span>
+              <span class="blabel">Buff/Cache</span>
+              <span class="bval">{{ store.data.memory.buffersCache }}</span>
             </div>
           </div>
         </div>
 
-        <!-- ====== Disk I/O + Network 双栏 ====== -->
+        <!-- ═══ Disk I/O + Network dual panel ═══ -->
         <div class="metrics-row">
           <!-- Disk I/O -->
           <div class="metric-panel">
-            <div class="panel-title">{{ t('monitor.diskIo') }}</div>
+            <div class="panel-header">
+              <span class="panel-dot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>
+              <span class="panel-title">{{ t('monitor.diskIo') }}</span>
+            </div>
             <div class="io-stats">
               <div class="io-item">
+                <span class="io-arrow io-read">↓</span>
                 <span class="io-label">{{ t('monitor.read') }}</span>
                 <span class="io-val read">{{ store.data.diskIo.readMBps.toFixed(1) }} MB/s</span>
               </div>
+              <div class="io-divider"></div>
               <div class="io-item">
+                <span class="io-arrow io-write">↑</span>
                 <span class="io-label">{{ t('monitor.write') }}</span>
                 <span class="io-val write">{{ store.data.diskIo.writeMBps.toFixed(1) }} MB/s</span>
               </div>
             </div>
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polyline :points="diskReadSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-normal)' }" stroke-width="1.5" />
-              <polyline :points="diskWriteSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-warning)' }" stroke-width="1.5" />
+              <polygon :points="diskReadSparkFill" fill="#5b9bd5" opacity="0.12" />
+              <polyline :points="diskReadSparkPoints" fill="none" stroke="var(--chart-cpu-normal)" stroke-width="1.5" />
+              <polyline :points="diskWriteSparkPoints" fill="none" stroke="var(--chart-cpu-warning)" stroke-width="1.5" />
             </svg>
             <div class="spark-legend">
-              <span class="sdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>Read
-              <span class="sdot" :style="{ background: 'var(--chart-cpu-warning)', marginLeft: '8px' }"></span>Write
+              <span class="sdot" style="background:var(--chart-cpu-normal)"></span>Read
+              <span class="sdot" style="background:var(--chart-cpu-warning);margin-left:10px"></span>Write
             </div>
           </div>
 
           <!-- Network I/O -->
           <div class="metric-panel">
-            <div class="panel-title">{{ t('monitor.networkIo') }}</div>
+            <div class="panel-header">
+              <span class="panel-dot" :style="{ background: 'var(--chart-net-tx)' }"></span>
+              <span class="panel-title">{{ t('monitor.networkIo') }}</span>
+            </div>
             <div class="io-stats">
               <div class="io-item">
-                <span class="io-label">RX ↓</span>
+                <span class="io-arrow io-read">↓</span>
+                <span class="io-label">RX</span>
                 <span class="io-val read">{{ store.data.network.rxMBps.toFixed(2) }} MB/s</span>
               </div>
+              <div class="io-divider"></div>
               <div class="io-item">
-                <span class="io-label">TX ↑</span>
+                <span class="io-arrow io-write">↑</span>
+                <span class="io-label">TX</span>
                 <span class="io-val write">{{ store.data.network.txMBps.toFixed(2) }} MB/s</span>
               </div>
             </div>
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polyline :points="netRxSparkPoints" fill="none" :style="{ stroke: 'var(--chart-cpu-normal)' }" stroke-width="1.5" />
-              <polyline :points="netTxSparkPoints" fill="none" :style="{ stroke: 'var(--chart-net-tx)' }" stroke-width="1.5" />
+              <polygon :points="netRxSparkFill" fill="#5b9bd5" opacity="0.12" />
+              <polyline :points="netRxSparkPoints" fill="none" stroke="var(--chart-cpu-normal)" stroke-width="1.5" />
+              <polyline :points="netTxSparkPoints" fill="none" stroke="var(--chart-net-tx)" stroke-width="1.5" />
             </svg>
             <div class="spark-legend">
-              <span class="sdot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>RX
-              <span class="sdot" :style="{ background: 'var(--chart-net-tx)', marginLeft: '8px' }"></span>TX
+              <span class="sdot" style="background:var(--chart-cpu-normal)"></span>RX
+              <span class="sdot" style="background:var(--chart-net-tx);margin-left:10px"></span>TX
             </div>
           </div>
         </div>
 
-        <!-- ====== 磁盘使用 ====== -->
-        <div class="metric-panel disk-panel">
-          <div class="panel-title">{{ t('monitor.diskUsage') }}</div>
+        <!-- ═══ Disk Usage ═══ -->
+        <div class="section-block">
+          <div class="section-header">
+            <span class="section-title">{{ t('monitor.diskUsage') }}</span>
+          </div>
           <div class="disk-list">
             <div v-for="d in store.data.disks" :key="d.device" class="disk-row">
               <div class="disk-info">
                 <span class="disk-dev">{{ d.device }}</span>
                 <span class="disk-mount">{{ d.mount }}</span>
               </div>
-              <div class="disk-bar-wrap">
+              <div class="disk-gauge">
                 <div class="disk-bar">
-                  <div class="disk-bar-fill" :style="{ width: d.percent + '%' }"
+                  <div class="disk-bar-fill"
+                    :style="{ width: d.percent + '%' }"
                     :class="{ warn: d.percent > 80, danger: d.percent > 90 }"></div>
                 </div>
-              </div>
-              <div class="disk-details">
-                <span class="disk-used">{{ d.used }} / {{ d.size }}</span>
-                <span class="disk-pct" :class="{ warn: d.percent > 80, danger: d.percent > 90 }">{{ d.percent }}%</span>
+                <div class="disk-nums">
+                  <span class="disk-size">{{ d.used }} / {{ d.size }}</span>
+                  <span class="disk-pct" :class="{ warn: d.percent > 80, danger: d.percent > 90 }">{{ d.percent }}%</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ====== 进程列表 ====== -->
-        <div class="metric-panel proc-panel">
-          <div class="panel-title">{{ t('monitor.runningProcesses') }}</div>
+        <!-- ═══ Process Table ═══ -->
+        <div class="section-block">
+          <div class="section-header">
+            <span class="section-title">{{ t('monitor.runningProcesses') }}</span>
+            <span class="section-count">{{ store.data.processes.length }}</span>
+          </div>
           <div class="proc-table-wrap">
             <table class="proc-table">
               <thead>
                 <tr>
-                  <th>NAME</th>
-                  <th>PID</th>
-                  <th>CPU%</th>
-                  <th>MEM%</th>
-                  <th>STATUS</th>
+                  <th class="th-name">NAME</th>
+                  <th class="th-num">PID</th>
+                  <th class="th-num">CPU%</th>
+                  <th class="th-num">MEM%</th>
+                  <th class="th-status">STATUS</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="p in store.data.processes" :key="p.pid">
-                  <td class="proc-name">{{ p.name }}</td>
-                  <td class="mono">{{ p.pid }}</td>
-                  <td class="mono" :class="{ warn: p.cpu > 50 }">{{ p.cpu.toFixed(1) }}</td>
-                  <td class="mono" :class="{ warn: p.mem > 10 }">{{ p.mem.toFixed(1) }}</td>
+                  <td class="proc-name" :title="p.name">{{ p.name }}</td>
+                  <td class="cell-mono">{{ p.pid }}</td>
+                  <td class="cell-mono" :class="{ warn: p.cpu > 50, danger: p.cpu > 80 }">{{ p.cpu.toFixed(1) }}</td>
+                  <td class="cell-mono" :class="{ warn: p.mem > 10, danger: p.mem > 25 }">{{ p.mem.toFixed(1) }}</td>
                   <td><span class="proc-status" :class="statusClass(p.status)">{{ p.status }}</span></td>
                 </tr>
               </tbody>
@@ -232,15 +252,15 @@
         </div>
       </div>
 
-      <!-- 底部状态栏 -->
+      <!-- Status bar -->
       <div class="monitor-status-bar">
         <span class="status-dot" :class="{ connected: store.hasData }"></span>
         {{ store.hasData ? t('monitor.live') : t('monitor.idle') }}
-        <span v-if="refreshActive" style="margin-left:8px;color:var(--color-text-muted)">Auto {{ refreshIntervalSec }}s</span>
+        <span v-if="refreshActive" class="auto-tag">Auto {{ refreshIntervalSec }}s</span>
       </div>
     </template>
 
-    <!-- 右键菜单 -->
+    <!-- Context menu -->
     <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
       <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
     </div>
@@ -256,27 +276,24 @@ import { Connection, Loading, Refresh, Clock, Cpu, Grid, Coin } from '@element-p
 
 const store = useMonitorStore()
 const sshStore = useSshStore()
+const { t, locale } = useLocale()
 
-// 右键菜单
 const ctx = reactive({ visible: false, x: 0, y: 0 })
 function onCtx(e: MouseEvent) { ctx.x = e.clientX; ctx.y = e.clientY; ctx.visible = true }
 function hideCtx() { ctx.visible = false }
 function ctxAct(action: string) { hideCtx(); if (action === 'refresh') store.fetchData() }
 onMounted(() => document.addEventListener('click', hideCtx))
 onUnmounted(() => document.removeEventListener('click', hideCtx))
-const { t, locale } = useLocale()
 
 const refreshActive = ref(false)
 const refreshIntervalSec = 5
 let _timer: ReturnType<typeof setInterval> | null = null
 
-/** Whether we have a real SSH session */
 const hasSession = computed(() => {
   const s = sshStore.activeSession
   return !!(s && s.realSessionId && s.status === 'connected')
 })
 
-/** Server identity */
 const serverInfo = computed(() => {
   const s = sshStore.activeSession
   if (!s) return { name: '', host: '' }
@@ -284,10 +301,10 @@ const serverInfo = computed(() => {
   return { name: s.serverName, host: svr?.host || '' }
 })
 
-// CPU donut chart
+// CPU donut
 const cpuDasharray = computed(() => {
   const pct = store.data?.cpu.usagePercent || 0
-  const c = 2 * Math.PI * 52 // circumference ~326.7
+  const c = 2 * Math.PI * 50
   const filled = (pct / 100) * c
   return `${filled} ${c - filled}`
 })
@@ -299,14 +316,27 @@ const cpuGradient = computed(() => {
   return getCssVar('--chart-cpu-normal') || '#5b9bd5'
 })
 
-/** Read a CSS custom property from :root, with optional fallback */
+const cpuLoadClass = computed(() => {
+  const p = store.data?.cpu.usagePercent || 0
+  if (p > 80) return 'danger'
+  if (p > 50) return 'warn'
+  return ''
+})
+
+const memLoadClass = computed(() => {
+  const p = store.data?.memory.percent || 0
+  if (p > 90) return 'danger'
+  if (p > 70) return 'warn'
+  return ''
+})
+
 function getCssVar(name: string): string {
   try {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   } catch { return '' }
 }
 
-// Sparkline point generators
+// Sparkline helpers
 function sparkPoints(values: number[], maxVal: number, w = 200, h = 36): string {
   if (!values.length) return ''
   const n = values.length
@@ -314,15 +344,26 @@ function sparkPoints(values: number[], maxVal: number, w = 200, h = 36): string 
   const clamped = maxVal > 0 ? maxVal : 1
   return values.map((v, i) => {
     const x = i * stepX
-    const y = h - (v / clamped) * (h - 4) - 2
+    const y = h - (v / clamped) * (h - 6) - 3
     return `${x},${y}`
   }).join(' ')
 }
 
+function sparkFill(values: number[], maxVal: number, w = 200, h = 36): string {
+  if (!values.length) return ''
+  const points = sparkPoints(values, maxVal, w, h)
+  return `0,${h} ${points} ${w},${h}`
+}
+
 const cpuSparkPoints = computed(() => sparkPoints(store.data?.cpu.history || [], 100))
+const cpuSparkFill = computed(() => sparkFill(store.data?.cpu.history || [], 100))
+const cpuSparkPointsWide = computed(() => sparkPoints(store.data?.cpu.history || [], 100, 300, 40))
+const cpuSparkFillWide = computed(() => sparkFill(store.data?.cpu.history || [], 100, 300, 40))
 const diskReadSparkPoints = computed(() => sparkPoints(store.data?.diskIo.readHistory || [], Math.max(...(store.data?.diskIo.readHistory || [1]), 1)))
+const diskReadSparkFill = computed(() => sparkFill(store.data?.diskIo.readHistory || [], Math.max(...(store.data?.diskIo.readHistory || [1]), 1)))
 const diskWriteSparkPoints = computed(() => sparkPoints(store.data?.diskIo.writeHistory || [], Math.max(...(store.data?.diskIo.writeHistory || [1]), 1)))
 const netRxSparkPoints = computed(() => sparkPoints(store.data?.network.rxHistory || [], Math.max(...(store.data?.network.rxHistory || [1]), 1)))
+const netRxSparkFill = computed(() => sparkFill(store.data?.network.rxHistory || [], Math.max(...(store.data?.network.rxHistory || [1]), 1)))
 const netTxSparkPoints = computed(() => sparkPoints(store.data?.network.txHistory || [], Math.max(...(store.data?.network.txHistory || [1]), 1)))
 
 function formatDate(ts: number): string {
@@ -349,7 +390,6 @@ async function doRefresh() {
   await store.refresh(s.realSessionId!, svr?.name || s.serverName, svr?.host || '')
 }
 
-/** Start/stop auto refresh */
 function startRefresh() {
   if (!hasSession.value || refreshActive.value) return
   refreshActive.value = true
@@ -363,111 +403,173 @@ function stopRefresh() {
   store.stopAutoRefresh()
 }
 
-/** Watch for session changes — auto start/stop */
 watch(hasSession, (active) => {
-  if (active) {
-    startRefresh()
-  } else {
-    stopRefresh()
-  }
+  if (active) startRefresh()
+  else stopRefresh()
 }, { immediate: true })
 
 onUnmounted(() => stopRefresh())
 </script>
 
 <style lang="scss" scoped>
-// CSS custom properties for ring chart — now theme-aware
 .system-monitor {
   --ring-bg: #{$color-border};
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  font-size: 12px;
+  color: $color-text-regular;
 }
 
+// ═══════ Empty / Loading ═══════
 .monitor-empty, .monitor-loading {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   color: $color-text-secondary;
-  p { margin: 0; font-size: 13px; }
-  .sub { font-size: 11px; color: $color-text-placeholder; }
 }
 
-.spinning { animation: spin 1.2s linear infinite; }
+.empty-icon-wrap {
+  width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px;
+  background: $color-bg-hover;
+  color: $color-text-muted;
+  margin-bottom: 4px;
+}
+
+.empty-title { font-size: 14px; font-weight: 600; color: $color-text-secondary; margin: 0; }
+.empty-sub { font-size: 11px; color: $color-text-muted; margin: 0; }
+.loading-text { font-size: 12px; color: $color-text-secondary; margin: 0; }
+.spinning { animation: spin 1.2s linear infinite; color: $color-primary; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+// ═══════ Scroll area ═══════
 .monitor-scroll {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 4px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 2px; }
 }
 
-// ====== Info Bar ======
+// ═══════ Info Bar ═══════
 .info-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
   background: $color-bg-hover;
-  border-bottom: 1px solid $color-bg-active;
+  border-radius: 5px;
   font-family: $font-family-mono;
   font-size: 10px;
   color: $color-text-secondary;
   flex-shrink: 0;
 
-  .info-left { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+  .info-left { display: flex; align-items: center; gap: 5px; overflow: hidden; flex-wrap: wrap; }
   .info-os { color: $color-primary-light; font-weight: 600; white-space: nowrap; }
-  .info-sep { color: $color-border; }
-  .info-label { color: $color-text-secondary; }
+  .info-sep { color: $color-border; font-weight: 300; }
+  .info-label { color: $color-text-muted; text-transform: uppercase; font-size: 9px; letter-spacing: 0.3px; }
   .info-val { color: $color-text-primary; }
-  .info-time { color: $color-info; font-family: $font-family-mono; }
-  .info-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .info-time { color: $color-info; }
+  .info-right { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 }
 
-// ====== Overview Cards ======
+// ═══════ Overview Cards — 2-col grid ═══════
 .overview-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 6px;
-  padding: 8px 10px;
 }
 
 .over-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: $color-border-light;
-  border: 1px solid $color-border-light;
-  border-radius: 4px;
-  color: $color-text-secondary;
+  gap: 10px;
+  padding: 10px 12px;
+  background: $color-bg-hover;
+  border: 1px solid transparent;
+  border-left: 2px solid $color-primary;
+  border-radius: 5px;
+  transition: border-color 0.2s;
 
-  .card-text { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
-  .card-label { font-size: 9px; color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.4px; }
-  .card-val { font-size: 11px; color: $color-text-regular; font-family: $font-family-mono; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &:nth-child(2) { border-left-color: $color-success; }
+  &:nth-child(3) { border-left-color: var(--chart-cpu-warning); }
+  &:nth-child(4) { border-left-color: $color-info; }
+
+  .card-icon {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    background: $color-bg-active;
+    color: $color-primary;
+    flex-shrink: 0;
+  }
+
+  .card-body {
+    display: flex; flex-direction: column; gap: 2px;
+    overflow: hidden; min-width: 0;
+  }
+
+  .card-label {
+    font-size: 9px;
+    color: $color-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .card-val {
+    font-size: clamp(10px, 1.5vw, 13px);
+    color: $color-text-primary;
+    font-family: $font-family-mono;
+    font-weight: 500;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+  }
+
+  .truncate {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 }
 
-// ====== Metrics Rows ======
+// ═══════ Metrics Row — 2-col grid ═══════
 .metrics-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 0 10px 6px;
+  gap: 8px;
 }
 
+// ═══════ Metric Panel ═══════
 .metric-panel {
-  background: $color-border-light;
+  background: $color-bg-hover;
   border: 1px solid $color-border-light;
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 10px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.panel-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .panel-title {
@@ -476,73 +578,131 @@ onUnmounted(() => stopRefresh())
   color: $color-text-secondary;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  flex: 1;
 }
 
-// ====== CPU Ring ======
+.panel-badge {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: $font-family-mono;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: $color-bg-active;
+  color: $color-text-primary;
+
+  &.warn { background: $color-bg-warning-hover; color: $color-warning; }
+  &.danger { background: $color-bg-danger-hover; color: $color-danger; }
+}
+
+// ═══════ CPU Ring ═══════
 .cpu-ring-wrap {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
+  margin-bottom: 6px;
 }
 
 .cpu-ring {
-  width: 80px;
-  height: 80px;
+  width: 84px; height: 84px;
   flex-shrink: 0;
-
-  .ring-pct { font-size: 18px; font-weight: 700; fill: $color-text-primary; font-family: $font-family-mono; }
-  .ring-label { font-size: 8px; fill: $color-text-secondary; }
 }
 
-.cpu-ring-fill { transition: stroke-dasharray 0.6s ease; }
+.cpu-ring-fill {
+  transition: stroke-dasharray 0.6s ease;
+  filter: drop-shadow(0 0 3px rgba(91,157,213,0.3));
+}
+
+.ring-pct {
+  font-size: 17px; font-weight: 700;
+  fill: $color-text-primary;
+  font-family: $font-family-mono;
+}
+
+.ring-label {
+  font-size: 9px;
+  fill: $color-text-secondary;
+  font-weight: 500;
+}
 
 .cpu-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   font-size: 10px;
   font-family: $font-family-mono;
 }
 
-.cpu-line { display: flex; gap: 8px; }
-.clabel { color: $color-text-secondary; width: 40px; text-align: right; }
-.cval { color: $color-text-regular; }
+.cpu-line { display: flex; gap: 10px; align-items: center; }
+.clabel { color: $color-text-muted; width: 36px; text-align: right; font-size: 9px; }
+.cval { color: $color-text-primary; }
+.idle-val { color: $color-success; }
 
-// ====== Memory ======
+// ═══════ Memory ═══════
 .mem-main {
   text-align: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-family: $font-family-mono;
+  display: flex; align-items: baseline; justify-content: center; gap: 3px;
 }
-.mem-used { font-size: 20px; font-weight: 700; color: $color-text-primary; }
-.mem-sep { color: $color-text-muted; margin: 0 2px; }
-.mem-total { font-size: 13px; color: $color-text-secondary; }
-.mem-pct { font-size: 11px; color: $color-chart-blue; margin-left: 6px; }
+.mem-used { font-size: 22px; font-weight: 700; color: $color-text-primary; }
+.mem-sep { font-size: 14px; color: $color-text-muted; }
+.mem-total { font-size: 14px; color: $color-text-secondary; }
 
-.mem-bar-wrap { padding: 0 4px; }
-.mem-bar { height: 8px; background: $color-border; border-radius: 4px; overflow: hidden; }
-.mem-bar-fill { height: 100%; background: linear-gradient(90deg, $color-chart-blue, $color-primary-dark); border-radius: 4px; transition: width 0.6s ease; }
+.mem-bar-wrap { padding: 0 2px; margin-bottom: 8px; }
+.mem-bar {
+  height: 10px;
+  background: $color-border;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.mem-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #5b9bd5, #4888c2);
+  border-radius: 5px;
+  transition: width 0.6s ease;
+  position: relative;
+}
+.mem-bar-shine {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+}
 
-.mem-breakdown { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; font-size: 10px; }
+.mem-breakdown { display: flex; flex-direction: column; gap: 4px; font-size: 10px; }
 .mem-bitem { display: flex; align-items: center; gap: 6px; }
-.bdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.bdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .blabel { color: $color-text-secondary; flex: 1; }
-.bval { color: $color-text-regular; font-family: $font-family-mono; }
+.bval { color: $color-text-primary; font-family: $font-family-mono; font-weight: 500; }
 
-// ====== I/O Stats ======
+// ═══════ I/O Stats ═══════
 .io-stats {
   display: flex;
-  justify-content: space-around;
+  align-items: center;
   margin-bottom: 6px;
 }
 
-.io-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.io-label { font-size: 9px; color: $color-text-secondary; text-transform: uppercase; }
-.io-val { font-size: 12px; font-family: $font-family-mono; font-weight: 600;
+.io-item {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+
+.io-arrow {
+  font-size: 14px; font-weight: 700; line-height: 1;
+  &.io-read { color: $color-chart-blue; }
+  &.io-write { color: $color-chart-orange; }
+}
+
+.io-label { font-size: 9px; color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.3px; }
+.io-val {
+  font-size: 11px; font-family: $font-family-mono; font-weight: 600;
   &.read { color: $color-chart-blue; }
   &.write { color: $color-chart-orange; }
+}
+
+.io-divider {
+  width: 1px; height: 28px;
+  background: $color-border-light;
+  flex-shrink: 0;
 }
 
 .mini-sparkline {
@@ -552,112 +712,172 @@ onUnmounted(() => stopRefresh())
 }
 
 .spark-legend {
-  display: flex;
-  align-items: center;
-  font-size: 9px;
-  color: $color-text-secondary;
-  margin-top: 2px;
+  display: flex; align-items: center; gap: 2px;
+  font-size: 9px; color: $color-text-muted;
+  margin-top: 3px;
 }
 
 .sdot {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  margin-right: 4px;
+  margin-right: 3px;
 }
 
-// ====== Disk Usage ======
-.disk-panel {
-  margin: 0 10px 6px;
+// ═══════ Section Block (Disk / Process) ═══════
+.section-block {
+  background: $color-bg-hover;
+  border: 1px solid $color-border-light;
+  border-radius: 6px;
+  padding: 10px;
 }
 
-.disk-list { display: flex; flex-direction: column; gap: 6px; }
+.section-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 10px; font-weight: 600;
+  color: $color-text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+}
+
+.section-count {
+  font-size: 10px; font-weight: 600;
+  color: $color-text-muted;
+  font-family: $font-family-mono;
+  background: $color-bg-active;
+  padding: 1px 7px; border-radius: 10px;
+}
+
+// ═══════ Disk List ═══════
+.disk-list { display: flex; flex-direction: column; gap: 8px; }
 
 .disk-row {
-  display: grid;
-  grid-template-columns: 90px 1fr 80px;
-  align-items: center;
-  gap: 8px;
+  display: flex; flex-direction: column; gap: 4px;
 }
 
-.disk-info { display: flex; flex-direction: column; gap: 1px; }
-.disk-dev { font-size: 11px; color: $color-text-regular; font-family: $font-family-mono; }
-.disk-mount { font-size: 9px; color: $color-text-muted; }
+.disk-info {
+  display: flex; align-items: baseline; gap: 8px;
+}
 
-.disk-bar-wrap { }
-.disk-bar { height: 6px; background: $color-border; border-radius: 3px; overflow: hidden; }
+.disk-dev {
+  font-size: 12px; color: $color-text-primary;
+  font-family: $font-family-mono; font-weight: 600;
+}
+.disk-mount {
+  font-size: 10px; color: $color-text-muted;
+  font-family: $font-family-mono;
+}
+
+.disk-gauge { display: flex; flex-direction: column; gap: 3px; }
+
+.disk-bar {
+  height: 7px;
+  background: $color-border;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
 .disk-bar-fill {
   height: 100%;
-  background: $color-chart-blue;
-  border-radius: 3px;
+  background: linear-gradient(90deg, #5b9bd5, #5b8def);
+  border-radius: 4px;
   transition: width 0.6s ease;
-  &.warn { background: $color-chart-orange; }
-  &.danger { background: $color-chart-red; }
+  &.warn { background: linear-gradient(90deg, #e69138, #d17d2a); }
+  &.danger { background: linear-gradient(90deg, #e05555, #c94040); }
 }
 
-.disk-details { display: flex; justify-content: space-between; font-size: 9px; font-family: $font-family-mono; }
-.disk-used { color: $color-text-secondary; }
-.disk-pct { color: $color-text-secondary; font-weight: 600;
+.disk-nums {
+  display: flex; justify-content: space-between;
+  font-size: 10px; font-family: $font-family-mono;
+}
+
+.disk-size { color: $color-text-secondary; }
+.disk-pct {
+  font-weight: 600;
   &.warn { color: $color-chart-orange; }
   &.danger { color: $color-chart-red; }
 }
 
-// ====== Process Table ======
-.proc-panel {
-  margin: 0 10px 6px;
-}
+// ═══════ Process Table ═══════
+.proc-table-wrap {
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 4px;
 
-.proc-table-wrap { max-height: 260px; overflow-y: auto; }
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 2px; }
+}
 
 .proc-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10px;
+  font-size: 11px;
+
+  thead { position: sticky; top: 0; z-index: 1; }
 
   th {
     text-align: left;
-    padding: 4px 6px;
+    padding: 6px 8px;
     color: $color-text-muted;
+    font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
-    border-bottom: 1px solid $color-border-light;
-    position: sticky;
-    top: 0;
-    background: $color-bg-toolbar;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid $color-border;
+    background: $color-bg-surface;
   }
 
+  .th-name { width: auto; }
+  .th-num { width: 44px; text-align: right; }
+  .th-status { width: 56px; }
+
   td {
-    padding: 3px 6px;
+    padding: 5px 8px;
     color: $color-text-regular;
     border-bottom: 1px solid $color-border-light;
   }
 
-  tr:hover td { background: $color-border-light; }
+  tbody tr {
+    transition: background 0.12s;
+    &:hover { background: $color-bg-active; }
+  }
 
-  .proc-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mono { font-family: $font-family-mono; }
-  .warn { color: $color-chart-orange; }
+  .proc-name {
+    max-width: 110px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .cell-mono {
+    font-family: $font-family-mono; font-size: 11px; text-align: right;
+    &.warn { color: $color-warning; font-weight: 600; }
+    &.danger { color: $color-danger; font-weight: 600; }
+  }
 }
 
 .proc-status {
-  font-size: 8px;
-  padding: 1px 4px;
-  border-radius: 2px;
-  letter-spacing: 0.3px;
+  display: inline-block;
+  font-size: 9px; font-weight: 600;
+  padding: 2px 6px; border-radius: 3px;
+  letter-spacing: 0.3px; text-transform: uppercase;
+
   &.running { color: $color-success; background: $color-bg-success-hover; }
   &.sleeping { color: $color-text-secondary; background: $color-border-light; }
   &.blocked { color: $color-chart-orange; background: $color-bg-warning-hover; }
-  &.zombie { color: $color-chart-red; background: $color-bg-danger-hover; }
+  &.zombie { color: $color-danger; background: $color-bg-danger-hover; }
   &.stopped { color: $color-warning; background: $color-bg-warning-hover; }
 }
 
-// ====== Status Bar ======
+// ═══════ Status bar ═══════
 .monitor-status-bar {
   display: flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-top: 1px solid $color-border-light;
   font-size: 10px;
   color: $color-text-secondary;
@@ -668,7 +888,16 @@ onUnmounted(() => stopRefresh())
   .status-dot {
     width: 6px; height: 6px; border-radius: 50%;
     background: $color-text-muted; margin-right: 6px;
-    &.connected { background: $color-success; }
+    transition: background 0.3s;
+    &.connected { background: $color-success; box-shadow: 0 0 4px rgba($color-success, 0.4); }
+  }
+
+  .auto-tag {
+    margin-left: auto;
+    font-size: 9px;
+    color: $color-text-muted;
+    background: $color-bg-hover;
+    padding: 1px 6px; border-radius: 3px;
   }
 }
 </style>

@@ -1,14 +1,16 @@
-/**
- * 根组件 - 主布局容器
- */
+<!-- App root — splash screen → main layout -->
 <template>
-  <router-view />
+  <SplashScreen v-if="!splashDone" @done="splashDone = true" />
+  <router-view v-if="splashDone" />
 </template>
 
 <script setup lang="ts">
-// 根组件仅作为路由容器
+import { ref } from 'vue'
+import SplashScreen from '@/components/SplashScreen.vue'
+
+const splashDone = ref(false)
 </script>
 
 <style lang="scss">
-// 全局样式已在main.ts中引入
+// 全局样式已在 main.ts 中引入
 </style>

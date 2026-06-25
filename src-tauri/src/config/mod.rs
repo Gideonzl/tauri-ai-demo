@@ -19,7 +19,7 @@ pub struct RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            app_name: "Tauri AI Demo".to_string(),
+            app_name: "AITerminal".to_string(),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
             dev_mode: cfg!(debug_assertions),
             log_level: if cfg!(debug_assertions) { "debug" } else { "info" }.to_string(),

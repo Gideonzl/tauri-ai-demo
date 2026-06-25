@@ -192,7 +192,7 @@
   "terminal": {
     "connected": "PTY 终端已连接",
     "failed": "PTY 失败:",
-    "banner": "Tauri AI Demo — 终端",
+    "banner": "AITerminal",
     "bannerHelp": "Tab=补全  ?=历史  help=帮助",
     "opening": "正在打开 PTY 终端...",
     "disconnected": "已断开连接"

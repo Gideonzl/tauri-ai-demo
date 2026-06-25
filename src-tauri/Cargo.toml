@@ -1,7 +1,7 @@
 [package]
-name = "tauri-ai-demo"
+name = "aiterminal"
 version = "0.1.0"
-description = "Tauri Remote SSH/RDP + AI Tool"
+description = "AITerminal - Remote SSH + AI Terminal"
 authors = ["Rust Protocol Engineer"]
 edition = "2021"
 
@@ -45,6 +45,9 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 # Stream processing
 futures = "0.3"
 bytes = "1"
+
+# PNG decoding for window icon
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Logging
 log = "0.4"

@@ -134,6 +134,7 @@ interface ThemeDef {
   surface: string
   text: string
   textSecondary: string
+  isLight?: boolean
   syntax: {
     keyword: string; string_: string; number: string; comment: string
     key: string; section: string; error: string; warning: string
@@ -143,11 +144,11 @@ interface ThemeDef {
 
 const THEME_DEFS: Record<string, ThemeDef> = {
   'termius-dark': {
-    primary: '#5b8def',
+    primary: '#6b9dff',
     bg: '#0d0d1a',
-    surface: '#16162a',
-    text: '#e8e8f0',
-    textSecondary: '#8888a0',
+    surface: '#1e1e38',
+    text: '#f0f0ff',
+    textSecondary: '#a0a0cc',
     syntax: {
       keyword: '#c792ea', string_: '#c3e88d', number: '#f78c6c', comment: '#546e7a',
       key: '#89ddff', section: '#ffcb6b', error: '#ff5370', warning: '#ffcb6b',
@@ -155,11 +156,11 @@ const THEME_DEFS: Record<string, ThemeDef> = {
     },
   },
   'xterminal': {
-    primary: '#7aa2f7',
+    primary: '#8ab4ff',
     bg: '#1a1b26',
-    surface: '#24283b',
-    text: '#c0caf5',
-    textSecondary: '#565f89',
+    surface: '#292e42',
+    text: '#cfd6ff',
+    textSecondary: '#6b7db0',
     syntax: {
       keyword: '#bb9af7', string_: '#9ece6a', number: '#ff9e64', comment: '#565f89',
       key: '#7dcfff', section: '#e0af68', error: '#f7768e', warning: '#e0af68',
@@ -169,9 +170,9 @@ const THEME_DEFS: Record<string, ThemeDef> = {
   'monokai': {
     primary: '#66d9ef',
     bg: '#272822',
-    surface: '#383830',
+    surface: '#3d3d30',
     text: '#f8f8f2',
-    textSecondary: '#75715e',
+    textSecondary: '#8a8574',
     syntax: {
       keyword: '#f92672', string_: '#e6db74', number: '#ae81ff', comment: '#75715e',
       key: '#66d9ef', section: '#e6db74', error: '#f92672', warning: '#e6db74',
@@ -181,9 +182,9 @@ const THEME_DEFS: Record<string, ThemeDef> = {
   'one-dark': {
     primary: '#61afef',
     bg: '#282c34',
-    surface: '#2c313c',
-    text: '#abb2bf',
-    textSecondary: '#5c6370',
+    surface: '#333842',
+    text: '#c8ccd4',
+    textSecondary: '#6d7484',
     syntax: {
       keyword: '#c678dd', string_: '#98c379', number: '#d19a66', comment: '#5c6370',
       key: '#61afef', section: '#e5c07b', error: '#e06c75', warning: '#e5c07b',
@@ -194,11 +195,11 @@ const THEME_DEFS: Record<string, ThemeDef> = {
   // ═══ New high-contrast themes ═══
 
   'dracula': {
-    primary: '#bd93f9',
+    primary: '#caa0ff',
     bg: '#282a36',
-    surface: '#343746',
+    surface: '#3d4058',
     text: '#f8f8f2',
-    textSecondary: '#6272a4',
+    textSecondary: '#7b8bc0',
     syntax: {
       keyword: '#ff79c6', string_: '#50fa7b', number: '#bd93f9', comment: '#6272a4',
       key: '#8be9fd', section: '#f1fa8c', error: '#ff5555', warning: '#f1fa8c',
@@ -207,11 +208,11 @@ const THEME_DEFS: Record<string, ThemeDef> = {
   },
 
   'nord': {
-    primary: '#88c0d0',
+    primary: '#8fcee0',
     bg: '#2e3440',
-    surface: '#3b4252',
+    surface: '#434c5e',
     text: '#eceff4',
-    textSecondary: '#81a1c1',
+    textSecondary: '#8ebcd8',
     syntax: {
       keyword: '#81a1c1', string_: '#a3be8c', number: '#b48ead', comment: '#4c566a',
       key: '#88c0d0', section: '#ebcb8b', error: '#bf616a', warning: '#d08770',
@@ -233,11 +234,11 @@ const THEME_DEFS: Record<string, ThemeDef> = {
   },
 
   'catppuccin': {
-    primary: '#cba6f7',
+    primary: '#d4b0ff',
     bg: '#1e1e2e',
-    surface: '#313244',
-    text: '#cdd6f4',
-    textSecondary: '#6c7086',
+    surface: '#3b3d58',
+    text: '#d9e0ee',
+    textSecondary: '#878a9e',
     syntax: {
       keyword: '#cba6f7', string_: '#a6e3a1', number: '#fab387', comment: '#6c7086',
       key: '#89b4fa', section: '#f9e2af', error: '#f38ba8', warning: '#f9e2af',
@@ -246,41 +247,101 @@ const THEME_DEFS: Record<string, ThemeDef> = {
   },
 
   'gruvbox-dark': {
-    primary: '#83a598',
+    primary: '#8ec07c',
     bg: '#282828',
     surface: '#3c3836',
-    text: '#ebdbb2',
-    textSecondary: '#a89984',
+    text: '#fbf1c7',
+    textSecondary: '#bdae93',
     syntax: {
       keyword: '#d3869b', string_: '#b8bb26', number: '#fe8019', comment: '#928374',
       key: '#83a598', section: '#fabd2f', error: '#fb4934', warning: '#fabd2f',
       info: '#8ec07c', variable: '#fb4934',
     },
   },
+
+  // ═══ Light / bright themes ═══
+
+  'one-light': {
+    primary: '#4078f2',
+    bg: '#fafbfc',
+    surface: '#e8ecf0',
+    text: '#383a42',
+    textSecondary: '#696c77',
+    isLight: true,
+    syntax: {
+      keyword: '#a626a4', string_: '#50a14f', number: '#986801', comment: '#a0a1a7',
+      key: '#4078f2', section: '#c18401', error: '#e45649', warning: '#c18401',
+      info: '#0184bc', variable: '#e45649',
+    },
+  },
+
+  'github-light': {
+    primary: '#0969da',
+    bg: '#ffffff',
+    surface: '#f0f2f5',
+    text: '#1f2328',
+    textSecondary: '#656d76',
+    isLight: true,
+    syntax: {
+      keyword: '#cf222e', string_: '#0a3069', number: '#0550ae', comment: '#6e7781',
+      key: '#8250df', section: '#953800', error: '#cf222e', warning: '#9a6700',
+      info: '#0969da', variable: '#953800',
+    },
+  },
+
+  'solarized-light': {
+    primary: '#268bd2',
+    bg: '#fdf6e3',
+    surface: '#eee8d5',
+    text: '#586e75',
+    textSecondary: '#839496',
+    isLight: true,
+    syntax: {
+      keyword: '#cb4b16', string_: '#859900', number: '#2aa198', comment: '#93a1a1',
+      key: '#268bd2', section: '#b58900', error: '#dc322f', warning: '#b58900',
+      info: '#6c71c4', variable: '#dc322f',
+    },
+  },
+
+  'min-light': {
+    primary: '#0066cc',
+    bg: '#ffffff',
+    surface: '#f5f5f5',
+    text: '#1a1a1a',
+    textSecondary: '#4a4a4a',
+    isLight: true,
+    syntax: {
+      keyword: '#8b00c9', string_: '#007b00', number: '#b35c00', comment: '#888888',
+      key: '#0066cc', section: '#b35c00', error: '#cc0000', warning: '#b35c00',
+      info: '#0077aa', variable: '#cc0000',
+    },
+  },
 }
 
 function buildPalette(def: ThemeDef): Record<string, string> {
-  const { primary, bg, surface, text, textSecondary } = def
+  const { primary, bg, surface, text, textSecondary, isLight } = def
+  const blendTarget = isLight ? '#ffffff' : '#000000'
+  const shift = (hex: string, amt: number) => lerpColor(hex, blendTarget, amt)
 
   // Derive background hierarchy from bg→surface
   const bgApp = bg
   const bgPrimary = lerpColor(bg, surface, 0.3)
   const bgSidebar = surface
   const bgSurface = surface
-  const bgToolbar = lighten(surface, 0.03)
+  const bgToolbar = isLight ? lerpColor(surface, '#000000', 0.02) : lerpColor(surface, '#ffffff', 0.03)
   const bgPanel = lerpColor(bg, surface, 0.15)
-  const bgInput = lighten(surface, 0.03)
+  const bgInput = isLight ? lerpColor(surface, '#000000', 0.03) : lerpColor(surface, '#ffffff', 0.03)
 
-  // Derive text hierarchy from text→textSecondary→bg
+  // Derive text hierarchy from text→textSecondary
   const textPrimary = text
-  const textRegular = lerpColor(text, bg, 0.15)
+  const textRegular = isLight ? lerpColor(text, '#ffffff', 0.1) : lerpColor(text, bg, 0.15)
   const textSec = textSecondary
-  const textPlaceholder = lerpColor(textSecondary, bg, 0.3)
-  const textMuted = lerpColor(textSecondary, bg, 0.5)
+  const textPlaceholder = isLight ? lerpColor(textSecondary, '#ffffff', 0.2) : lerpColor(textSecondary, bg, 0.3)
+  const textMuted = isLight ? lerpColor(textSecondary, '#ffffff', 0.4) : lerpColor(textSecondary, bg, 0.5)
 
-  // Derive border from text alpha
-  const border = rgba(text, 0.08)
-  const borderLight = rgba(text, 0.05)
+  // Derive border
+  const border = isLight ? rgba('#000000', 0.1) : rgba(text, 0.08)
+  const borderLight = isLight ? rgba('#000000', 0.06) : rgba(text, 0.05)
   const borderFocus = primary
 
   return {
@@ -302,11 +363,11 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--color-bg-panel': bgPanel,
     '--color-bg-input': bgInput,
 
-    '--color-bg-hover': rgba(primary, 0.08),
-    '--color-bg-active': rgba(primary, 0.14),
-    '--color-bg-primary-hover': rgba(primary, 0.12),
+    '--color-bg-hover': isLight ? rgba(primary, 0.1) : rgba(primary, 0.08),
+    '--color-bg-active': isLight ? rgba(primary, 0.16) : rgba(primary, 0.14),
+    '--color-bg-primary-hover': isLight ? rgba(primary, 0.14) : rgba(primary, 0.12),
 
-    '--color-bg-message-user': lighten(bg, 0.04),
+    '--color-bg-message-user': isLight ? lerpColor(bg, '#000000', 0.03) : lerpColor(bg, '#ffffff', 0.04),
     '--color-bg-message-ai': bg,
 
     '--color-border': border,
@@ -329,7 +390,11 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--terminal-bg': bgApp,
     '--terminal-fg': textPrimary,
     '--terminal-cursor': primary,
-    '--terminal-black': darken(bgApp, 0.04),
+    '--shadow-sm': isLight ? '0 1px 2px rgba(0,0,0,0.08)' : '0 1px 2px rgba(0,0,0,0.3)',
+    '--shadow-md': isLight ? '0 2px 6px rgba(0,0,0,0.1)' : '0 2px 6px rgba(0,0,0,0.4)',
+    '--shadow-lg': isLight ? '0 4px 12px rgba(0,0,0,0.12)' : '0 4px 12px rgba(0,0,0,0.5)',
+
+    '--terminal-black': isLight ? lighten(bgApp, 0.06) : darken(bgApp, 0.04),
     '--terminal-red': def.syntax.error,
     '--terminal-green': def.syntax.string_,
     '--terminal-yellow': def.syntax.warning,
