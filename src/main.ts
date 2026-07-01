@@ -27,12 +27,12 @@ try {
   const raw = localStorage.getItem('color-scheme')
   if (raw) {
     const p = JSON.parse(raw)
-    applyTheme(p.scheme || 'termius-dark', p.custom)
+    applyTheme(p.scheme || 'tech', p.custom)
   } else {
-    applyTheme('termius-dark')
+    applyTheme('tech')
   }
 } catch {
-  applyTheme('termius-dark')
+  applyTheme('tech')
 }
 
 const app = createApp(App)

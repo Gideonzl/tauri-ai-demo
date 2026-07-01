@@ -74,13 +74,13 @@
             <template v-for="group in groupedHosts" :key="group.name">
               <div class="host-group">
                 <div class="group-header" @click="toggleGroup(group.name)" @contextmenu.prevent="showGroupMenu($event, group)">
-                  <el-icon :size="12" class="group-chevron" :class="{ expanded: !collapsedGroups.has(group.name) }">
+                  <el-icon :size="12" class="group-chevron" :class="{ expanded: !collapsedGroups.has(group.name) || isSearching }">
                     <ArrowRight />
                   </el-icon>
                   <span class="group-name">{{ group.name }}</span>
                   <span class="group-count">{{ group.onlineCount }}/{{ group.hosts.length }}</span>
                 </div>
-                <div v-if="!collapsedGroups.has(group.name)" class="group-hosts">
+                <div v-if="!collapsedGroups.has(group.name) || isSearching" class="group-hosts">
                   <div
                     v-for="server in group.hosts"
                     :key="server.id"
@@ -432,7 +432,10 @@ function groupMenuAct(action: string) {
   if (action === 'delete') handleGroupDelete(gid, gn)
 }
 
-// Grouped hosts computed — always shows ALL groups (even empty ones)
+// True when a search query or group filter is narrowing the list
+const isSearching = computed(() => !!sshStore.searchQuery.trim() || !!sshStore.selectedGroupName)
+
+// Grouped hosts computed — shows all groups normally; hides empty groups while searching
 const groupedHosts = computed(() => {
   const map = new Map<string, Array<typeof sshStore.filteredServers[number]>>()
 
@@ -450,11 +453,18 @@ const groupedHosts = computed(() => {
   }
 
   // Ungrouped always last
-  return Array.from(map.entries()).map(([name, hosts]) => ({
+  let entries = Array.from(map.entries()).map(([name, hosts]) => ({
     name,
     hosts,
     onlineCount: hosts.filter(h => getServerStatus(h.id) === 'connected').length,
-  })).sort((a, b) => a.name === ungrouped ? 1 : b.name === ungrouped ? -1 : a.name.localeCompare(b.name))
+  }))
+
+  // While searching/filtering, drop groups with no matching hosts so results are obvious
+  if (isSearching.value) {
+    entries = entries.filter(g => g.hosts.length > 0)
+  }
+
+  return entries.sort((a, b) => a.name === ungrouped ? 1 : b.name === ungrouped ? -1 : a.name.localeCompare(b.name))
 })
 
 // 服务器右键菜单状态
@@ -783,7 +793,7 @@ onUnmounted(() => {
 .tab-item { display: flex; align-items: center; gap: 5px; padding: 0 12px; height: 32px; border-radius: $border-radius-sm; cursor: pointer; color: $color-text-secondary; font-size: $font-size-sm; white-space: nowrap; transition: all $transition-fast; position: relative;
   &:hover { background-color: $color-bg-hover; color: $color-text-regular; }
   &.active { color: $color-text-primary; background-color: $color-bg-active;
-    &::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 16px; height: 2px; background-color: $color-primary; border-radius: 1px 1px 0 0; }
+    &::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 16px; height: 2px; background-color: $color-primary; border-radius: 1px 1px 0 0; box-shadow: $glow-soft; animation: scale-in 0.2s ease; }
   }
 }
 
@@ -873,10 +883,10 @@ onUnmounted(() => {
 
 .host-list { flex: 1; overflow-y: auto; padding: $spacing-xs 0; }
 
-.host-item { display: flex; align-items: center; gap: $spacing-sm; padding: 0 $spacing-md; height: 48px; cursor: pointer; transition: background-color $transition-fast; position: relative;
-  &:hover { background-color: $color-bg-hover; }
+.host-item { display: flex; align-items: center; gap: $spacing-sm; padding: 0 $spacing-md; height: 48px; cursor: pointer; transition: background-color $transition-fast, transform $transition-fast; position: relative;
+  &:hover { background-color: $color-bg-hover; transform: translateX(2px); }
   &.active { background-color: $color-bg-active;
-    &::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background-color: $color-primary; border-radius: 0 1px 1px 0; }
+    &::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background-color: $color-primary; border-radius: 0 1px 1px 0; box-shadow: $glow-soft; }
   }
 }
 
@@ -906,7 +916,7 @@ onUnmounted(() => {
   .status-item { display: flex; align-items: center; gap: 4px; }
   .status-server-name { color: $color-primary-light; font-weight: 600; }
   .status-sep { color: $color-text-muted; }
-  .status-dot { width: 5px; height: 5px; border-radius: 50%; background-color: $color-danger; &.online { background-color: $color-success; } }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background-color: $color-danger; &.online { background-color: $color-success; animation: glow-pulse 2s ease-in-out infinite; } }
   .status-text-connected { color: $color-success; } .status-text-connecting { color: $color-warning; } .status-text-disconnected { color: $color-text-muted; } .status-text-error { color: $color-danger; } .status-text-reconnecting { color: $color-warning; }
 }
 

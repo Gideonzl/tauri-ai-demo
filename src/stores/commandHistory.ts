@@ -131,5 +131,6 @@ export const useCommandHistoryStore = defineStore('commandHistory', () => {
     clearServer,
     clearAll,
     purgeOrphaned,
+    reload: loadFromStorage,
   }
 })

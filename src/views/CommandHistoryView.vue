@@ -7,6 +7,9 @@
         <span class="header-title">Command History</span>
       </div>
       <div class="header-right">
+        <el-button size="small" text @click="handleRefresh" title="刷新">
+          <el-icon :size="14"><Refresh /></el-icon>
+        </el-button>
         <el-select
           v-model="selectedServerId"
           size="small"
@@ -72,8 +75,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Clock, Connection, Delete, VideoPlay, CopyDocument } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted, onUnmounted, onActivated, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { Clock, Connection, Delete, VideoPlay, CopyDocument, Refresh } from '@element-plus/icons-vue'
 import { useCommandHistoryStore } from '@/stores/commandHistory'
 import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
@@ -81,6 +85,7 @@ import { ElMessage } from 'element-plus'
 
 const cmdStore = useCommandHistoryStore()
 const sshStore = useSshStore()
+const router = useRouter()
 const { t } = useLocale()
 
 const selectedServerId = ref('')
@@ -125,6 +130,16 @@ watch(() => sshStore.servers.length, () => {
   syncWithServers()
 })
 
+// Auto-refresh when returning to this view (kept alive) — shows commands just run
+onActivated(() => {
+  cmdStore.reload()
+  syncWithServers()
+  const activeId = sshStore.activeSession?.serverId
+  if (activeId && visibleHistoryServers.value.find(h => h.serverId === activeId)) {
+    selectedServerId.value = activeId
+  }
+})
+
 // Also watch when entries change (from purge) to keep selection valid
 watch(() => cmdStore.entries.length, () => {
   if (selectedServerId.value && !existingServerIds.value.has(selectedServerId.value)) {
@@ -147,13 +162,11 @@ function formatTime(ts: number): string {
 
 function executeCommand(cmd: any) {
   const session = sshStore.activeSession
-  if (session?.realSessionId) {
-    // Send command to terminal
-    const qc = (window as any).__quickCommandTarget
-    if (qc) {
-      qc.value = cmd.command + '\r'
-      ElMessage.success('Command sent to terminal')
-    }
+  if (session) {
+    // Push command to the active terminal (kept alive in workspace) and go see it run
+    sshStore.runInTerminal(cmd.command)
+    ElMessage.success('Command sent to terminal')
+    router.push('/')
   } else {
     navigator.clipboard.writeText(cmd.command)
     ElMessage.success('No active server — copied to clipboard')
@@ -164,6 +177,19 @@ function clearCurrent() {
   if (selectedServerId.value) {
     cmdStore.clearServer(selectedServerId.value)
   }
+}
+
+/** 手动刷新：重载历史 + 自动选中当前活动服务器（看到刚执行的命令） */
+function handleRefresh() {
+  cmdStore.reload()
+  syncWithServers()
+  const activeId = sshStore.activeSession?.serverId
+  if (activeId && visibleHistoryServers.value.find(h => h.serverId === activeId)) {
+    selectedServerId.value = activeId
+  } else if (!selectedServerId.value && visibleHistoryServers.value.length > 0) {
+    selectedServerId.value = visibleHistoryServers.value[0].serverId
+  }
+  ElMessage.success(t('common.refresh'))
 }
 
 function onCtx(e: MouseEvent) { /* prevent browser menu */ }

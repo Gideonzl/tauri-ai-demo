@@ -41,7 +41,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Monitor, Cpu, FolderOpened, Setting, Clock } from '@element-plus/icons-vue'
+import { Monitor, Cpu, FolderOpened, Setting, Clock, Odometer } from '@element-plus/icons-vue'
 import type { Ref } from 'vue'
 import { useLocale } from '@/composables/useLocale'
 
@@ -58,6 +58,7 @@ interface NavItem { id: string; path: string; label: string; icon: any }
 const topItems = computed<NavItem[]>(() => [
   { id: 'hosts', path: '/', label: t('nav.hosts'), icon: Monitor },
   { id: 'history', path: '/history', label: t('nav.history'), icon: Clock },
+  { id: 'ops', path: '/ops', label: t('nav.ops'), icon: Odometer },
   { id: 'ai', path: '/ai-config', label: t('nav.aiModels'), icon: Cpu },
   { id: 'sftp', path: '', label: t('nav.sftp'), icon: FolderOpened },
 ])
@@ -117,18 +118,31 @@ function navigate(item: NavItem) {
   white-space: nowrap;
   overflow: hidden;
   border-left: 2px solid transparent;
+  animation: fade-in-up 0.3s ease backwards;
+
+  .el-icon {
+    transition: transform $transition-normal, filter $transition-normal;
+  }
 
   &:hover {
     background-color: $color-bg-hover;
     color: $color-text-regular;
+    .el-icon { transform: scale(1.14); }
   }
 
   &.active {
     color: $color-primary;
     background-color: $color-bg-active;
     border-left-color: $color-primary;
+    .el-icon { filter: drop-shadow(0 0 6px var(--color-primary, #5b8def)); }
   }
 }
+
+// Stagger nav entrance
+.nav-top .nav-item:nth-child(1) { animation-delay: 0.02s; }
+.nav-top .nav-item:nth-child(2) { animation-delay: 0.06s; }
+.nav-top .nav-item:nth-child(3) { animation-delay: 0.10s; }
+.nav-top .nav-item:nth-child(4) { animation-delay: 0.14s; }
 
 .nav-label {
   margin-left: $spacing-sm;

@@ -68,6 +68,18 @@ $shadow-sm: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.3));
 $shadow-md: var(--shadow-md, 0 2px 6px rgba(0, 0, 0, 0.4));
 $shadow-lg: var(--shadow-lg, 0 4px 12px rgba(0, 0, 0, 0.5));
 
+// 现代质感令牌 — 毛玻璃 / 发光 / 渐变 / 立体阴影
+$glass-bg: var(--glass-bg, rgba(30, 30, 50, 0.55));
+$glass-border: var(--glass-border, rgba(255, 255, 255, 0.10));
+$glow-primary: var(--glow-primary, 0 0 16px rgba(91, 141, 239, 0.38));
+$glow-soft: var(--glow-soft, 0 0 10px rgba(91, 141, 239, 0.18));
+$gradient-primary: var(--gradient-primary, linear-gradient(135deg, #5b8def, #7ba4f2));
+$gradient-app: var(--gradient-app, linear-gradient(160deg, #12122a, #0d0d1a 55%, #16162a));
+$gradient-surface: var(--gradient-surface, linear-gradient(180deg, #1c1c34, #16162a));
+$elevation-1: var(--elevation-1, 0 1px 3px rgba(0, 0, 0, 0.45));
+$elevation-2: var(--elevation-2, 0 4px 16px rgba(0, 0, 0, 0.5));
+$elevation-3: var(--elevation-3, 0 12px 34px rgba(0, 0, 0, 0.6));
+
 // 过渡
 $transition-fast: var(--transition-fast, 0.12s ease);
 $transition-normal: var(--transition-normal, 0.25s ease);

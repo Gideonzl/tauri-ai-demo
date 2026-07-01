@@ -496,15 +496,20 @@ onUnmounted(() => stopRefresh())
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: $color-bg-hover;
-  border: 1px solid transparent;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
   border-left: 2px solid $color-primary;
-  border-radius: 5px;
-  transition: border-color 0.2s;
+  border-radius: 6px;
+  box-shadow: $elevation-1;
+  transition: border-color 0.2s, box-shadow 0.22s ease, transform 0.22s ease;
+  animation: fade-in-up 0.3s ease backwards;
 
-  &:nth-child(2) { border-left-color: $color-success; }
-  &:nth-child(3) { border-left-color: var(--chart-cpu-warning); }
-  &:nth-child(4) { border-left-color: $color-info; }
+  &:hover { box-shadow: $elevation-2; transform: translateY(-2px); }
+
+  &:nth-child(1) { animation-delay: 0.02s; }
+  &:nth-child(2) { border-left-color: $color-success; animation-delay: 0.06s; }
+  &:nth-child(3) { border-left-color: var(--chart-cpu-warning); animation-delay: 0.10s; }
+  &:nth-child(4) { border-left-color: $color-info; animation-delay: 0.14s; }
 
   .card-icon {
     width: 32px; height: 32px;
@@ -553,10 +558,15 @@ onUnmounted(() => stopRefresh())
 
 // ═══════ Metric Panel ═══════
 .metric-panel {
-  background: $color-bg-hover;
-  border: 1px solid $color-border-light;
-  border-radius: 6px;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
+  border-radius: 8px;
   padding: 10px;
+  box-shadow: $elevation-1;
+  transition: box-shadow 0.22s ease, transform 0.22s ease;
+  animation: fade-in-up 0.3s ease backwards;
+
+  &:hover { box-shadow: $elevation-2; transform: translateY(-1px); }
 }
 
 .panel-header {
@@ -726,10 +736,12 @@ onUnmounted(() => stopRefresh())
 
 // ═══════ Section Block (Disk / Process) ═══════
 .section-block {
-  background: $color-bg-hover;
-  border: 1px solid $color-border-light;
-  border-radius: 6px;
+  background: $glass-bg;
+  border: 1px solid $glass-border;
+  border-radius: 8px;
   padding: 10px;
+  box-shadow: $elevation-1;
+  animation: fade-in-up 0.3s ease backwards;
 }
 
 .section-header {

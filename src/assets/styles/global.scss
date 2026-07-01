@@ -1103,8 +1103,9 @@ body {
 // ============================================================
 
 *:focus-visible {
-  outline: 2px solid $color-primary;
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: $glow-soft, 0 0 0 2px $color-border-focus;
+  border-radius: $border-radius-sm;
 }
 
 // ============================================================
@@ -1116,4 +1117,128 @@ body {
     background-color 0.3s ease,
     border-color 0.3s ease,
     color 0.3s ease;
+}
+
+// ============================================================
+// Modern UI enhancement layer — glass / glow / animation
+// (additive; consumes theme tokens so all 13 themes adapt)
+// ============================================================
+
+// ── Reusable keyframes ──
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 125, 0.5); }
+  50%      { box-shadow: 0 0 6px 2px rgba(76, 175, 125, 0.35); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+// ── Button micro-interactions (global Element Plus) ──
+.el-button {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease !important;
+  will-change: transform;
+
+  &:not(.is-text):not(.is-disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: $elevation-1;
+  }
+  &:not(.is-text):not(.is-disabled):active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
+  }
+}
+
+.el-button--primary:not(.is-text) {
+  background: $gradient-primary !important;
+  border-color: transparent !important;
+  color: #fff !important;
+
+  &:hover {
+    box-shadow: $elevation-1, $glow-soft !important;
+    color: #fff !important;
+  }
+}
+
+// Text buttons: subtle background lift instead of elevation
+.el-button.is-text:not(.is-disabled):hover {
+  background-color: $color-bg-hover !important;
+  transform: none;
+}
+
+// ── Context menu: glass + scale-in entrance ──
+.ctx-menu {
+  background: $glass-bg !important;
+  border: 1px solid $glass-border !important;
+  box-shadow: $elevation-2 !important;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  animation: scale-in 0.16s ease;
+  transform-origin: top left;
+}
+
+.ctx-item {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%) scaleY(0);
+    width: 2px; height: 60%;
+    background: $color-primary;
+    border-radius: 0 2px 2px 0;
+    transition: transform 0.16s ease;
+  }
+  &:hover::before { transform: translateY(-50%) scaleY(1); }
+}
+
+// ── Dialogs / dropdowns: glass + scale-in ──
+.el-dialog {
+  box-shadow: $elevation-3 !important;
+  animation: scale-in 0.2s ease;
+}
+.el-overlay-dialog .el-dialog { transform-origin: center; }
+
+.el-select-dropdown,
+.el-popper {
+  animation: scale-in 0.16s ease;
+}
+
+.el-message {
+  box-shadow: $elevation-2 !important;
+  backdrop-filter: blur(10px);
+  animation: fade-in-up 0.25s ease;
+}
+
+// ── Refined scrollbar ──
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+// ── Typography refinement ──
+body {
+  letter-spacing: 0.01em;
+  text-rendering: optimizeLegibility;
+}
+// Uppercase micro-labels: a touch more airy & crisp
+.section-title,
+.panel-title,
+.history-label,
+.group-name,
+.header-title,
+.card-label {
+  letter-spacing: 0.6px !important;
 }

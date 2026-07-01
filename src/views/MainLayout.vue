@@ -12,7 +12,27 @@
 
 <template>
 
-  <div class="main-layout" @contextmenu.self.prevent="onPageCtx">
+  <div class="app-shell" @contextmenu.self.prevent="onPageCtx">
+
+    <!-- 顶部品牌导航栏 -->
+    <header class="app-topbar">
+      <div class="tb-brand">
+        <img src="/app-icon.png?v=2" class="tb-logo" alt="" />
+        <span class="tb-name">AITerminal</span>
+        <span class="tb-badge">{{ isTauriMode ? 'Console' : 'Web' }}</span>
+      </div>
+      <div class="tb-spacer"></div>
+      <button class="tb-cmd" @click="showCmdPalette = true">
+        <el-icon :size="13"><Search /></el-icon>
+        <span class="tb-cmd-text">{{ t('cmd.title') }}</span>
+        <span class="tb-kbd">Ctrl K</span>
+      </button>
+      <button class="tb-icon-btn" :title="t('nav.settings')" @click="goSettings">
+        <el-icon :size="16"><Setting /></el-icon>
+      </button>
+    </header>
+
+    <div class="main-layout">
 
     <!-- 左侧导航菜单栏 -->
 
@@ -124,10 +144,21 @@
 
     </aside>
 
+    </div>
+    <!-- /main-layout -->
+
     <!-- 右键菜单 -->
     <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
       <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
     </div>
+
+    <!-- AI 命令助手悬浮按钮 -->
+    <button class="cmd-fab" :title="t('cmd.openHint') + ' (Ctrl+K)'" @click="showCmdPalette = true">
+      <el-icon :size="20"><MagicStick /></el-icon>
+    </button>
+
+    <!-- AI 命令助手浮层 -->
+    <AiCommandPalette v-model="showCmdPalette" />
   </div>
 
 </template>
@@ -138,16 +169,18 @@
 
 import { ref, reactive, onMounted, onUnmounted, provide } from 'vue'
 
+import { useRouter } from 'vue-router'
 import { useConfigStore } from '@/stores/config'
 import { useLocale } from '@/composables/useLocale'
 
-import { DArrowLeft, DArrowRight, Refresh } from '@element-plus/icons-vue'
+import { DArrowLeft, DArrowRight, Refresh, MagicStick, Search, Setting } from '@element-plus/icons-vue'
 
 import SideNav from '@/components/SideNav.vue'
 
 import AiChat from '@/components/AiChat.vue'
 
 import SystemMonitor from '@/components/SystemMonitor.vue'
+import AiCommandPalette from '@/components/AiCommandPalette.vue'
 import { useContextMenu } from '@/composables/useContextMenu'
 
 
@@ -155,14 +188,23 @@ import { useContextMenu } from '@/composables/useContextMenu'
 const configStore = useConfigStore()
 const { t } = useLocale()
 const { register, unregister } = useContextMenu()
+const router = useRouter()
+const isTauriMode = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
+function goSettings() { if (router.currentRoute.value.path !== '/settings') router.push('/settings') }
 
 // 右键菜单
 const ctx = reactive({ visible: false, x: 0, y: 0 })
 function onPageCtx(e: MouseEvent) { ctx.x = e.clientX; ctx.y = e.clientY; ctx.visible = true }
 function hideCtx() { ctx.visible = false }
 function ctxAct(action: string) { hideCtx(); if (action === 'refresh') location.reload() }
-onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx) })
-onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx) })
+
+// AI 命令助手（Ctrl+K 全局唤起）
+const showCmdPalette = ref(false)
+function onGlobalKey(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); showCmdPalette.value = true }
+}
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey) })
 
 const rightPanelTab = ref<'ai' | 'monitor'>('ai')
 
@@ -363,17 +405,63 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: $gradient-app;
+}
+
+// === 顶部品牌导航栏 ===
+.app-topbar {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: $glass-bg;
+  backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid $glass-border;
+  z-index: 10;
+}
+.tb-brand { display: flex; align-items: center; gap: 8px; }
+.tb-logo { width: 22px; height: 22px; border-radius: 6px; }
+.tb-name { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: $color-text-primary; font-family: 'Inter', sans-serif; }
+.tb-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  color: $color-primary; background: $color-bg-active; padding: 2px 6px; border-radius: 4px;
+}
+.tb-spacer { flex: 1; }
+.tb-cmd {
+  display: flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 10px; border: 1px solid $color-border;
+  border-radius: $border-radius-md; background: $color-bg-input; cursor: pointer;
+  color: $color-text-secondary; font-family: inherit; font-size: $font-size-xs;
+  transition: all $transition-fast;
+  &:hover { border-color: $color-primary; color: $color-text-primary; }
+  .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $color-text-muted; background: $color-bg-app; padding: 1px 5px; border-radius: 3px; }
+}
+.tb-icon-btn {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: $border-radius-md; background: transparent; cursor: pointer;
+  color: $color-text-secondary; transition: all $transition-fast;
+  &:hover { background: $color-bg-hover; color: $color-primary; }
+}
+
 .main-layout {
 
   display: flex;
 
+  flex: 1;
+
   width: 100%;
 
-  height: 100%;
+  min-height: 0;
 
   overflow: hidden;
-
-  background-color: $color-bg-app;
 
 }
 
@@ -385,9 +473,13 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background-color: $color-bg-sidebar;
+  background: $glass-bg;
 
-  border-right: 1px solid $color-border-light;
+  backdrop-filter: blur(10px) saturate(1.1);
+
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+
+  border-right: 1px solid $glass-border;
 
   flex-shrink: 0;
 
@@ -447,6 +539,8 @@ onUnmounted(() => {
 
     background-color: $color-primary;
 
+    box-shadow: $glow-soft;
+
   }
 
 }
@@ -479,9 +573,13 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background-color: $color-bg-panel;
+  background: $glass-bg;
 
-  border-left: 1px solid $color-border-light;
+  backdrop-filter: blur(10px) saturate(1.1);
+
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+
+  border-left: 1px solid $glass-border;
 
   flex-shrink: 0;
 
@@ -635,6 +733,32 @@ onUnmounted(() => {
 
   min-height: 0;
 
+}
+
+// AI 命令助手悬浮按钮
+.cmd-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 15000;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  background: $gradient-primary;
+  box-shadow: $elevation-2, $glow-soft;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: $elevation-3, $glow-primary;
+  }
+  &:active { transform: scale(0.96); }
 }
 
 </style>

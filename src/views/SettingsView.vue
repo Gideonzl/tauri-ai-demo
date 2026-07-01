@@ -114,6 +114,90 @@
           </div>
         </div>
       </div>
+
+      <!-- Terminal -->
+      <div class="setting-section">
+        <div class="section-header" @click="activeSection = activeSection === 'terminal' ? '' : 'terminal'">
+          <el-icon :size="12" class="section-chevron" :class="{ open: activeSection === 'terminal' }"><ArrowRight /></el-icon>
+          <span class="section-title">{{ t('settings.terminal') }}</span>
+        </div>
+        <div v-if="activeSection === 'terminal'" class="section-body">
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.fontSize') }}</span>
+            <el-slider v-model="ts.settings.fontSize" :min="9" :max="22" size="small" class="opt-slider" @change="ts.set('fontSize', ts.settings.fontSize)" />
+            <span class="opt-val">{{ ts.settings.fontSize }}px</span>
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.fontFamily') }}</span>
+            <el-select :model-value="ts.settings.fontFamily" size="small" class="opt-select" @change="(v) => ts.set('fontFamily', v)">
+              <el-option v-for="f in FONT_PRESETS" :key="f" :label="f.split(',')[0].replace(/'/g, '')" :value="f" />
+            </el-select>
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.cursorStyle') }}</span>
+            <div class="opt-btns">
+              <button v-for="c in ['bar','block','underline']" :key="c" class="opt-btn" :class="{ active: ts.settings.cursorStyle === c }" @click="ts.set('cursorStyle', c)">
+                {{ c === 'bar' ? t('settings.cursorBar') : c === 'block' ? t('settings.cursorBlock') : t('settings.cursorUnderline') }}
+              </button>
+            </div>
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.cursorBlink') }}</span>
+            <el-switch :model-value="ts.settings.cursorBlink" size="small" @change="(v) => ts.set('cursorBlink', v)" />
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.scrollback') }}</span>
+            <el-select :model-value="ts.settings.scrollback" size="small" class="opt-select" @change="(v) => ts.set('scrollback', v)">
+              <el-option v-for="n in [1000, 5000, 10000, 50000]" :key="n" :label="String(n)" :value="n" />
+            </el-select>
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.copyOnSelect') }}</span>
+            <el-switch :model-value="ts.settings.copyOnSelect" size="small" @change="(v) => ts.set('copyOnSelect', v)" />
+          </div>
+          <div class="opt-row">
+            <el-button size="small" text type="warning" @click="ts.reset()">{{ t('settings.resetTerminal') }}</el-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Behavior -->
+      <div class="setting-section">
+        <div class="section-header" @click="activeSection = activeSection === 'behavior' ? '' : 'behavior'">
+          <el-icon :size="12" class="section-chevron" :class="{ open: activeSection === 'behavior' }"><ArrowRight /></el-icon>
+          <span class="section-title">{{ t('settings.behavior') }}</span>
+        </div>
+        <div v-if="activeSection === 'behavior'" class="section-body">
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.confirmClose') }}</span>
+            <el-switch :model-value="ts.settings.confirmClose" size="small" @change="(v) => ts.set('confirmClose', v)" />
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">{{ t('settings.showSplash') }}</span>
+            <el-switch :model-value="ts.settings.showSplash" size="small" @change="(v) => ts.set('showSplash', v)" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Management -->
+      <div class="setting-section">
+        <div class="section-header" @click="activeSection = activeSection === 'data' ? '' : 'data'">
+          <el-icon :size="12" class="section-chevron" :class="{ open: activeSection === 'data' }"><ArrowRight /></el-icon>
+          <span class="section-title">{{ t('settings.dataManage') }}</span>
+        </div>
+        <div v-if="activeSection === 'data'" class="section-body">
+          <p class="data-hint">{{ t('settings.exportHint') }}</p>
+          <div class="data-actions">
+            <el-button size="small" type="primary" @click="exportData">
+              <el-icon :size="13"><Download /></el-icon>{{ t('settings.exportData') }}
+            </el-button>
+            <el-button size="small" @click="triggerImport">
+              <el-icon :size="13"><Upload /></el-icon>{{ t('settings.importData') }}
+            </el-button>
+            <input ref="importInput" type="file" accept="application/json" style="display:none" @change="importData" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 右键菜单 -->
@@ -125,14 +209,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { Refresh, Plus, Close, ArrowRight, Edit } from '@element-plus/icons-vue'
+import { Refresh, Plus, Close, ArrowRight, Edit, Download, Upload } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useConfigStore } from '@/stores/config'
 import { useHighlightRulesStore, hexToAnsi, ansiToHex } from '@/stores/highlightRules'
+import { useTerminalSettingsStore, FONT_PRESETS } from '@/stores/terminalSettings'
 import { useLocale } from '@/composables/useLocale'
 import { useContextMenu } from '@/composables/useContextMenu'
 
 const configStore = useConfigStore()
 const hlStore = useHighlightRulesStore()
+const ts = useTerminalSettingsStore()
 const { locale, setLocale, t, locales } = useLocale()
 const { register, unregister } = useContextMenu()
 const activeSection = ref('')
@@ -143,6 +230,49 @@ function hideCtx() { ctx.visible = false }
 function ctxAct(action: string) { hideCtx(); if (action === 'refresh') location.reload() }
 onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx) })
 onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx) })
+
+// ── Data export / import (backup) ──
+const importInput = ref<HTMLInputElement | null>(null)
+const BACKUP_KEYS = ['ssh-servers', 'ssh-groups', 'ssh-quick-commands', 'color-scheme', 'terminal-settings', 'ops-alert-rules', 'ai-model-configs', 'highlight-rules', 'command-history']
+
+function exportData() {
+  const payload: Record<string, any> = { __app: 'AITerminal', __version: 1, __ts: Date.now(), data: {} }
+  for (const k of BACKUP_KEYS) {
+    const v = localStorage.getItem(k)
+    if (v != null) payload.data[k] = v
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `aiterminal-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success(t('settings.dataExported'))
+}
+
+function triggerImport() { importInput.value?.click() }
+
+function importData(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result))
+      if (!parsed || parsed.__app !== 'AITerminal' || !parsed.data) throw new Error('bad format')
+      for (const [k, v] of Object.entries(parsed.data)) {
+        if (typeof v === 'string') localStorage.setItem(k, v)
+      }
+      ElMessage.success(t('settings.dataImported'))
+      setTimeout(() => location.reload(), 800)
+    } catch {
+      ElMessage.error(t('settings.importFailed'))
+    }
+  }
+  reader.readAsText(file)
+  ;(e.target as HTMLInputElement).value = ''
+}
 
 // New/edit rule state
 const showAddRule = ref(false)
@@ -180,6 +310,7 @@ function savingRule() {
 }
 
 const themes = {
+  'tech': { keyword: '#60a5fa', string: '#4ade80', number: '#fbbf24', key: '#38bdf8' },
   'termius-dark': { keyword: '#c792ea', string: '#c3e88d', number: '#f78c6c', key: '#89ddff' },
   'xterminal': { keyword: '#bb9af7', string: '#9ece6a', number: '#ff9e64', key: '#7dcfff' },
   'monokai': { keyword: '#f92672', string: '#e6db74', number: '#ae81ff', key: '#66d9ef' },
@@ -215,12 +346,13 @@ const themes = {
 .section-body { padding: $spacing-md $spacing-lg; }
 
 .theme-grid { display: flex; gap: $spacing-md; flex-wrap: wrap; }
-.theme-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-fast; min-width: 100px;
-  &:hover { border-color: $color-primary; }
-  &.active { border-color: $color-primary; background-color: $color-bg-active; }
+.theme-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-normal; min-width: 100px;
+  &:hover { border-color: $color-primary; transform: translateY(-3px); box-shadow: $elevation-2; }
+  &.active { border-color: $color-primary; background-color: $color-bg-active; box-shadow: $glow-primary; }
 }
 .theme-preview { display: flex; gap: 4px; }
-.tp-dot { width: 12px; height: 12px; border-radius: 50%; }
+.tp-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: $elevation-1; transition: transform $transition-fast; }
+.theme-card:hover .tp-dot { transform: scale(1.15); }
 .theme-name { font-size: $font-size-xs; color: $color-text-regular; text-transform: capitalize; }
 
 .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: $spacing-sm; }
@@ -231,9 +363,9 @@ const themes = {
 .color-text { flex: 1; background: $color-bg-input; border: 1px solid $color-border; border-radius: $border-radius-sm; color: $color-text-primary; font-family: $font-family-mono; font-size: $font-size-xs; padding: 2px 6px; outline: none; &:focus { border-color: $color-primary; } }
 
 .lang-grid { display: flex; gap: $spacing-md; flex-wrap: wrap; }
-.lang-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-fast; min-width: 80px;
-  &:hover { border-color: $color-primary; }
-  &.active { border-color: $color-primary; background-color: $color-bg-active; }
+.lang-card { display: flex; flex-direction: column; align-items: center; gap: $spacing-xs; padding: $spacing-md; border: 1px solid $color-border; border-radius: $border-radius-md; cursor: pointer; background: $color-bg-surface; transition: all $transition-normal; min-width: 80px;
+  &:hover { border-color: $color-primary; transform: translateY(-3px); box-shadow: $elevation-2; }
+  &.active { border-color: $color-primary; background-color: $color-bg-active; box-shadow: $glow-primary; }
 }
 .lang-flag { font-size: 20px; font-weight: 700; color: $color-text-primary; }
 .lang-name { font-size: $font-size-xs; color: $color-text-regular; }
@@ -261,4 +393,20 @@ const themes = {
 .hl-rule-name { font-size: $font-size-sm; font-weight: 500; color: $color-text-primary; min-width: 120px; flex-shrink: 0; }
 .hl-rule-preview { font-size: 11px; color: $color-text-placeholder; font-family: $font-family-mono; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .hl-rule-tag { font-size: 9px; padding: 0 4px; border-radius: 2px; color: $color-text-muted; background: $color-bg-input; letter-spacing: 0.3px; flex-shrink: 0; }
+
+// ── Terminal / Behavior option rows ──
+.opt-row { display: flex; align-items: center; gap: $spacing-md; padding: 7px 0; min-height: 32px; }
+.opt-label { font-size: $font-size-sm; color: $color-text-regular; width: 130px; flex-shrink: 0; }
+.opt-slider { flex: 1; max-width: 240px; }
+.opt-val { font-size: $font-size-sm; font-family: $font-family-mono; color: $color-primary; width: 44px; }
+.opt-select { width: 220px; }
+.opt-btns { display: flex; background: $color-bg-input; border-radius: $border-radius-sm; padding: 2px; }
+.opt-btn {
+  padding: 4px 14px; border: none; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: $font-size-xs; color: $color-text-secondary; border-radius: $border-radius-sm - 1px; transition: all $transition-fast;
+  &:hover { color: $color-text-primary; }
+  &.active { background: $gradient-primary; color: #fff; }
+}
+.data-hint { font-size: $font-size-xs; color: $color-text-placeholder; margin-bottom: $spacing-sm; }
+.data-actions { display: flex; gap: $spacing-sm; }
 </style>

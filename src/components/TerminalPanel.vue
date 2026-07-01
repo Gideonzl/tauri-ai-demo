@@ -46,6 +46,7 @@ import type { Ref } from 'vue'
 import { CopyDocument, DocumentCopy, Select, Delete, Sunny } from '@element-plus/icons-vue'
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
+import { useTerminalSettingsStore } from '@/stores/terminalSettings'
 import { XTermFrontend } from '@/frontends/XTermFrontend'
 import { BaseSession } from '@/sessions/BaseSession'
 import { SSHShellSession } from '@/sessions/SSHShellSession'
@@ -62,14 +63,24 @@ const props = defineProps<{ session?: any }>()
 const emit = defineEmits<{ cwdChange: [path: string] }>()
 const sshStore = useSshStore()
 const configStore = useConfigStore()
+const termSettings = useTerminalSettingsStore()
 
 // ── Quick command injection (from parent WorkspaceView) ──
+// Route through frontend.input$ so it's echoed AND recorded to history (like typing).
 const qc = inject<Ref<string>>('quickCommandToExecute', ref(''))
 watch(qc, (v) => {
-  if (v?.trim() && session) {
-    session.sendInput(v.trim() + '\r')
+  if (v?.trim() && frontend) {
+    frontend.input$.next(v.trim() + '\r')
     nextTick(() => { (qc as any).value = '' })
   }
+})
+
+// ── Cross-view command injection (from History / other views via store) ──
+// Only the active session's panel runs it; routed through input$ so it records to history.
+watch(() => sshStore.injectCommandSeq, () => {
+  if (props.session?.id !== sshStore.activeSessionId) return
+  const cmd = sshStore.injectedCommand
+  if (cmd?.trim() && frontend) frontend.input$.next(cmd.trim() + '\r')
 })
 
 // ── Template refs ──
@@ -251,8 +262,14 @@ onMounted(() => {
     frontend = new XTermFrontend()
     frontend.open(tbr.value)
     frontend.updateTheme() // Apply current theme to terminal
+    frontend.applySettings({ ...termSettings.settings }) // Apply user terminal prefs
     createSession()
   })
+})
+
+// Re-apply terminal settings live when user changes them
+watch(() => termSettings.version, () => {
+  frontend?.applySettings({ ...termSettings.settings })
 })
 
 /**

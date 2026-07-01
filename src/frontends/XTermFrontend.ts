@@ -105,6 +105,47 @@ export class XTermFrontend {
     })
   }
 
+  // ── Settings (font / cursor / scrollback / copy-on-select) ──
+
+  private copyOnSelect = false
+  private selectionDisposable: { dispose: () => void } | null = null
+
+  /** Apply user terminal settings live (called on mount + on settings change) */
+  applySettings(opts: {
+    fontSize?: number
+    fontFamily?: string
+    cursorStyle?: 'bar' | 'block' | 'underline'
+    cursorBlink?: boolean
+    scrollback?: number
+    copyOnSelect?: boolean
+  }): void {
+    const o = this.terminal.options
+    if (opts.fontSize != null) o.fontSize = opts.fontSize
+    if (opts.fontFamily != null) o.fontFamily = opts.fontFamily
+    if (opts.cursorStyle != null) o.cursorStyle = opts.cursorStyle
+    if (opts.cursorBlink != null) o.cursorBlink = opts.cursorBlink
+    if (opts.scrollback != null) o.scrollback = opts.scrollback
+
+    // copy-on-select
+    if (opts.copyOnSelect != null && opts.copyOnSelect !== this.copyOnSelect) {
+      this.copyOnSelect = opts.copyOnSelect
+      this.selectionDisposable?.dispose()
+      this.selectionDisposable = null
+      if (this.copyOnSelect) {
+        this.selectionDisposable = this.terminal.onSelectionChange(() => {
+          const sel = this.terminal.getSelection()
+          if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+        })
+      }
+    }
+
+    // Font change requires a refit
+    if (opts.fontSize != null || opts.fontFamily != null) {
+      try { this.fitAddon.fit() } catch {}
+      this.resize$.next({ rows: this.terminal.rows, cols: this.terminal.cols })
+    }
+  }
+
   // ── Lifecycle ──
 
   /** Mount the terminal into a DOM element */
@@ -130,6 +171,8 @@ export class XTermFrontend {
   dispose(): void {
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
+    this.selectionDisposable?.dispose()
+    this.selectionDisposable = null
     this.terminal.dispose()
     this.input$.complete()
     this.resize$.complete()

@@ -28,6 +28,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/CommandHistoryView.vue'),
       },
       {
+        path: 'ops',
+        name: 'Ops',
+        component: () => import('@/views/OpsView.vue'),
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingsView.vue'),

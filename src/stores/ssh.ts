@@ -21,6 +21,12 @@ export const useSshStore = defineStore('ssh', () => {
   const activeFileIndex = ref(-1)
   const ptyRequestCount = ref(0) // counter incremented when PTY shell should be opened
 
+  // Cross-view command injection — history/other views push a command that the
+  // active TerminalPanel (kept alive) picks up and runs.
+  const injectedCommand = ref('')
+  const injectCommandSeq = ref(0)
+  function runInTerminal(cmd: string) { injectedCommand.value = cmd; injectCommandSeq.value++ }
+
   const activeSession = computed<SshSession | null>(() => sessions.value.find(s => s.id === activeSessionId.value) || null)
 
   const filteredServers = computed<SshServer[]>(() => {
@@ -60,5 +66,5 @@ export const useSshStore = defineStore('ssh', () => {
   function saveToStorage() { try { const d = localStorage; d.setItem(STORAGE_KEYS.servers, JSON.stringify(servers.value)); d.setItem(STORAGE_KEYS.groups, JSON.stringify(groups.value)); d.setItem(STORAGE_KEYS.quickCommands, JSON.stringify(quickCommands.value)) } catch (e) { console.error(e) } }
   function loadFromStorage() { try { const d = localStorage; const sr = d.getItem(STORAGE_KEYS.servers); if (sr) servers.value = JSON.parse(sr); const gr = d.getItem(STORAGE_KEYS.groups); if (gr) groups.value = JSON.parse(gr); const qr = d.getItem(STORAGE_KEYS.quickCommands); if (qr) quickCommands.value = JSON.parse(qr) } catch (e) { console.error(e) } }
   function init() { loadFromStorage(); const demoIds = new Set(['Web Server', 'DB Server', 'Dev Server', 'Staging', 'Monitor']); const hasDemo = servers.value.some(s => demoIds.has(s.name)); if (hasDemo) { servers.value = servers.value.filter(s => !demoIds.has(s.name)); groups.value = []; servers.value.forEach(s => { if (s.group && !groups.value.find(g => g.name === s.group)) groups.value.push({ id: genId(), name: s.group }) }); saveToStorage() } }
-  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, init }
+  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, injectedCommand, injectCommandSeq, runInTerminal, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, init }
 })

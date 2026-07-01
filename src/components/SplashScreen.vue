@@ -61,8 +61,8 @@ onMounted(() => {
   height: 80px;
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  animation: splash-pop 0.5s ease;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), $glow-primary;
+  animation: splash-pop 0.5s ease, splash-breathe 2.4s ease-in-out infinite 0.5s;
 }
 
 .splash-img {
@@ -107,6 +107,11 @@ onMounted(() => {
   0% { transform: scale(0.7); opacity: 0; }
   60% { transform: scale(1.05); }
   100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes splash-breathe {
+  0%, 100% { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 12px var(--glow-c, rgba(91,141,239,0.25)); }
+  50% { box-shadow: 0 4px 28px rgba(0, 0, 0, 0.35), 0 0 22px var(--glow-c, rgba(91,141,239,0.5)); }
 }
 
 @keyframes splash-load {

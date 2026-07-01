@@ -143,6 +143,18 @@ interface ThemeDef {
 }
 
 const THEME_DEFS: Record<string, ThemeDef> = {
+  'tech': {
+    primary: '#3b82f6',
+    bg: '#0a0e17',
+    surface: '#141b2b',
+    text: '#e6edf7',
+    textSecondary: '#8b99b4',
+    syntax: {
+      keyword: '#60a5fa', string_: '#4ade80', number: '#fbbf24', comment: '#5a6785',
+      key: '#38bdf8', section: '#a78bfa', error: '#f87171', warning: '#fbbf24',
+      info: '#38bdf8', variable: '#f472b6',
+    },
+  },
   'termius-dark': {
     primary: '#6b9dff',
     bg: '#0d0d1a',
@@ -344,6 +356,20 @@ function buildPalette(def: ThemeDef): Record<string, string> {
   const borderLight = isLight ? rgba('#000000', 0.06) : rgba(text, 0.05)
   const borderFocus = primary
 
+  // ── Modern aesthetic: glass / glow / gradient / elevation ──
+  const glassBg = isLight ? rgba('#ffffff', 0.72) : rgba(surface, 0.55)
+  const glassBorder = isLight ? rgba('#000000', 0.08) : rgba('#ffffff', 0.10)
+  const glowPrimary = `0 0 16px ${rgba(primary, isLight ? 0.22 : 0.38)}`
+  const glowSoft = `0 0 10px ${rgba(primary, 0.18)}`
+  const gradPrimary = `linear-gradient(135deg, ${primary}, ${lighten(primary, 0.18)})`
+  const gradApp = isLight
+    ? `linear-gradient(160deg, ${bg}, ${lerpColor(bg, primary, 0.05)})`
+    : `linear-gradient(160deg, ${lerpColor(bg, primary, 0.04)}, ${bg} 55%, ${lerpColor(bg, surface, 0.5)})`
+  const gradSurface = `linear-gradient(180deg, ${lighten(surface, 0.03)}, ${surface})`
+  const elev1 = isLight ? '0 1px 3px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.45)'
+  const elev2 = isLight ? '0 4px 14px rgba(0,0,0,0.10)' : '0 4px 16px rgba(0,0,0,0.5)'
+  const elev3 = isLight ? '0 10px 30px rgba(0,0,0,0.14)' : '0 12px 34px rgba(0,0,0,0.6)'
+
   return {
     '--color-primary': primary,
     '--color-primary-light': lighten(primary, 0.12),
@@ -373,6 +399,18 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--color-border': border,
     '--color-border-light': borderLight,
     '--color-border-focus': borderFocus,
+
+    // Modern aesthetic tokens
+    '--glass-bg': glassBg,
+    '--glass-border': glassBorder,
+    '--glow-primary': glowPrimary,
+    '--glow-soft': glowSoft,
+    '--gradient-primary': gradPrimary,
+    '--gradient-app': gradApp,
+    '--gradient-surface': gradSurface,
+    '--elevation-1': elev1,
+    '--elevation-2': elev2,
+    '--elevation-3': elev3,
 
     // Syntax highlighting colors
     '--syntax-keyword': def.syntax.keyword,

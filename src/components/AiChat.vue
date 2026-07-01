@@ -830,9 +830,11 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 
 .message-body {
   padding: $spacing-sm $spacing-md;
-  border-radius: $border-radius-sm;
+  border-radius: $border-radius-md;
+  border: 1px solid $color-border-light;
+  box-shadow: $elevation-1;
   font-size: $font-size-sm;
-  line-height: 1.55;
+  line-height: 1.62;
   color: $color-text-primary;
 }
 
