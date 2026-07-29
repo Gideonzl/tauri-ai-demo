@@ -73,9 +73,19 @@ export class SSHShellSession extends BaseSession {
     // 2) Now open PTY shell — listeners will capture initial MOTD + prompt
     //    Tabby equivalent: channel.shell() after stream setup
     console.log('[SSHShellSession] calling sshOpenShell...')
-    await sshOpenShell(this.sessionId, this.cols, this.rows)
-    console.log('[SSHShellSession] sshOpenShell succeeded')
-    this.markStarted()
+    try {
+      await sshOpenShell(this.sessionId, this.cols, this.rows)
+      console.log('[SSHShellSession] sshOpenShell succeeded')
+      this.markStarted()
+    } catch (error) {
+      // The listener setup precedes shell creation to avoid losing the prompt;
+      // undo it when the request fails so a later retry does not duplicate output.
+      this.unlistenData?.()
+      this.unlistenStatus?.()
+      this.unlistenData = null
+      this.unlistenStatus = null
+      throw error
+    }
   }
 
   // ── I/O ──

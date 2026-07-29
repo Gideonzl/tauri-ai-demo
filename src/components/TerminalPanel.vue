@@ -164,18 +164,64 @@ function recordCommand(data: string) {
 let frontend: XTermFrontend | null = null
 let session: BaseSession | null = null
 let subs: ReturnType<typeof Subject.combine> | null = null
+let ptyRetryTimer: ReturnType<typeof window.setTimeout> | null = null
+let ptyRetryAttempts = 0
+const MAX_PTY_RETRY_ATTEMPTS = 1
 
-// ── Display state (watch Pinia store, NOT props — props are shallow reactive) ──
+function formatPtyError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  if (error && typeof error === 'object') {
+    const detail = error as { message?: unknown; source?: unknown; error_code?: unknown }
+    const message = typeof detail.message === 'string' ? detail.message : ''
+    const source = typeof detail.source === 'string' ? detail.source : ''
+    const code = detail.error_code === undefined ? '' : ` [${String(detail.error_code)}]`
+    if (message || source) return `${message}${source ? ` (${source})` : ''}${code}`.trim()
+    try { return JSON.stringify(error) } catch { return 'Unknown PTY error' }
+  }
+  return String(error || 'Unknown PTY error')
+}
+
+// ── Display state — always bind this panel to its own session ──
 const srvName = computed(() => {
-  const sid = sshStore.activeSession?.serverId
+  const sid = props.session?.serverId
   if (sid) {
     const s = sshStore.servers.find((x: any) => x.id === sid)
     if (s) return s.host || s.name || 'demo'
   }
   return 'demo'
 })
-const isReal = computed(() => !!sshStore.activeSession?.realSessionId)
-const status = computed(() => sshStore.activeSession?.status || '')
+const isReal = computed(() => !!props.session?.realSessionId)
+const status = computed(() => props.session?.status || '')
+const isPanelActive = computed(() => props.session?.id === sshStore.activeSessionId)
+
+function wireSessionStreams(activeSession: BaseSession): void {
+  if (!frontend) return
+
+  // Subscribe before a real shell is opened. A server can send its MOTD and
+  // prompt immediately after accepting the shell request; wiring afterwards
+  // loses that first output because Subject intentionally does not replay it.
+  subs = Subject.combine(
+    frontend.input$.subscribe((data: string) => {
+      activeSession.sendInput(data)
+      // Record commands for history (extract lines ending with \r)
+      recordCommand(data)
+    }),
+
+    activeSession.output$.subscribe((data: string) => {
+      frontend!.write(data)
+    }),
+
+    frontend.resize$.subscribe(({ rows, cols }: { rows: number; cols: number }) => {
+      activeSession.resize(rows, cols)
+    })
+  )
+
+  // Cleanup when the session destroys itself (e.g., server disconnect).
+  activeSession.destroyed$.subscribe(() => {
+    subs?.unsubscribe()
+    subs = null
+  })
+}
 
 // ── Session factory ──
 async function createSession(): Promise<void> {
@@ -187,23 +233,43 @@ async function createSession(): Promise<void> {
 
   if (!frontend) return
 
-  if (isReal.value && sshStore.activeSession?.realSessionId) {
+  if (isPanelActive.value && isReal.value && props.session?.realSessionId) {
     // ── Real SSH PTY shell (Tabby: SSHShellSession) ──
     const s = new SSHShellSession(
-      sshStore.activeSession.realSessionId,
+      props.session.realSessionId,
       srvName.value,
       frontend.cols,
       frontend.rows
     )
+    session = s
+    wireSessionStreams(s)
     try {
       await s.start()
-      session = s
+      ptyRetryAttempts = 0
       frontend.writeln('\x1b[1;32m● PTY shell connected\x1b[0m')
+      // A carriage return is harmless when a prompt is already visible and
+      // asks shells that suppress their first prompt to render one now.
+      s.sendInput('\r')
     } catch (e) {
       console.error('[TerminalPanel] PTY shell open failed:', e)
-      frontend.writeln(`\x1b[1;33m● PTY failed: ${e}\x1b[0m`)
-      session = new DemoSession(srvName.value)
-      await session.start()
+      // A real SSH session must never silently fall back to the local demo shell:
+      // that could make remote commands look as if they ran successfully.
+      subs?.unsubscribe()
+      subs = null
+      s.destroy()
+      frontend.writeln(`\x1b[1;31m● PTY unavailable: ${formatPtyError(e)}\x1b[0m`)
+      session = null
+
+      if (ptyRetryAttempts < MAX_PTY_RETRY_ATTEMPTS && isPanelActive.value && props.session?.realSessionId) {
+        ptyRetryAttempts += 1
+        frontend.writeln('\x1b[2m  Retrying interactive shell automatically…\x1b[0m')
+        ptyRetryTimer = window.setTimeout(() => {
+          ptyRetryTimer = null
+          if (frontend && isPanelActive.value && isReal.value && !session) void createSession()
+        }, 800)
+      } else {
+        frontend.writeln('\x1b[2m  The SSH server rejected the PTY shell; reconnecting will try again.\x1b[0m')
+      }
     }
   } else {
     // ── Demo/offline terminal (Tabby: LocalTerminalSession) ──
@@ -220,37 +286,9 @@ async function createSession(): Promise<void> {
     frontend.writeln('')
 
     // Emit initial prompt after banner
+    wireSessionStreams(session)
     session.sendInput('\r')
   }
-
-  if (!session) return
-
-  // ── Wire streams (Tabby's BaseTerminalTabComponent.connectStreams) ──
-  // input$:  frontend (xterm.onData) → session.sendInput
-  // output$: session.emitOutput      → frontend.write
-  // resize$: frontend (ResizeObserver) → session.resize
-
-  subs = Subject.combine(
-    frontend.input$.subscribe((data: string) => {
-      session!.sendInput(data)
-      // Record commands for history (extract lines ending with \r)
-      recordCommand(data)
-    }),
-
-    session.output$.subscribe((data: string) => {
-      frontend!.write(data)
-    }),
-
-    frontend.resize$.subscribe(({ rows, cols }: { rows: number; cols: number }) => {
-      session!.resize(rows, cols)
-    })
-  )
-
-  // Cleanup when session destroys itself (e.g., server disconnect)
-  session.destroyed$.subscribe(() => {
-    subs?.unsubscribe()
-    subs = null
-  })
 }
 
 // ── Lifecycle ──
@@ -285,10 +323,15 @@ watch(() => termSettings.version, () => {
 watch(
   () => sshStore.ptyRequestCount,
   (count) => {
-    console.log('[TerminalPanel] ptyRequestCount watcher, count:', count, 'frontend:', !!frontend, 'sessionIsSSH:', session instanceof SSHShellSession, 'realSessionId:', sshStore.activeSession?.realSessionId, 'isReal:', isReal.value)
-    const rsid = sshStore.activeSession?.realSessionId
-    if (count > 0 && frontend && rsid && !(session instanceof SSHShellSession)) {
+    console.log('[TerminalPanel] ptyRequestCount watcher, count:', count, 'frontend:', !!frontend, 'sessionIsSSH:', session instanceof SSHShellSession, 'realSessionId:', props.session?.realSessionId, 'isReal:', isReal.value)
+    const rsid = props.session?.realSessionId
+    if (count > 0 && frontend && isPanelActive.value && rsid && !(session instanceof SSHShellSession)) {
       console.log('[TerminalPanel] → creating PTY shell for realSessionId:', rsid)
+      ptyRetryAttempts = 0
+      if (ptyRetryTimer) {
+        window.clearTimeout(ptyRetryTimer)
+        ptyRetryTimer = null
+      }
       frontend.writeln('\r\n\x1b[1;36m● Opening PTY shell...\x1b[0m')
       createSession()
     }
@@ -296,15 +339,14 @@ watch(
   { immediate: true }
 )
 
-// Watch the Pinia store directly for status changes (error / disconnect).
-// Same reason as above: Vue prop shallow reactivity breaks on nested mutations.
+// Watch this panel's own session state so background tabs cannot affect it.
 watch(
-  () => sshStore.activeSession?.status,
+  () => props.session?.status,
   (st) => {
     console.log('[TerminalPanel] status watcher fired, status:', st)
     if (!frontend) return
     if (st === 'error') {
-      const errMsg = sshStore.activeSession?.error || 'Unknown error'
+      const errMsg = props.session?.error || 'Unknown error'
       frontend.clear()
       frontend.writeln('\x1b[1;31m══════════════════════════════════════════\x1b[0m')
       frontend.writeln('\x1b[1;31m  SSH Connection Failed\x1b[0m')
@@ -326,6 +368,8 @@ watch(() => configStore.colorScheme, () => {
 })
 
 onUnmounted(() => {
+  if (ptyRetryTimer) window.clearTimeout(ptyRetryTimer)
+  ptyRetryTimer = null
   unregister(hideTermMenu)
   document.removeEventListener('click', hideTermMenu)
   subs?.unsubscribe()
