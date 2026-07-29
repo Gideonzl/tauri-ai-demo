@@ -46,11 +46,15 @@
           v-for="runbook in batchRunbooks"
           :key="runbook.id"
           class="bp-runbook-chip"
-          :title="t(runbook.descriptionKey)"
+          :title="runbookDescription(runbook)"
           @click="applyRunbook(runbook)"
         >
-          {{ t(runbook.titleKey) }}
+          <span>{{ runbookLabel(runbook) }}</span>
+          <span v-if="runbook.source === 'custom'" class="bp-runbook-delete" @click.stop="removeCustomRunbook(runbook.id)">×</span>
         </button>
+        <el-button size="small" text @click="saveCurrentAsRunbook" :disabled="!command.trim()">
+          {{ t('ops.runbookSaveCurrent') }}
+        </el-button>
       </div>
 
       <div class="bp-results" v-if="results.length">
@@ -101,6 +105,7 @@ import { useSshStore, type SshServer } from '@/stores/ssh'
 import { useInspectionStore } from '@/stores/inspection'
 import { useOpsAgentStore } from '@/stores/opsAgent'
 import { useOrchestrationStore } from '@/stores/orchestration'
+import { useRunbookStore } from '@/stores/runbooks'
 import { useLocale } from '@/composables/useLocale'
 import {
   createCommandTask,
@@ -109,13 +114,14 @@ import {
   summarizeOrchestration,
   type OrchestrationTargetInput,
 } from '@/utils/ops-orchestration'
-import { getBatchRunbooks, type OpsRunbook } from '@/utils/ops-runbooks'
+import { type CreateCustomRunbookInput, type OpsRunbook } from '@/utils/ops-runbooks'
 import OrchestrationTaskCard from '@/components/OrchestrationTaskCard.vue'
 
 const sshStore = useSshStore()
 const inspection = useInspectionStore()
 const opsAgentStore = useOpsAgentStore()
 const orchestrationStore = useOrchestrationStore()
+const runbookStore = useRunbookStore()
 const { t } = useLocale()
 
 const selected = reactive(new Set<string>())
@@ -125,7 +131,7 @@ const running = ref(false)
 const concurrency = ref(2)
 const stopOnChangeFailure = ref(true)
 const orchestrationSummary = computed(() => orchestrationStore.currentTask ? summarizeOrchestration(orchestrationStore.currentTask) : '')
-const batchRunbooks = computed(() => getBatchRunbooks())
+const batchRunbooks = computed(() => runbookStore.batchRunbooks)
 
 interface BatchResult {
   serverId: string; serverName: string
@@ -162,7 +168,64 @@ function applyRunbook(runbook: OpsRunbook) {
   command.value = runbook.command
   concurrency.value = Math.max(1, Math.min(runbook.recommendedConcurrency, Math.max(1, selected.size || sshStore.servers.length || 1)))
   stopOnChangeFailure.value = true
-  ElMessage.success(t('ops.runbookApplied', { name: t(runbook.titleKey) }))
+  ElMessage.success(t('ops.runbookApplied', { name: runbookLabel(runbook) }))
+}
+
+function runbookLabel(runbook: OpsRunbook): string {
+  return runbook.title || (runbook.titleKey ? t(runbook.titleKey) : runbook.id)
+}
+
+function runbookDescription(runbook: OpsRunbook): string {
+  return runbook.description || (runbook.descriptionKey ? t(runbook.descriptionKey) : '')
+}
+
+async function saveCurrentAsRunbook() {
+  const commandText = command.value.trim()
+  if (!commandText) {
+    ElMessage.warning(t('ops.runbookEmptyCommand'))
+    return
+  }
+
+  try {
+    const prompt = await ElMessageBox.prompt(
+      t('ops.runbookNamePrompt'),
+      t('ops.runbookSaveCurrent'),
+      {
+        inputValue: commandText.slice(0, 24),
+        inputPlaceholder: t('ops.runbookNamePlaceholder'),
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
+    const input: CreateCustomRunbookInput = {
+      title: prompt.value,
+      description: t('ops.runbookCustomDesc'),
+      command: commandText,
+      recommendedConcurrency: concurrency.value,
+    }
+    const result = runbookStore.addCustomRunbook(input)
+    if (!result.ok) {
+      ElMessage.warning(t('ops.runbookSaveFailed'))
+      return
+    }
+    ElMessage.success(t('ops.runbookSaved'))
+  } catch {
+    // user cancelled
+  }
+}
+
+async function removeCustomRunbook(id: string) {
+  try {
+    await ElMessageBox.confirm(t('ops.runbookDeleteConfirm'), t('common.confirm'), {
+      type: 'warning',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+    })
+    runbookStore.removeCustomRunbook(id)
+    ElMessage.success(t('ops.runbookDeleted'))
+  } catch {
+    // user cancelled
+  }
 }
 
 /** 取得可用 sessionId：已连接则复用，否则临时连接。返回 {id, transient} */
@@ -408,7 +471,13 @@ function copyAll() {
 .bp-runbook-chip {
   border: 1px solid $color-border-light; background: $color-bg-input; color: $color-text-secondary;
   border-radius: 999px; padding: 3px 9px; font-size: $font-size-xs; cursor: pointer; transition: all $transition-fast;
+  display: inline-flex; align-items: center; gap: 6px;
   &:hover { color: $color-primary; border-color: $color-primary; background: $color-bg-hover; }
+}
+.bp-runbook-delete {
+  display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+  border-radius: 50%; font-size: 12px; line-height: 1; color: $color-text-placeholder;
+  &:hover { color: $color-danger; background: $color-bg-danger-hover; }
 }
 
 .bp-results { flex: 1; overflow-y: auto; padding: $spacing-md; min-height: 0; }

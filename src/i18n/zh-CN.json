@@ -167,7 +167,16 @@
     "runbookProcessPressurePrompt": "请基于当前服务器的进程诊断输出，找出最可能导致资源压力的进程，并给出安全处理建议。",
     "runbookLoginSecurity": "登录安全快照",
     "runbookLoginSecurityDesc": "查看当前登录、近期登录和失败登录，适合安全巡查",
-    "runbookLoginSecurityPrompt": "请基于当前服务器的登录安全诊断输出，判断是否存在异常登录、暴力尝试或需要进一步核查的账号行为。"
+    "runbookLoginSecurityPrompt": "请基于当前服务器的登录安全诊断输出，判断是否存在异常登录、暴力尝试或需要进一步核查的账号行为。",
+    "runbookSaveCurrent": "保存当前命令",
+    "runbookNamePrompt": "给这个安全剧本起个名字",
+    "runbookNamePlaceholder": "如：查看 Docker 状态",
+    "runbookCustomDesc": "用户保存的只读安全命令",
+    "runbookEmptyCommand": "请先输入要保存的命令",
+    "runbookSaveFailed": "保存失败，请确认命令为只读安全命令",
+    "runbookSaved": "自定义剧本已保存",
+    "runbookDeleteConfirm": "确认删除这个自定义剧本？",
+    "runbookDeleted": "自定义剧本已删除"
   },
   "ai": {
     "title": "AI 助手",

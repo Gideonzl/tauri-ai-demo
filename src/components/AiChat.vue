@@ -382,7 +382,7 @@ const quickAnalyses = computed(() => [
   { id: 'security', label: t('quickAnalysis.security'), prompt: t('quickAnalysis.securityPrompt'), diagnosticGroupId: 'security' },
   ...getAiRunbookPrompts().map(runbook => ({
     id: `runbook-${runbook.id}`,
-    label: t(runbook.titleKey),
+    label: t(runbook.titleKey || ''),
     prompt: t(runbook.promptKey || ''),
     diagnosticGroupId: diagnosticGroupForRunbook(runbook),
   })),

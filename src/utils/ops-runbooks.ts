@@ -2,20 +2,38 @@ import { classifyCommand, type CommandRisk } from '@/utils/ops-permission'
 
 export type OpsRunbookCategory = 'system' | 'disk' | 'network' | 'process' | 'security'
 export type OpsRunbookSurface = 'batch' | 'ai'
+export type OpsRunbookSource = 'builtin' | 'custom'
 
 export interface OpsRunbook {
   id: string
   category: OpsRunbookCategory
   surfaces: OpsRunbookSurface[]
-  titleKey: string
-  descriptionKey: string
+  source: OpsRunbookSource
+  titleKey?: string
+  descriptionKey?: string
+  title?: string
+  description?: string
   command?: string
   promptKey?: string
   recommendedConcurrency: number
   risk: CommandRisk
+  createdAt?: number
 }
 
-const RUNBOOK_DEFINITIONS: Array<Omit<OpsRunbook, 'risk'>> = [
+export interface CreateCustomRunbookInput {
+  title: string
+  description?: string
+  command: string
+  recommendedConcurrency?: number
+}
+
+export interface CustomRunbookValidationResult {
+  valid: boolean
+  errors: string[]
+  runbook?: OpsRunbook
+}
+
+const RUNBOOK_DEFINITIONS: Array<Omit<OpsRunbook, 'risk' | 'source'>> = [
   {
     id: 'fleet-health',
     category: 'system',
@@ -70,6 +88,7 @@ const RUNBOOK_DEFINITIONS: Array<Omit<OpsRunbook, 'risk'>> = [
 
 export const OPS_RUNBOOKS: OpsRunbook[] = RUNBOOK_DEFINITIONS.map((runbook) => ({
   ...runbook,
+  source: 'builtin',
   risk: runbook.command ? classifyCommand(runbook.command).risk : 'read_only',
 }))
 
@@ -87,4 +106,47 @@ export function getRunbookById(id: string): OpsRunbook | undefined {
 
 export function isSafeBatchRunbook(runbook: OpsRunbook): boolean {
   return Boolean(runbook.command) && classifyCommand(runbook.command || '').risk === 'read_only'
+}
+
+function createId(): string {
+  return `custom-runbook-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function clampConcurrency(value: number | undefined): number {
+  const raw = Number.isFinite(value) ? Number(value) : 2
+  return Math.max(1, Math.min(Math.floor(raw), 10))
+}
+
+export function createCustomRunbook(input: CreateCustomRunbookInput): CustomRunbookValidationResult {
+  const title = input.title.trim().slice(0, 40)
+  const command = input.command.trim()
+  const description = (input.description || '').trim().slice(0, 120)
+  const errors: string[] = []
+
+  if (!title) errors.push('title is required')
+  if (!command) errors.push('command is required')
+
+  const classification = classifyCommand(command)
+  if (classification.risk !== 'read_only') {
+    errors.push(`custom runbook command must be read-only: ${classification.reason}`)
+  }
+
+  if (errors.length > 0) return { valid: false, errors }
+
+  return {
+    valid: true,
+    errors: [],
+    runbook: {
+      id: createId(),
+      source: 'custom',
+      category: 'system',
+      surfaces: ['batch'],
+      title,
+      description,
+      command,
+      recommendedConcurrency: clampConcurrency(input.recommendedConcurrency),
+      risk: classification.risk,
+      createdAt: Date.now(),
+    },
+  }
 }

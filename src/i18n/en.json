@@ -167,7 +167,16 @@
     "runbookProcessPressurePrompt": "Analyze the current process diagnostics. Identify likely resource-pressure processes and suggest safe handling steps.",
     "runbookLoginSecurity": "Login Security Snapshot",
     "runbookLoginSecurityDesc": "Review current, recent, and failed logins for security checks",
-    "runbookLoginSecurityPrompt": "Analyze the current login security diagnostics. Look for suspicious logins, brute-force attempts, or accounts that need follow-up."
+    "runbookLoginSecurityPrompt": "Analyze the current login security diagnostics. Look for suspicious logins, brute-force attempts, or accounts that need follow-up.",
+    "runbookSaveCurrent": "Save current command",
+    "runbookNamePrompt": "Name this safe runbook",
+    "runbookNamePlaceholder": "e.g. Check Docker status",
+    "runbookCustomDesc": "User-saved read-only command",
+    "runbookEmptyCommand": "Enter a command before saving",
+    "runbookSaveFailed": "Save failed. Make sure the command is read-only and safe.",
+    "runbookSaved": "Custom runbook saved",
+    "runbookDeleteConfirm": "Delete this custom runbook?",
+    "runbookDeleted": "Custom runbook deleted"
   },
   "ai": {
     "title": "AI Assistant",
