@@ -234,14 +234,14 @@ async function runOnServer() {
 .cp-modes { display: flex; gap: 3px; background: $color-bg-input; border: 1px solid $color-border-light; border-radius: 9px; padding: 3px; margin-left: auto; }
 .cp-mode { padding: 6px 12px; border: none; background: transparent; cursor: pointer; font-family: inherit; font-size: $font-size-xs; color: $color-text-secondary; border-radius: 6px; transition: all $transition-fast;
   &:hover { color: $color-text-primary; background: $color-bg-hover; }
-  &.active { background: $color-primary; color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .14); }
+  &.active { background: $color-primary; color: $color-text-primary; box-shadow: 0 2px 6px rgba(0, 0, 0, .14); }
 }
 .cp-kbd { font-size: 10px; font-family: $font-family-mono; color: $color-text-muted; background: $color-bg-input; padding: 3px 7px; border-radius: 4px; }
 .cp-close { cursor: pointer; color: $color-text-secondary; &:hover { color: $color-danger; } }
 
-.cp-body { display: flex; flex-direction: column; min-height: 0; padding: 16px 18px 18px; }
+.cp-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; padding: 16px 18px 18px; }
 .cp-composer { display: grid; grid-template-columns: auto 1fr; column-gap: 11px; padding: 13px 14px 10px; border: 1px solid $color-border; border-radius: 12px; background: $color-bg-input; transition: border-color $transition-fast, box-shadow $transition-fast;
-  &:focus-within { border-color: $color-primary; box-shadow: 0 0 0 3px rgba(64, 158, 255, .14); }
+  &:focus-within { border-color: $color-primary; box-shadow: 0 0 0 3px $color-bg-active; }
   &.running { opacity: .8; }
 }
 .cp-input-icon { color: $color-primary; margin-top: 4px; flex-shrink: 0; }
