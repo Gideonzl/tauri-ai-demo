@@ -9,6 +9,7 @@
     "test:agent-execution": "node scripts/verify-agent-execution.mjs",
     "test:ops-permissions": "node scripts/verify-ops-permissions.mjs",
     "test:ops-remediation": "node scripts/verify-ops-remediation.mjs",
+    "test:ops-orchestration": "node scripts/verify-ops-orchestration.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
