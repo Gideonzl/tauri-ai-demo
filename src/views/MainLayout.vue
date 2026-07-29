@@ -86,9 +86,19 @@
 
       v-if="!aiPanelCollapsed"
 
-      class="resize-bar"
+      class="resize-bar ai-resize-bar"
 
-      @mousedown="onAiPanelResizeStart"
+      :class="{ dragging: isAiPanelResizing }"
+
+      role="separator"
+
+      aria-orientation="vertical"
+
+      aria-label="Resize AI panel"
+
+      @pointerdown="onAiPanelResizeStart"
+
+      @dblclick="resetAiPanelWidth"
 
     />
 
@@ -146,6 +156,10 @@
 
           </div>
 
+          <button class="ai-panel-close" :title="t('common.close')" :aria-label="t('common.close')" @click="toggleAiPanel">
+            <el-icon :size="15"><Close /></el-icon>
+          </button>
+
         </template>
 
       </div>
@@ -186,7 +200,7 @@ import { useRouter } from 'vue-router'
 import { useConfigStore } from '@/stores/config'
 import { useLocale } from '@/composables/useLocale'
 
-import { DArrowLeft, DArrowRight, Refresh, MagicStick, Search, Setting } from '@element-plus/icons-vue'
+import { DArrowLeft, DArrowRight, Refresh, MagicStick, Search, Setting, Close } from '@element-plus/icons-vue'
 
 import SideNav from '@/components/SideNav.vue'
 
@@ -289,6 +303,8 @@ const aiPanelWidthBeforeCollapse = ref(AI_PANEL_DEFAULT)
 
 let resizing: 'sidebar' | 'ai-panel' | null = null
 
+const isAiPanelResizing = ref(false)
+
 let resizeStartX = 0
 
 let resizeStartWidth = 0
@@ -317,19 +333,23 @@ function onSidebarResizeStart(e: MouseEvent) {
 
 
 
-function onAiPanelResizeStart(e: MouseEvent) {
+function onAiPanelResizeStart(e: PointerEvent) {
 
   e.preventDefault()
 
   resizing = 'ai-panel'
 
+  isAiPanelResizing.value = true
+
   resizeStartX = e.clientX
 
   resizeStartWidth = aiPanelWidth.value
 
-  document.addEventListener('mousemove', onResizeMove)
+  ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
 
-  document.addEventListener('mouseup', onResizeEnd)
+  document.addEventListener('pointermove', onAiPanelResizeMove)
+
+  document.addEventListener('pointerup', onAiPanelResizeEnd)
 
   document.body.style.cursor = 'col-resize'
 
@@ -339,7 +359,7 @@ function onAiPanelResizeStart(e: MouseEvent) {
 
 
 
-function onResizeMove(e: MouseEvent) {
+function onResizeMove(e: Pick<MouseEvent, 'clientX'>) {
 
   if (!resizing) return
 
@@ -373,6 +393,21 @@ function onResizeEnd() {
 
   document.body.style.userSelect = ''
 
+}
+
+function onAiPanelResizeMove(e: PointerEvent) {
+  onResizeMove(e)
+}
+
+function onAiPanelResizeEnd() {
+  isAiPanelResizing.value = false
+  document.removeEventListener('pointermove', onAiPanelResizeMove)
+  document.removeEventListener('pointerup', onAiPanelResizeEnd)
+  onResizeEnd()
+}
+
+function resetAiPanelWidth() {
+  aiPanelWidth.value = AI_PANEL_DEFAULT
 }
 
 
@@ -410,6 +445,10 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', onResizeMove)
 
   document.removeEventListener('mouseup', onResizeEnd)
+
+  document.removeEventListener('pointermove', onAiPanelResizeMove)
+
+  document.removeEventListener('pointerup', onAiPanelResizeEnd)
 
 })
 
@@ -550,7 +589,7 @@ onUnmounted(() => {
 
 .resize-bar {
 
-  width: 5px;
+  width: 8px;
 
   height: 100%;
 
@@ -596,6 +635,29 @@ onUnmounted(() => {
 
   }
 
+}
+
+.ai-resize-bar {
+  width: 10px;
+  touch-action: none;
+  background: transparent;
+
+  &::after {
+    width: 2px;
+    border-radius: 999px;
+    background-color: $color-border;
+  }
+
+  &:hover,
+  &.dragging {
+    background: $color-bg-hover;
+
+    &::after {
+      width: 3px;
+      background-color: $color-primary;
+      box-shadow: $glow-soft;
+    }
+  }
 }
 
 
@@ -723,6 +785,23 @@ onUnmounted(() => {
 
   overflow: hidden;
 
+}
+
+.ai-panel-close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 7px;
+  color: $color-text-regular;
+  background: transparent;
+  cursor: pointer;
+  transition: color $transition-fast, background $transition-fast;
+
+  &:hover { color: $color-text-primary; background: $color-bg-hover; }
 }
 
 

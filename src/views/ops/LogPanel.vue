@@ -18,15 +18,15 @@
         {{ fetching ? t('ops.logFetching') : t('ops.logFetch') }}
       </el-button>
       <div class="lp-spacer" />
-      <el-button v-if="logText" size="small" type="primary" text :loading="aiRunning" @click="analyzeLog">
+      <el-button v-if="logText" class="lp-ai-analyze" size="small" type="primary" :loading="aiRunning" :disabled="aiRunning" @click="analyzeLog">
         <el-icon :size="13" v-if="!aiRunning"><ChatDotRound /></el-icon>
         {{ aiRunning ? t('ops.aiAnalyzing') : t('ops.logAnalyze') }}
       </el-button>
     </div>
 
-    <div class="lp-body">
+    <div ref="logBodyRef" class="lp-body">
       <!-- 日志内容 -->
-      <div class="lp-log" :class="{ narrow: aiText }">
+      <div class="lp-log" :class="{ narrow: showAiPanel }">
         <div v-if="!logText && !fetching" class="lp-empty">
           <el-icon :size="32"><Document /></el-icon>
           <p>{{ t('ops.logEmpty') }}</p>
@@ -37,8 +37,23 @@
       </div>
 
       <!-- AI 分析 -->
-      <div v-if="aiText || aiRunning" class="lp-ai">
-        <div class="lp-ai-head">{{ t('ops.aiReport') }}</div>
+      <div
+        v-if="showAiPanel"
+        class="lp-ai-resize"
+        :class="{ dragging: isAiResizing }"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize log analysis"
+        @pointerdown="onAiResizeStart"
+        @dblclick="resetAiWidth"
+      />
+      <div v-if="showAiPanel" class="lp-ai" :style="{ width: aiPanelWidth + 'px' }">
+        <div class="lp-ai-head">
+          <span>{{ t('ops.aiReport') }}</span>
+          <el-button class="lp-ai-close" size="small" text :title="t('common.close')" :aria-label="t('common.close')" @click="dismissAiReport">
+            <el-icon :size="15"><Close /></el-icon>
+          </el-button>
+        </div>
         <div class="lp-ai-body markdown-body" v-html="renderedAi"></div>
       </div>
     </div>
@@ -46,8 +61,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Download, ChatDotRound, Document } from '@element-plus/icons-vue'
+import { ref, computed, onUnmounted } from 'vue'
+import { Download, ChatDotRound, Document, Close } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sshExec } from '@/api/tauri'
 import { streamChat } from '@/utils/ai-chat'
@@ -78,9 +93,16 @@ const logText = ref('')
 
 const aiRunning = ref(false)
 const aiText = ref('')
+const aiReportDismissed = ref(false)
+const logBodyRef = ref<HTMLElement | null>(null)
+const aiPanelWidth = ref(360)
+const isAiResizing = ref(false)
+let aiResizeStartX = 0
+let aiResizeStartWidth = 360
 const renderedAi = computed(() => renderMarkdown(aiText.value))
+const showAiPanel = computed(() => !aiReportDismissed.value && (aiText.value.length > 0 || aiRunning.value))
 
-function onSourceChange() { logText.value = '' }
+function onSourceChange() { logText.value = ''; aiText.value = ''; aiReportDismissed.value = false }
 
 const ERROR_RE = /\b(error|fatal|critical|panic|denied|refused|exception|traceback|segfault|failed|failure)\b/i
 const WARN_RE = /\b(warn|warning|deprecated|timeout|retry|unable)\b/i
@@ -110,6 +132,7 @@ async function fetchLog() {
   if (sourceKey.value === 'custom' && !customPath.value.trim()) { ElMessage.warning(t('ops.logPathPlaceholder')); return }
   fetching.value = true
   aiText.value = ''
+  aiReportDismissed.value = false
   try {
     const out = await sshExec(props.sessionId, src.cmd(lines.value))
     logText.value = out.trim() || ''
@@ -127,6 +150,7 @@ async function analyzeLog() {
   if (!modelStore.defaultConfig) { ElMessage.warning(t('ai.pleaseConfig')); return }
   aiRunning.value = true
   aiText.value = ''
+  aiReportDismissed.value = false
   const prompt = `以下是服务器「${props.serverName}」的日志（最近 ${lines.value} 行）。请作为资深运维专家：\n1. 找出其中的错误、异常、告警；\n2. 定位可能的根因；\n3. 给出排查与修复建议。用简洁中文分点回答。\n\n\`\`\`log\n${logText.value.slice(0, 6000)}\n\`\`\``
   const agent = { id: 'ops-log', name: 'Log', description: '', systemPrompt: '你是一名资深 Linux 运维与故障排查专家，擅长从日志中定位问题根因。' }
   await streamChat(
@@ -141,6 +165,46 @@ async function analyzeLog() {
     'qa'
   )
 }
+
+function dismissAiReport() {
+  aiReportDismissed.value = true
+}
+
+function clampAiWidth(width: number) {
+  const bodyWidth = logBodyRef.value?.clientWidth ?? 900
+  const maxWidth = Math.max(260, Math.min(620, bodyWidth - 260))
+  return Math.max(260, Math.min(maxWidth, width))
+}
+
+function onAiResizeStart(e: PointerEvent) {
+  e.preventDefault()
+  aiResizeStartX = e.clientX
+  aiResizeStartWidth = aiPanelWidth.value
+  isAiResizing.value = true
+  ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  document.addEventListener('pointermove', onAiResizeMove)
+  document.addEventListener('pointerup', onAiResizeEnd)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onAiResizeMove(e: PointerEvent) {
+  aiPanelWidth.value = clampAiWidth(aiResizeStartWidth - (e.clientX - aiResizeStartX))
+}
+
+function onAiResizeEnd() {
+  isAiResizing.value = false
+  document.removeEventListener('pointermove', onAiResizeMove)
+  document.removeEventListener('pointerup', onAiResizeEnd)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+function resetAiWidth() {
+  aiPanelWidth.value = clampAiWidth(360)
+}
+
+onUnmounted(onAiResizeEnd)
 </script>
 
 <style lang="scss" scoped>
@@ -169,7 +233,17 @@ async function analyzeLog() {
   :deep(.hl-warn) { color: $color-warning; font-weight: 600; }
 }
 
-.lp-ai { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: $glass-bg; }
-.lp-ai-head { padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light; font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; flex-shrink: 0; }
+.lp-ai-resize { width: 10px; flex-shrink: 0; cursor: col-resize; touch-action: none; position: relative; z-index: 2;
+  &::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); border-radius: 999px; background: $color-border; }
+  &:hover, &.dragging { background: $color-bg-hover; &::after { width: 3px; background: $color-primary; box-shadow: $glow-soft; } }
+}
+.lp-ai { flex: 0 0 auto; min-width: 260px; max-width: min(620px, calc(100% - 270px)); display: flex; flex-direction: column; overflow: hidden; background: $glass-bg; }
+.lp-ai-head { display: flex; align-items: center; justify-content: space-between; padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light; font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; flex-shrink: 0; }
+.lp-ai-close { min-width: 26px; padding: 4px !important; color: $color-text-regular !important; &:hover { color: $color-text-primary !important; background: $color-bg-hover !important; } }
 .lp-ai-body { flex: 1; overflow-y: auto; padding: $spacing-md; font-size: $font-size-sm; line-height: 1.62; color: $color-text-primary; }
+.lp-ai-analyze { color: $color-on-primary !important; background: $gradient-primary !important; border-color: transparent !important;
+  &:hover, &:focus-visible, &.is-disabled, &.is-disabled:hover, &.is-disabled:focus { color: $color-on-primary !important; background: $gradient-primary !important; border-color: transparent !important; opacity: 1; }
+  &.is-loading::before { background-color: transparent !important; }
+  &.is-loading > span, &.is-loading > .el-icon { position: relative; z-index: 2; }
+}
 </style>
