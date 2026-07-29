@@ -888,6 +888,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   height: 100%;
   overflow: hidden;
   background: $shell-ai-bg;
+  container-type: inline-size;
 }
 
 // === Compact header ===
@@ -902,14 +903,14 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   background: transparent;
   flex-shrink: 0;
 }
-.assistant-identity { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.assistant-identity { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 0; }
 .assistant-avatar {
   width: 30px; height: 30px; border-radius: $border-radius-md;
   display: inline-flex; align-items: center; justify-content: center;
   color: $color-primary; background: $color-bg-active; flex-shrink: 0;
 }
-.assistant-copy { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
-.agent-select { width: 138px; }
+.assistant-copy { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; gap: 1px; overflow: hidden; }
+.agent-select { width: 100%; max-width: 138px; }
 .agent-select :deep(.el-select__wrapper),
 .agent-select :deep(.el-input__wrapper) {
   min-height: 20px !important;
@@ -919,7 +920,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 }
 .agent-select :deep(.el-select__selected-item),
 .agent-select :deep(.el-input__inner) { color: $color-text-primary !important; font-weight: 650; }
-.assistant-state { display: flex; align-items: center; gap: 4px; max-width: 170px; color: $color-text-placeholder; font-size: 10px; white-space: nowrap; overflow: hidden; }
+.assistant-state { display: flex; align-items: center; gap: 4px; max-width: 170px; color: $color-text-regular; font-size: 10px; white-space: nowrap; overflow: hidden; }
 .assistant-address { overflow: hidden; text-overflow: ellipsis; }
 .ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-success; flex-shrink: 0; }
 .ai-header-actions {
@@ -928,7 +929,13 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   gap: 2px;
   flex-shrink: 0;
 
-  .el-button { position: relative; &.active { color: $color-primary; } }
+  .el-button {
+    position: relative;
+    color: $color-text-regular !important;
+    opacity: 1;
+    &.active { color: $color-primary !important; }
+    &:hover { color: $color-primary !important; }
+  }
 }
 
 .history-count {
@@ -1197,6 +1204,19 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   background: transparent;
   box-shadow: none;
   flex-shrink: 0;
+}
+
+@container (max-width: 460px) {
+  .ai-header { gap: 4px; padding: 8px; }
+  .ai-header-actions { gap: 0; }
+  .ai-header-actions :deep(.el-button--small) { padding: 0 7px !important; }
+  .ai-header-actions :deep(.ops-permission-control .permission-label) { display: none; }
+}
+
+@container (max-width: 300px) {
+  .assistant-avatar { width: 28px; height: 28px; }
+  .agent-select { max-width: 94px; }
+  .assistant-state { max-width: 110px; }
 }
 
 .composer-shell {

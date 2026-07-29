@@ -1,7 +1,7 @@
 <template>
-  <el-button class="ops-permission-control permission-button" size="small" text @click="visible = true">
+  <el-button class="ops-permission-control permission-button" size="small" text :title="currentLabel" @click="visible = true">
     <el-icon :size="14"><Lock /></el-icon>
-    <span>{{ currentLabel }}</span>
+    <span class="permission-label">{{ currentLabel }}</span>
   </el-button>
 
   <el-dialog v-model="visible" class="permission-dialog" :title="t('ai.permissionTitle')" width="420px" append-to-body>
@@ -44,7 +44,7 @@ function selectLevel(level: string | number | boolean | undefined) {
 </script>
 
 <style lang="scss">
-.ops-permission-control.permission-button { color: $color-text-secondary; gap: 4px; &:hover { color: $color-primary; } }
+.ops-permission-control.permission-button { color: $color-text-regular; gap: 4px; &:hover { color: $color-primary; } }
 .permission-dialog .permission-intro { margin: 0 0 14px; color: $color-text-secondary; font-size: $font-size-sm; line-height: 1.55; }
 .permission-dialog .permission-levels { display: grid; grid-template-columns: 1fr; gap: 8px; width: 100%; }
 .permission-dialog .permission-levels .el-radio-button { width: 100%; }

@@ -66,6 +66,16 @@
           <component :is="Component" />
         </keep-alive>
       </router-view>
+
+      <!-- 固定停靠在工作区，避免覆盖右侧 AI 面板的操作按钮 -->
+      <button
+        class="cmd-fab"
+        :title="t('cmd.openHint') + ' (Ctrl+K)'"
+        @click="showCmdPalette = true"
+      >
+        <span class="cmd-fab-ring"></span>
+        <el-icon :size="20"><MagicStick /></el-icon>
+      </button>
     </main>
 
 
@@ -160,18 +170,6 @@
       <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
     </div>
 
-    <!-- AI 命令助手悬浮按钮（可拖拽） -->
-    <button
-      class="cmd-fab"
-      :class="{ dragging: fabDragging }"
-      :style="fabStyle"
-      :title="t('cmd.openHint') + ' (Ctrl+K)'"
-      @mousedown="fabMouseDown"
-    >
-      <span class="cmd-fab-ring"></span>
-      <el-icon :size="20"><MagicStick /></el-icon>
-    </button>
-
     <!-- AI 命令助手浮层 -->
     <AiCommandPalette v-model="showCmdPalette" />
   </div>
@@ -219,64 +217,8 @@ function onGlobalKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); showCmdPalette.value = true }
 }
 
-// 悬浮按钮拖拽 —— 拖动移位（记忆位置），轻点打开助手
-const FAB_SIZE = 46
-const FAB_SAFE_TOP = 96
-const FAB_SAFE_GUTTER = 14
-const fabViewport = ref({ width: window.innerWidth, height: window.innerHeight })
-const fabPos = ref<{ x: number; y: number } | null>(null)
-try { const s = localStorage.getItem('cmd-fab-pos'); if (s) fabPos.value = JSON.parse(s) } catch {}
-const fabDragging = ref(false)
-let fabMoved = false
-let fabStartX = 0, fabStartY = 0, fabOrigX = 0, fabOrigY = 0
-
-const fabStyle = computed(() => {
-  const panelWidth = aiPanelCollapsed.value ? aiPanelCollapsedWidth : aiPanelWidth.value
-  if (!fabPos.value) return { right: `${panelWidth + FAB_SAFE_GUTTER}px`, bottom: `${FAB_SAFE_GUTTER}px` }
-  const { x, y } = clampFabPosition(fabPos.value.x, fabPos.value.y)
-  return { left: x + 'px', top: y + 'px', right: 'auto', bottom: 'auto' }
-})
-
-function clampFabPosition(x: number, y: number) {
-  const minFabX = sidebarWidth.value + FAB_SAFE_GUTTER
-  const panelWidth = aiPanelCollapsed.value ? aiPanelCollapsedWidth : aiPanelWidth.value
-  const maxFabX = Math.max(minFabX, fabViewport.value.width - panelWidth - FAB_SIZE - FAB_SAFE_GUTTER)
-  const maxFabY = Math.max(FAB_SAFE_TOP, fabViewport.value.height - FAB_SIZE - FAB_SAFE_GUTTER)
-  return {
-    x: Math.min(Math.max(x, minFabX), maxFabX),
-    y: Math.min(Math.max(y, FAB_SAFE_TOP), maxFabY),
-  }
-}
-
-function fabMouseDown(e: MouseEvent) {
-  fabMoved = false
-  fabStartX = e.clientX; fabStartY = e.clientY
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  fabOrigX = rect.left; fabOrigY = rect.top
-  document.addEventListener('mousemove', fabMouseMove)
-  document.addEventListener('mouseup', fabMouseUp)
-  e.preventDefault()
-}
-function fabMouseMove(e: MouseEvent) {
-  const dx = e.clientX - fabStartX, dy = e.clientY - fabStartY
-  if (!fabMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) fabDragging.value = fabMoved = true
-  if (!fabMoved) return
-  fabPos.value = clampFabPosition(fabOrigX + dx, fabOrigY + dy)
-}
-function fabMouseUp() {
-  document.removeEventListener('mousemove', fabMouseMove)
-  document.removeEventListener('mouseup', fabMouseUp)
-  if (!fabMoved) {
-    showCmdPalette.value = true
-  } else if (fabPos.value) {
-    try { localStorage.setItem('cmd-fab-pos', JSON.stringify(fabPos.value)) } catch {}
-  }
-  fabDragging.value = false
-}
-
-function onWindowResize() { fabViewport.value = { width: window.innerWidth, height: window.innerHeight } }
-onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey); window.addEventListener('resize', onWindowResize) })
-onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey); window.removeEventListener('resize', onWindowResize) })
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey) })
 
 const rightPanelTab = ref<'ai' | 'monitor'>('ai')
 
@@ -560,7 +502,7 @@ onUnmounted(() => {
 .tb-icon-btn {
   width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
   border: none; border-radius: $border-radius-md; background: transparent; cursor: pointer;
-  color: $color-text-secondary; transition: all $transition-fast;
+  color: $color-text-regular; transition: all $transition-fast;
   &:hover { background: $color-bg-hover; color: $color-primary; box-shadow: $glow-soft; }
 }
 
@@ -677,6 +619,8 @@ onUnmounted(() => {
 
   flex-direction: column;
 
+  position: relative;
+
   background:
     radial-gradient(circle at 50% 0%, $shell-aurora-primary, transparent 36%),
     $shell-workspace-bg;
@@ -751,7 +695,7 @@ onUnmounted(() => {
 
   cursor: pointer;
 
-  color: $color-text-secondary;
+  color: $color-text-regular;
 
   border-radius: $border-radius-sm;
 
@@ -801,7 +745,7 @@ onUnmounted(() => {
 
   font-weight: 500;
 
-  color: $color-text-secondary;
+  color: $color-text-regular;
 
   background: transparent;
 
@@ -856,15 +800,15 @@ onUnmounted(() => {
 
 // AI 命令助手悬浮按钮
 .cmd-fab {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 15000;
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 3;
   width: 46px;
   height: 46px;
   border: 1px solid $color-border-focus;
   border-radius: 50%;
-  cursor: grab;
+  cursor: pointer;
   color: #fff;
   background: $gradient-primary;
   box-shadow: $elevation-1;
@@ -882,12 +826,6 @@ onUnmounted(() => {
   }
   &:active { transform: scale(0.96); }
 
-  &.dragging {
-    cursor: grabbing;
-    transition: none;
-    transform: scale(1.08);
-    box-shadow: $elevation-2;
-  }
 }
 
 .cmd-fab-ring {
