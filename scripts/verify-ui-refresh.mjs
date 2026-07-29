@@ -13,6 +13,7 @@ const mainLayout = readFileSync(resolve(root, 'src/views/MainLayout.vue'), 'utf8
 const sideNav = readFileSync(resolve(root, 'src/components/SideNav.vue'), 'utf8')
 const opsView = readFileSync(resolve(root, 'src/views/OpsView.vue'), 'utf8')
 const batchPanel = readFileSync(resolve(root, 'src/views/ops/BatchPanel.vue'), 'utf8')
+const inspectionPanel = readFileSync(resolve(root, 'src/views/ops/InspectionPanel.vue'), 'utf8')
 const workspace = readFileSync(resolve(root, 'src/views/WorkspaceView.vue'), 'utf8')
 const terminalPanel = readFileSync(resolve(root, 'src/components/TerminalPanel.vue'), 'utf8')
 const aiChat = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
@@ -46,6 +47,18 @@ function contrastRatio(a, b) {
 assert.ok(contrastRatio('#f4fbff', '#070912') >= 12, 'neon-ops 正文和应用背景必须保持高反差')
 assert.ok(contrastRatio('#8ea8c8', '#070912') >= 5, 'neon-ops 次级文字和应用背景必须可读')
 assert.ok(contrastRatio('#f4fbff', '#10172d') >= 10, 'neon-ops 正文和面板背景必须保持高反差')
+assert.ok(contrastRatio('#07111f', '#22f7ff') >= 4.5, '霓虹青主色必须配深色前景以保证按钮文字可读')
+assert.ok(contrastRatio('#ffffff', '#0066cc') >= 4.5, '深蓝主色必须配白色前景以保证按钮文字可读')
+
+const themePrimaries = [...theme.matchAll(/primary:\s*'(#[a-f\d]{6})'/gi)].map(([, color]) => color)
+assert.ok(themePrimaries.length >= 10, '主题定义必须包含完整的主色集合')
+for (const primary of themePrimaries) {
+  const bestForegroundContrast = Math.max(
+    contrastRatio(primary, '#07111f'),
+    contrastRatio(primary, '#ffffff'),
+  )
+  assert.ok(bestForegroundContrast >= 4.5, `${primary} 必须存在符合 WCAG AA 的黑/白主色前景`)
+}
 
 assertIncludes(variables, '$neon-cyan', 'SCSS 必须提供霓虹青色令牌')
 assertIncludes(variables, '$neon-violet', 'SCSS 必须提供霓虹紫色令牌')
@@ -54,11 +67,14 @@ assertIncludes(variables, '$surface-contrast', 'SCSS 必须提供高反差面板
 assertIncludes(variables, '$text-shadow-strong', 'SCSS 必须提供文字阴影增强令牌')
 assertIncludes(variables, '$shell-topbar-bg', 'SCSS 必须提供自适应顶栏令牌')
 assertIncludes(variables, '$shell-workspace-bg', 'SCSS 必须提供自适应工作区令牌')
+assertIncludes(variables, '$color-on-primary', 'SCSS 必须提供主色控件的高对比文字令牌')
 assertIncludes(theme, "'neon-ops'", '运行时主题必须包含 neon-ops 调色板')
 assertIncludes(theme, "'--shell-topbar-bg'", '运行时主题必须生成自适应顶栏颜色')
 assertIncludes(theme, "'--shell-workspace-bg'", '运行时主题必须生成自适应工作区颜色')
 assertIncludes(theme, 'isLightBackground(customColors.bg)', '自定义亮色主题必须识别明暗并适配整套壳层')
 assertIncludes(theme, '...buildPalette(customDef)', '自定义主题必须复用预设主题的壳层配色管线')
+assertIncludes(theme, 'readableForeground(primary)', '主题必须按主色亮度自动选择按钮前景色')
+assertIncludes(theme, "'--color-on-primary': primaryForeground", '主题必须输出主色控件的高对比文字令牌')
 assertIncludes(config, "ref<ColorScheme>('neon-ops')", '默认配置主题必须切到 neon-ops')
 assertIncludes(config, 'design-neon-v1', '必须有一次性迁移让旧默认用户看到新 UI')
 assertIncludes(main, "applyTheme('neon-ops')", '应用启动早期主题必须默认 neon-ops')
@@ -66,6 +82,7 @@ assertIncludes(global, 'background-attachment: fixed', '全局背景必须有固
 assertIncludes(global, 'contrast-scrim', '全局必须有背景降噪遮罩保证文字反差')
 assertIncludes(global, 'readability-high', '全局必须提供高可读性文字工具类')
 assertIncludes(global, '.el-button--primary', 'Element Plus 主按钮必须统一霓虹化')
+assertIncludes(global, 'color: $color-on-primary !important', 'Element Plus 实心主按钮文字必须跟随高对比令牌')
 
 assertIncludes(mainLayout, 'shell-aurora', '主布局必须有霓虹氛围光层')
 assert.ok(!mainLayout.includes('shell-contrast-scrim'), '主布局不能保留覆盖内容的全屏阴影层')
@@ -94,6 +111,11 @@ assertIncludes(opsView, '@media (max-width: 1280px)', '智能运维头部必须�
 assertIncludes(opsView, 'ops-server-control', '智能运维服务器选择器必须能随布局缩放')
 assertIncludes(batchPanel, 'bp-runbook-chip', '批量页剧本按钮必须保留可视化胶囊')
 assertIncludes(batchPanel, 'bp-runbook-delete', '自定义剧本删除按钮必须可见')
+assertIncludes(batchPanel, 'color: $color-on-primary', '批量页主色选项必须使用高对比文字')
+
+assertIncludes(inspectionPanel, 'class="ip-ai-analyze"', '巡检 AI 分析操作必须有独立的可读性样式钩子')
+assertIncludes(inspectionPanel, 'color: $color-on-primary !important', '巡检 AI 分析按钮必须使用高对比文字')
+assertIncludes(inspectionPanel, 'background: $gradient-primary !important', '巡检 AI 分析按钮必须使用受控的主题强调背景')
 
 assertIncludes(aiChat, '&.user', 'AI 对话必须提供用户消息布局')
 assertIncludes(aiChat, 'max-width: 85%', '用户消息必须右侧收束，避免整栏卡片化')

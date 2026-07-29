@@ -55,6 +55,19 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${c.r},${c.g},${c.b},${alpha})`
 }
 
+/** Pick the more legible foreground for a solid color (WCAG relative luminance). */
+function readableForeground(background: string): '#07111f' | '#ffffff' {
+  const c = hexToRgb(background)
+  if (!c) return '#ffffff'
+  const linear = [c.r, c.g, c.b]
+    .map(value => value / 255)
+    .map(value => (value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)))
+  const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+  const darkContrast = (luminance + 0.05) / 0.055
+  const lightContrast = 1.05 / (luminance + 0.05)
+  return darkContrast >= lightContrast ? '#07111f' : '#ffffff'
+}
+
 /** Treat custom palettes with a bright base background as light UI shells. */
 function isLightBackground(hex: string): boolean {
   const c = hexToRgb(hex)
@@ -356,6 +369,7 @@ function buildPalette(def: ThemeDef): Record<string, string> {
   const { primary, bg, surface, text, textSecondary, isLight } = def
   const blendTarget = isLight ? '#ffffff' : '#000000'
   const shift = (hex: string, amt: number) => lerpColor(hex, blendTarget, amt)
+  const primaryForeground = readableForeground(primary)
 
   // Derive background hierarchy from bg→surface
   const bgApp = bg
@@ -386,7 +400,11 @@ function buildPalette(def: ThemeDef): Record<string, string> {
   const neonCyan = primary
   const neonViolet = def.syntax.keyword
   const neonPink = def.syntax.variable
-  const gradPrimary = `linear-gradient(135deg, ${primary}, ${lighten(primary, 0.18)})`
+  // Keep the gradient on the same side of the luminance scale as its text.
+  // A lightened blue would otherwise make white text fail contrast on its end.
+  const gradPrimary = primaryForeground === '#ffffff'
+    ? `linear-gradient(135deg, ${primary}, ${darken(primary, 0.1)})`
+    : `linear-gradient(135deg, ${primary}, ${lighten(primary, 0.18)})`
   const gradApp = isLight
     ? `linear-gradient(160deg, ${bg}, ${lerpColor(bg, primary, 0.05)})`
     : `linear-gradient(160deg, ${lerpColor(bg, primary, 0.04)}, ${bg} 55%, ${lerpColor(bg, surface, 0.5)})`
@@ -407,6 +425,7 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--color-primary': primary,
     '--color-primary-light': lighten(primary, 0.12),
     '--color-primary-dark': darken(primary, 0.1),
+    '--color-on-primary': primaryForeground,
 
     '--color-text-primary': textPrimary,
     '--color-text-regular': textRegular,

@@ -58,7 +58,7 @@
       <div class="ip-ai-section">
         <div class="ip-ai-head">
           <span class="ip-ai-title">{{ t('ops.aiReport') }}</span>
-          <el-button size="small" text type="primary" :loading="aiRunning" :disabled="aiRunning" @click="doAiAnalyze">
+          <el-button class="ip-ai-analyze" size="small" type="primary" :loading="aiRunning" :disabled="aiRunning" @click="doAiAnalyze">
             <el-icon :size="13" v-if="!aiRunning"><ChatDotRound /></el-icon>
             {{ aiRunning ? t('ops.aiAnalyzing') : t('ops.aiAnalyze') }}
           </el-button>
@@ -246,6 +246,19 @@ async function doAiAnalyze() {
   display: flex; align-items: center; justify-content: space-between;
   padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light;
   .ip-ai-title { font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; }
+}
+.ip-ai-analyze {
+  // Do not inherit Element Plus's low-contrast text-button colors here: this
+  // action is intentionally a solid primary control in every theme.
+  color: $color-on-primary !important;
+  background: $gradient-primary !important;
+  border-color: transparent !important;
+
+  &:hover,
+  &:focus-visible {
+    color: $color-on-primary !important;
+    background: $gradient-primary !important;
+  }
 }
 .ip-ai-body { padding: $spacing-md; font-size: $font-size-sm; line-height: 1.62; color: $color-text-primary; max-height: 46vh; overflow-y: auto;
   &::-webkit-scrollbar { width: 6px; } &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 3px; }

@@ -460,7 +460,7 @@ function copyAll() {
 .bp-task-btn {
   padding: 4px 12px; border: none; background: transparent; cursor: pointer; font-family: inherit;
   font-size: $font-size-xs; color: $color-text-secondary; border-radius: $border-radius-sm - 1px; transition: all $transition-fast;
-  &.active { background: $gradient-primary; color: #fff; }
+  &.active { background: $gradient-primary; color: $color-on-primary; }
 }
 .bp-cmd-input { flex: 1; }
 .bp-orch-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; }

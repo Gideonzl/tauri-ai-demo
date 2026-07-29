@@ -406,7 +406,7 @@ const themes = {
   padding: 4px 14px; border: none; background: transparent; cursor: pointer; font-family: inherit;
   font-size: $font-size-xs; color: $color-text-secondary; border-radius: $border-radius-sm - 1px; transition: all $transition-fast;
   &:hover { color: $color-text-primary; }
-  &.active { background: $gradient-primary; color: #fff; }
+  &.active { background: $gradient-primary; color: $color-on-primary; }
 }
 .data-hint { font-size: $font-size-xs; color: $color-text-placeholder; margin-bottom: $spacing-sm; }
 .data-actions { display: flex; gap: $spacing-sm; }

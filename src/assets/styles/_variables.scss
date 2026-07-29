@@ -12,6 +12,9 @@
 $color-primary: var(--color-primary, #5b8def);
 $color-primary-light: var(--color-primary-light, #7ba4f2);
 $color-primary-dark: var(--color-primary-dark, #4a7de0);
+// Foreground for solid primary controls. The runtime palette selects black or
+// white from the actual theme primary instead of assuming every accent is dark.
+$color-on-primary: var(--color-on-primary, #07111f);
 
 // 功能色
 $color-success: var(--color-success, #4caf7d);

@@ -234,7 +234,7 @@ async function runOnServer() {
 .cp-modes { display: flex; gap: 3px; background: $color-bg-input; border: 1px solid $color-border-light; border-radius: 9px; padding: 3px; margin-left: auto; }
 .cp-mode { padding: 6px 12px; border: none; background: transparent; cursor: pointer; font-family: inherit; font-size: $font-size-xs; color: $color-text-secondary; border-radius: 6px; transition: all $transition-fast;
   &:hover { color: $color-text-primary; background: $color-bg-hover; }
-  &.active { background: $color-primary; color: $color-text-primary; box-shadow: 0 2px 6px rgba(0, 0, 0, .14); }
+  &.active { background: $color-primary; color: $color-on-primary; box-shadow: 0 2px 6px rgba(0, 0, 0, .14); }
 }
 .cp-kbd { font-size: 10px; font-family: $font-family-mono; color: $color-text-muted; background: $color-bg-input; padding: 3px 7px; border-radius: 4px; }
 .cp-close { cursor: pointer; color: $color-text-secondary; &:hover { color: $color-danger; } }

@@ -805,7 +805,7 @@ onUnmounted(() => {
   border: 1px solid $color-border-focus;
   border-radius: 50%;
   cursor: pointer;
-  color: #fff;
+  color: $color-on-primary;
   background: $gradient-primary;
   box-shadow: $elevation-1;
   display: flex;

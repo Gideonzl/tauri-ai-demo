@@ -1219,11 +1219,11 @@ body::after {
 .el-button--primary:not(.is-text) {
   background: $gradient-primary !important;
   border-color: transparent !important;
-  color: #fff !important;
+  color: $color-on-primary !important;
 
   &:hover {
     box-shadow: $elevation-1 !important;
-    color: #fff !important;
+    color: $color-on-primary !important;
   }
 }
 
