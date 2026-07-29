@@ -83,6 +83,7 @@ assertIncludes(global, 'contrast-scrim', '全局必须有背景降噪遮罩保�
 assertIncludes(global, 'readability-high', '全局必须提供高可读性文字工具类')
 assertIncludes(global, '.el-button--primary', 'Element Plus 主按钮必须统一霓虹化')
 assertIncludes(global, 'color: $color-on-primary !important', 'Element Plus 实心主按钮文字必须跟随高对比令牌')
+assertIncludes(global, '.el-button--primary.is-text', '主色文字按钮必须与实心按钮分开处理，避免继承错误前景色')
 
 assertIncludes(mainLayout, 'shell-aurora', '主布局必须有霓虹氛围光层')
 assert.ok(!mainLayout.includes('shell-contrast-scrim'), '主布局不能保留覆盖内容的全屏阴影层')
@@ -116,6 +117,12 @@ assertIncludes(batchPanel, 'color: $color-on-primary', '批量页主色选项必
 assertIncludes(inspectionPanel, 'class="ip-ai-analyze"', '巡检 AI 分析操作必须有独立的可读性样式钩子')
 assertIncludes(inspectionPanel, 'color: $color-on-primary !important', '巡检 AI 分析按钮必须使用高对比文字')
 assertIncludes(inspectionPanel, 'background: $gradient-primary !important', '巡检 AI 分析按钮必须使用受控的主题强调背景')
+assertIncludes(inspectionPanel, '&.is-disabled', '巡检 AI 分析按钮必须覆盖禁用状态的低对比文字')
+assertIncludes(inspectionPanel, '&.is-loading::before { background-color: transparent !important; }', '巡检 AI 分析加载遮罩不得覆盖按钮文字')
+assertIncludes(inspectionPanel, '&.is-loading > span', '巡检 AI 分析加载状态的文字必须位于遮罩之上')
+assertIncludes(inspectionPanel, 'aiReportDismissed', '巡检 AI 报告必须支持关闭后收起')
+assertIncludes(inspectionPanel, 'dismissAiReport', '巡检 AI 报告必须提供关闭处理')
+assertIncludes(inspectionPanel, 'class="ip-ai-close"', '巡检 AI 报告必须提供可见的关闭按钮')
 
 assertIncludes(aiChat, '&.user', 'AI 对话必须提供用户消息布局')
 assertIncludes(aiChat, 'max-width: 85%', '用户消息必须右侧收束，避免整栏卡片化')

@@ -305,7 +305,7 @@ body::after {
   transform: translateY(-1px);
 }
 
-.el-button--primary {
+.el-button--primary:not(.is-text) {
   border: 1px solid transparent !important;
   background: $gradient-primary !important;
   box-shadow: none !important;
@@ -502,15 +502,15 @@ body::after {
 
 
 
-.el-button--primary {
+.el-button--primary.is-text {
 
 
 
-  background-color: $color-bg-toolbar !important;
+  background-color: transparent !important;
 
 
 
-  border-color: $color-primary !important;
+  border-color: transparent !important;
 
 
 
@@ -534,7 +534,7 @@ body::after {
 
 
 
-    background-color: $color-bg-primary-hover !important;
+    background-color: $color-bg-hover !important;
 
 
 
@@ -542,7 +542,7 @@ body::after {
 
 
 
-    border-color: $color-primary-light !important;
+    border-color: transparent !important;
 
 
 

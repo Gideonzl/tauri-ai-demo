@@ -9,6 +9,10 @@
       </el-button>
       <span v-if="report" class="ip-time">{{ t('ops.lastInspect') }}: {{ formatTime(report.timestamp) }}</span>
       <div class="ip-spacer" />
+      <el-button v-if="report" class="ip-ai-analyze" size="small" type="primary" :loading="aiRunning" :disabled="aiRunning" @click="doAiAnalyze">
+        <el-icon :size="13" v-if="!aiRunning"><ChatDotRound /></el-icon>
+        {{ aiRunning ? t('ops.aiAnalyzing') : t('ops.aiAnalyze') }}
+      </el-button>
       <el-button v-if="report" size="small" @click="doExport">
         <el-icon :size="13"><DocumentCopy /></el-icon>{{ t('ops.exportReport') }}
       </el-button>
@@ -55,16 +59,14 @@
       </div>
 
       <!-- AI 分析 -->
-      <div class="ip-ai-section">
+      <div v-if="!aiReportDismissed && (aiText || aiRunning)" class="ip-ai-section">
         <div class="ip-ai-head">
           <span class="ip-ai-title">{{ t('ops.aiReport') }}</span>
-          <el-button class="ip-ai-analyze" size="small" type="primary" :loading="aiRunning" :disabled="aiRunning" @click="doAiAnalyze">
-            <el-icon :size="13" v-if="!aiRunning"><ChatDotRound /></el-icon>
-            {{ aiRunning ? t('ops.aiAnalyzing') : t('ops.aiAnalyze') }}
+          <el-button class="ip-ai-close" text :title="t('common.close')" :aria-label="t('common.close')" @click="dismissAiReport">
+            <el-icon :size="15"><Close /></el-icon>
           </el-button>
         </div>
         <div v-if="aiText" class="ip-ai-body markdown-body" v-html="renderedAi"></div>
-        <div v-else-if="!aiRunning" class="ip-ai-empty">{{ t('ai.emptyHint') }}</div>
       </div>
     </div>
 
@@ -77,7 +79,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { VideoPlay, DocumentCopy, CircleCheck, MagicStick, ChatDotRound, DataLine } from '@element-plus/icons-vue'
+import { VideoPlay, DocumentCopy, CircleCheck, MagicStick, ChatDotRound, DataLine, Close } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useInspectionStore } from '@/stores/inspection'
 import type { InspectionReport } from '@/stores/inspection'
@@ -96,6 +98,7 @@ const report = computed<InspectionReport | null>(() => store.report)
 
 const aiRunning = ref(false)
 const aiText = ref('')
+const aiReportDismissed = ref(false)
 const renderedAi = computed(() => renderMarkdown(aiText.value))
 
 const counts = computed(() => ({
@@ -134,6 +137,7 @@ function formatTime(ts: number): string {
 
 async function doInspect() {
   aiText.value = ''
+  aiReportDismissed.value = false
   await store.runInspection(props.sessionId, props.serverName, props.serverId)
 }
 
@@ -148,6 +152,7 @@ async function doAiAnalyze() {
   if (!modelStore.defaultConfig) { ElMessage.warning(t('ai.pleaseConfig')); return }
   aiRunning.value = true
   aiText.value = ''
+  aiReportDismissed.value = false
   const prompt = store.buildAiPrompt(report.value)
   const agent = { id: 'ops-inspect', name: 'Inspection', description: '', systemPrompt: '你是一名资深 Linux 运维专家，负责解读服务器巡检结果并给出可执行的处置建议。' }
   await streamChat(
@@ -161,6 +166,10 @@ async function doAiAnalyze() {
     undefined,
     'qa'
   )
+}
+
+function dismissAiReport() {
+  aiReportDismissed.value = true
 }
 </script>
 
@@ -259,6 +268,28 @@ async function doAiAnalyze() {
     color: $color-on-primary !important;
     background: $gradient-primary !important;
   }
+
+  // Element Plus places a loading mask above button content. This action keeps
+  // its label readable while the request is running, instead of fading it into
+  // the accent background.
+  &.is-disabled,
+  &.is-disabled:hover,
+  &.is-disabled:focus {
+    color: $color-on-primary !important;
+    background: $gradient-primary !important;
+    border-color: transparent !important;
+    opacity: 1;
+  }
+
+  &.is-loading::before { background-color: transparent !important; }
+  &.is-loading > span,
+  &.is-loading > .el-icon { position: relative; z-index: 2; }
+}
+.ip-ai-close {
+  color: $color-text-regular !important;
+  padding: 4px !important;
+  min-width: 26px;
+  &:hover { color: $color-text-primary !important; background: $color-bg-hover !important; }
 }
 .ip-ai-body { padding: $spacing-md; font-size: $font-size-sm; line-height: 1.62; color: $color-text-primary; max-height: 46vh; overflow-y: auto;
   &::-webkit-scrollbar { width: 6px; } &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 3px; }
