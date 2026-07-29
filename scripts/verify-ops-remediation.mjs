@@ -98,6 +98,20 @@ try {
   const failedStep = { ...servicePlan.steps[0], status: 'failed' }
   assert.equal(remediation.shouldStopAfterStep(failedStep), true)
 
+  const riskyPlan = {
+    ...servicePlan,
+    steps: [{
+      ...servicePlan.steps[0],
+      id: 'danger',
+      command: 'rm -rf /var/log/nginx',
+      verifyCommand: 'df -h',
+      risk: 'high_risk',
+    }],
+  }
+  const riskyResult = remediation.validateRemediationPlan(riskyPlan)
+  assert.equal(riskyResult.valid, false)
+  assert.match(riskyResult.errors.join('\n'), /safe read-only or change operation/)
+
   const storeSource = readFileSync(storePath, 'utf8')
   assert.match(storeSource, /defineStore\('remediation'/, 'remediation store must exist')
   assert.match(storeSource, /setStepStatus/, 'store must update individual step status')
