@@ -188,6 +188,7 @@ import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput, type DiagnosticCommand } from '@/utils/server-diagnostics'
 import { createConservativeRemediationPlan, shouldStopAfterStep, type RemediationPlan, type RemediationStep } from '@/utils/ops-remediation'
 import type { OrchestrationTask } from '@/utils/ops-orchestration'
+import { getAiRunbookPrompts, type OpsRunbook } from '@/utils/ops-runbooks'
 import { sshExecFull, type SshExecResult } from '@/api/tauri'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select, Edit, SetUp, DataLine } from '@element-plus/icons-vue'
@@ -357,14 +358,35 @@ function handleNewChat() {
   userScrolledUp.value = false
 }
 
+type QuickAnalysisItem = {
+  id: string
+  label: string
+  prompt: string
+  diagnosticGroupId?: string
+}
+
+function diagnosticGroupForRunbook(runbook: OpsRunbook): string {
+  if (runbook.category === 'disk') return 'disk'
+  if (runbook.category === 'network') return 'network'
+  if (runbook.category === 'process') return 'processes'
+  if (runbook.category === 'security') return 'security'
+  return 'health'
+}
+
 /** 快速分析预设 — labels 和 prompts 随 locale 变化 */
 const quickAnalyses = computed(() => [
-  { id: 'health', label: t('quickAnalysis.systemHealth'), prompt: t('quickAnalysis.systemHealthPrompt') },
-  { id: 'disk', label: t('quickAnalysis.diskUsage'), prompt: t('quickAnalysis.diskUsagePrompt') },
-  { id: 'network', label: t('quickAnalysis.network'), prompt: t('quickAnalysis.networkPrompt') },
-  { id: 'processes', label: t('quickAnalysis.processes'), prompt: t('quickAnalysis.processesPrompt') },
-  { id: 'security', label: t('quickAnalysis.security'), prompt: t('quickAnalysis.securityPrompt') },
-])
+  { id: 'health', label: t('quickAnalysis.systemHealth'), prompt: t('quickAnalysis.systemHealthPrompt'), diagnosticGroupId: 'health' },
+  { id: 'disk', label: t('quickAnalysis.diskUsage'), prompt: t('quickAnalysis.diskUsagePrompt'), diagnosticGroupId: 'disk' },
+  { id: 'network', label: t('quickAnalysis.network'), prompt: t('quickAnalysis.networkPrompt'), diagnosticGroupId: 'network' },
+  { id: 'processes', label: t('quickAnalysis.processes'), prompt: t('quickAnalysis.processesPrompt'), diagnosticGroupId: 'processes' },
+  { id: 'security', label: t('quickAnalysis.security'), prompt: t('quickAnalysis.securityPrompt'), diagnosticGroupId: 'security' },
+  ...getAiRunbookPrompts().map(runbook => ({
+    id: `runbook-${runbook.id}`,
+    label: t(runbook.titleKey),
+    prompt: t(runbook.promptKey || ''),
+    diagnosticGroupId: diagnosticGroupForRunbook(runbook),
+  })),
+] satisfies QuickAnalysisItem[])
 
 // 跟踪已渲染的消息元素，用于在新 chunk 到达后给代码块加 copy 按钮
 const renderedMsgs = new Map<string, HTMLElement>()
@@ -784,7 +806,8 @@ async function handleQuickAnalysis(prompt: string) {
   // If connected to a real server, auto-execute diagnostic commands first
   const session = sshStore.activeSession
   if (session?.realSessionId && session.status === 'connected') {
-    const groupId = quickAnalyses.value.find((q: { id: string; prompt: string }) => q.prompt === prompt)?.id
+    const quick = quickAnalyses.value.find((q: QuickAnalysisItem) => q.prompt === prompt)
+    const groupId = quick?.diagnosticGroupId || quick?.id
     if (groupId) {
       // Inject a placeholder message while running diagnostics
       chatStore.addUserMessage(agentStore.activeAgentId, t('ai.runningDiagnostics'))

@@ -40,6 +40,18 @@
           <el-icon :size="13"><DocumentCopy /></el-icon>{{ t('ops.batchCopyAll') }}
         </el-button>
       </div>
+      <div v-if="taskType === 'command'" class="bp-runbooks">
+        <span class="bp-runbooks-label">{{ t('ops.runbookTemplates') }}</span>
+        <button
+          v-for="runbook in batchRunbooks"
+          :key="runbook.id"
+          class="bp-runbook-chip"
+          :title="t(runbook.descriptionKey)"
+          @click="applyRunbook(runbook)"
+        >
+          {{ t(runbook.titleKey) }}
+        </button>
+      </div>
 
       <div class="bp-results" v-if="results.length">
         <OrchestrationTaskCard
@@ -97,6 +109,7 @@ import {
   summarizeOrchestration,
   type OrchestrationTargetInput,
 } from '@/utils/ops-orchestration'
+import { getBatchRunbooks, type OpsRunbook } from '@/utils/ops-runbooks'
 import OrchestrationTaskCard from '@/components/OrchestrationTaskCard.vue'
 
 const sshStore = useSshStore()
@@ -112,6 +125,7 @@ const running = ref(false)
 const concurrency = ref(2)
 const stopOnChangeFailure = ref(true)
 const orchestrationSummary = computed(() => orchestrationStore.currentTask ? summarizeOrchestration(orchestrationStore.currentTask) : '')
+const batchRunbooks = computed(() => getBatchRunbooks())
 
 interface BatchResult {
   serverId: string; serverName: string
@@ -140,6 +154,15 @@ function scoreColor(s: number): string {
   if (s >= 85) return 'var(--color-success, #4caf7d)'
   if (s >= 60) return 'var(--chart-cpu-warning, #e69138)'
   return 'var(--color-danger, #d45454)'
+}
+
+function applyRunbook(runbook: OpsRunbook) {
+  if (!runbook.command) return
+  taskType.value = 'command'
+  command.value = runbook.command
+  concurrency.value = Math.max(1, Math.min(runbook.recommendedConcurrency, Math.max(1, selected.size || sshStore.servers.length || 1)))
+  stopOnChangeFailure.value = true
+  ElMessage.success(t('ops.runbookApplied', { name: t(runbook.titleKey) }))
 }
 
 /** 取得可用 sessionId：已连接则复用，否则临时连接。返回 {id, transient} */
@@ -380,6 +403,13 @@ function copyAll() {
 .bp-orch-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; }
 .bp-orch-label { white-space: nowrap; }
 .bp-concurrency { width: 94px; }
+.bp-runbooks { display: flex; align-items: center; gap: 6px; padding: 6px $spacing-md; border-bottom: 1px solid $color-border-light; flex-wrap: wrap; flex-shrink: 0; }
+.bp-runbooks-label { font-size: 10px; color: $color-text-placeholder; text-transform: uppercase; letter-spacing: 0.4px; }
+.bp-runbook-chip {
+  border: 1px solid $color-border-light; background: $color-bg-input; color: $color-text-secondary;
+  border-radius: 999px; padding: 3px 9px; font-size: $font-size-xs; cursor: pointer; transition: all $transition-fast;
+  &:hover { color: $color-primary; border-color: $color-primary; background: $color-bg-hover; }
+}
 
 .bp-results { flex: 1; overflow-y: auto; padding: $spacing-md; min-height: 0; }
 .bp-orch-card { margin-bottom: $spacing-md; }
