@@ -6,8 +6,12 @@ import ts from 'typescript'
 
 const root = resolve(import.meta.dirname, '..')
 const sourcePath = resolve(root, 'src/utils/ops-remediation.ts')
+const storePath = resolve(root, 'src/stores/remediation.ts')
+const cardPath = resolve(root, 'src/components/RemediationPlanCard.vue')
 
 assert.ok(existsSync(sourcePath), 'ops-remediation.ts must exist')
+assert.ok(existsSync(storePath), 'remediation.ts must exist')
+assert.ok(existsSync(cardPath), 'RemediationPlanCard.vue must exist')
 
 function compile(source, modulePath) {
   const compiled = ts.transpileModule(source, {
@@ -93,6 +97,17 @@ try {
 
   const failedStep = { ...servicePlan.steps[0], status: 'failed' }
   assert.equal(remediation.shouldStopAfterStep(failedStep), true)
+
+  const storeSource = readFileSync(storePath, 'utf8')
+  assert.match(storeSource, /defineStore\('remediation'/, 'remediation store must exist')
+  assert.match(storeSource, /setStepStatus/, 'store must update individual step status')
+  assert.match(storeSource, /appendStepOutput/, 'store must persist step output summaries')
+  assert.match(storeSource, /stopPlan/, 'store must support stopping a plan')
+
+  const cardSource = readFileSync(cardPath, 'utf8')
+  assert.match(cardSource, /defineProps<\{\s*plan: RemediationPlan/, 'plan card must receive a RemediationPlan')
+  assert.match(cardSource, /defineEmits<\{\s*execute:/, 'plan card must emit execute')
+  assert.match(cardSource, /verifyCommand/, 'plan card must show verification command')
 } finally {
   rmSync(tempDir, { recursive: true, force: true })
 }
