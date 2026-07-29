@@ -100,8 +100,8 @@ function navigate(item: NavItem) {
   bottom: 18px;
   width: 1px;
   background: $shell-nav-rail;
-  box-shadow: $glow-cyan;
-  opacity: 0.55;
+  box-shadow: none;
+  opacity: 0.18;
 }
 
 .nav-top {
@@ -128,9 +128,9 @@ function navigate(item: NavItem) {
 .nav-item {
   display: flex;
   align-items: center;
-  height: 44px;
-  padding: 0 8px;
-  border-radius: 16px;
+  height: 48px;
+  padding: 0 7px;
+  border-radius: 8px;
   cursor: pointer;
   color: $color-text-regular;
   transition: all $transition-fast;
@@ -145,21 +145,29 @@ function navigate(item: NavItem) {
     background: $color-bg-hover;
     color: $color-text-primary;
     border-color: $color-border;
-    .nav-icon-shell { transform: translateY(-1px) scale(1.04); border-color: $color-border-focus; box-shadow: $glow-soft; }
+    .nav-icon-shell { transform: none; color: $color-primary; }
   }
 
   &.active {
     color: $color-primary;
-    background:
-      linear-gradient(90deg, $color-bg-active, $color-bg-hover),
-      $surface-contrast-soft;
-    border-color: $color-border-focus;
-    box-shadow: inset 0 0 18px $color-bg-hover, $glow-soft;
+    background: $color-bg-active;
+    border-color: transparent;
+    box-shadow: none;
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      width: 2px;
+      border-radius: 0 2px 2px 0;
+      background: $color-primary;
+    }
     .nav-icon-shell {
-      color: $color-bg-app;
-      background: linear-gradient(135deg, $neon-cyan, $neon-violet);
-      border-color: $color-border;
-      box-shadow: $glow-cyan;
+      color: $color-primary;
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
     }
   }
 }
@@ -167,12 +175,12 @@ function navigate(item: NavItem) {
 .nav-icon-shell {
   width: 30px;
   height: 30px;
-  border-radius: 12px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid $color-border;
-  background: $color-bg-hover;
+  border: 1px solid transparent;
+  background: transparent;
   color: inherit;
   text-shadow: $text-shadow-strong;
   flex-shrink: 0;

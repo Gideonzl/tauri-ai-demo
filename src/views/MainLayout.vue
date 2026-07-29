@@ -15,7 +15,6 @@
   <div class="app-shell" @contextmenu.self.prevent="onPageCtx">
     <div class="shell-aurora shell-aurora-a"></div>
     <div class="shell-aurora shell-aurora-b"></div>
-    <div class="shell-contrast-scrim"></div>
 
     <!-- 顶部品牌导航栏 -->
     <header class="app-topbar">
@@ -229,7 +228,7 @@ let fabMoved = false
 let fabStartX = 0, fabStartY = 0, fabOrigX = 0, fabOrigY = 0
 
 const fabStyle = computed(() => {
-  if (!fabPos.value) return {}
+  if (!fabPos.value) return { right: 'calc(var(--ai-panel-width) + 18px)' }
   return { left: fabPos.value.x + 'px', top: fabPos.value.y + 'px', right: 'auto', bottom: 'auto' }
 })
 
@@ -483,14 +482,6 @@ onUnmounted(() => {
   mix-blend-mode: screen;
 }
 
-.shell-contrast-scrim {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background: $shell-scrim;
-}
-
 .shell-aurora-a {
   width: 360px;
   height: 360px;
@@ -520,7 +511,7 @@ onUnmounted(() => {
     $shell-topbar-bg;
   backdrop-filter: blur(18px) saturate(1.35);
   border-bottom: 1px solid $color-border;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 16px 46px rgba(0,0,0,0.26);
+  box-shadow: none;
   z-index: 10;
 }
 .tb-brand { display: flex; align-items: center; gap: 8px; }
@@ -589,7 +580,7 @@ onUnmounted(() => {
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 
   border-right: 1px solid $color-border;
-  box-shadow: 18px 0 54px rgba(0, 0, 0, 0.22);
+  box-shadow: none;
 
   flex-shrink: 0;
 
@@ -692,7 +683,7 @@ onUnmounted(() => {
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 
   border-left: 1px solid $color-border;
-  box-shadow: -18px 0 60px rgba(0, 0, 0, 0.28), -1px 0 0 rgba(255,255,255,0.04);
+  box-shadow: none;
 
   flex-shrink: 0;
 
@@ -861,7 +852,7 @@ onUnmounted(() => {
   cursor: grab;
   color: #fff;
   background: $gradient-primary;
-  box-shadow: $elevation-2, $glow-cyan, $glow-violet;
+  box-shadow: $elevation-1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -872,7 +863,7 @@ onUnmounted(() => {
 
   &:hover {
     transform: translateY(-2px) scale(1.05);
-    box-shadow: $elevation-3, $glow-primary;
+    box-shadow: $elevation-2;
   }
   &:active { transform: scale(0.96); }
 
@@ -880,7 +871,7 @@ onUnmounted(() => {
     cursor: grabbing;
     transition: none;
     transform: scale(1.08);
-    box-shadow: $elevation-3, $glow-primary;
+    box-shadow: $elevation-2;
   }
 }
 
@@ -889,8 +880,8 @@ onUnmounted(() => {
   inset: -7px;
   border-radius: 50%;
   border: 1px solid $color-border-focus;
-  box-shadow: inset 0 0 12px $color-bg-active, $glow-violet;
-  animation: pulse-neon-ring 2.2s ease-in-out infinite;
+  box-shadow: none;
+  animation: none;
 }
 
 @keyframes pulse-neon-ring {

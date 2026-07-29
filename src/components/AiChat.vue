@@ -880,6 +880,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background: $shell-ai-bg;
 }
 
 // === Compact header ===
@@ -888,11 +889,12 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   align-items: center;
   justify-content: space-between;
   gap: $spacing-sm;
-  padding: 6px $spacing-sm;
-  border-bottom: 1px solid $color-border-light;
+  padding: 8px $spacing-md;
+  border-bottom: 1px solid $color-border;
+  background: $surface-contrast-soft;
   flex-shrink: 0;
 }
-.agent-select { width: 140px; }
+.agent-select { width: 148px; }
 .ai-header-actions {
   display: flex;
   align-items: center;
@@ -1041,7 +1043,8 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: $spacing-md $spacing-md;
+  padding: 14px 12px 18px;
+  background: linear-gradient(180deg, $color-bg-hover, transparent 18%), transparent;
 }
 
 .empty-hint {
@@ -1060,17 +1063,29 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 }
 
 .message-item {
-  margin-bottom: $spacing-md;
+  margin-bottom: 14px;
   animation: message-enter 0.25s ease-out;
 
   &.user {
-    .message-role { color: $color-info; }
-    .message-body { background-color: $color-bg-message-user; border-top-right-radius: 2px; }
+    margin-left: 28px;
+    max-width: 85%;
+    .message-role { color: $color-info; justify-content: flex-end; }
+    .message-body {
+      background: $color-bg-active;
+      border-color: transparent;
+      border-top-right-radius: 3px;
+    }
   }
 
   &.assistant {
+    margin-right: 8px;
+    max-width: 90%;
     .message-role { color: $color-primary; }
-    .message-body { background-color: $color-bg-message-ai; border-top-left-radius: 2px; }
+    .message-body {
+      background: $surface-contrast;
+      border-left: 2px solid $color-primary;
+      border-top-left-radius: 3px;
+    }
   }
 }
 
@@ -1094,10 +1109,10 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 }
 
 .message-body {
-  padding: $spacing-sm $spacing-md;
+  padding: 10px 12px;
   border-radius: $border-radius-md;
-  border: 1px solid $color-border-light;
-  box-shadow: $elevation-1;
+  border: 1px solid $color-border;
+  box-shadow: none;
   font-size: $font-size-sm;
   line-height: 1.62;
   color: $color-text-primary;
@@ -1167,9 +1182,10 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 
 // === Input area ===
 .input-area {
-  padding: $spacing-sm $spacing-md;
-  border-top: 1px solid $color-border-light;
-  background-color: $color-bg-toolbar;
+  padding: 10px 12px 12px;
+  border-top: 1px solid $color-border;
+  background: $surface-contrast;
+  box-shadow: none;
   flex-shrink: 0;
 }
 

@@ -280,8 +280,8 @@ body::after {
 
 
 
-  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.10)), $surface-contrast-soft !important;
-  box-shadow: 0 0 0 1px rgba(185, 231, 255, 0.16) inset, 0 0 20px rgba(34, 247, 255, 0.035) !important;
+  background: $color-bg-input !important;
+  box-shadow: 0 0 0 1px $color-border inset !important;
 
 
 
@@ -297,7 +297,7 @@ body::after {
 }
 
 .el-button {
-  border-radius: 999px !important;
+  border-radius: $border-radius-md !important;
   transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast, color $transition-fast !important;
 }
 
@@ -306,9 +306,9 @@ body::after {
 }
 
 .el-button--primary {
-  border: 1px solid rgba(34, 247, 255, 0.58) !important;
-  background: linear-gradient(135deg, rgba(34, 247, 255, 0.95), rgba(168, 85, 255, 0.92)) !important;
-  box-shadow: 0 0 18px rgba(34, 247, 255, 0.28), 0 12px 30px rgba(0, 0, 0, 0.34) !important;
+  border: 1px solid transparent !important;
+  background: $gradient-primary !important;
+  box-shadow: none !important;
 }
 
 
@@ -1222,7 +1222,7 @@ body::after {
   color: #fff !important;
 
   &:hover {
-    box-shadow: $elevation-1, $glow-soft !important;
+    box-shadow: $elevation-1 !important;
     color: #fff !important;
   }
 }

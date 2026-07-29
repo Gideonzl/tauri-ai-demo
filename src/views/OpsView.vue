@@ -132,20 +132,20 @@ onUnmounted(async () => {
 .ops-view {
   display: flex; flex-direction: column; height: 100%; overflow: hidden;
   background:
-    radial-gradient(circle at 18% 0%, rgba(34,247,255,0.10), transparent 32%),
-    radial-gradient(circle at 78% 14%, rgba(168,85,255,0.12), transparent 30%),
-    rgba(5, 8, 18, 0.35);
+    radial-gradient(circle at 18% 0%, $color-bg-active, transparent 32%),
+    radial-gradient(circle at 78% 14%, $color-bg-hover, transparent 30%),
+    $shell-workspace-bg;
 }
 
 .ops-header {
   display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg;
   min-height: 82px; padding: 14px 18px; flex-shrink: 0;
-  border-bottom: 1px solid rgba(34,247,255,0.12);
+  border-bottom: 1px solid $color-border;
   background:
-    linear-gradient(90deg, rgba(34,247,255,0.07), transparent 48%, rgba(168,85,255,0.08)),
-    rgba(7, 11, 24, 0.58);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 18px 54px rgba(0,0,0,0.18);
+    linear-gradient(90deg, $color-bg-active, transparent 48%, $color-bg-hover),
+    $surface-contrast;
+  backdrop-filter: blur(8px);
+  box-shadow: none;
 }
 
 .ops-hero {
@@ -155,14 +155,14 @@ onUnmounted(async () => {
 .ops-orb {
   width: 42px; height: 42px; border-radius: 16px;
   display: flex; align-items: center; justify-content: center;
-  color: #061018;
+  color: $color-bg-app;
   background: linear-gradient(135deg, $neon-cyan, $neon-violet);
-  box-shadow: $glow-cyan, 0 14px 34px rgba(0,0,0,0.28);
+  box-shadow: $glow-soft;
 }
 
 .ops-eyebrow {
-  font-size: 9px; letter-spacing: 1.8px; color: $neon-cyan; font-weight: 800;
-  text-shadow: 0 0 14px rgba(34,247,255,0.32);
+  font-size: 9px; letter-spacing: 1.8px; color: $color-primary; font-weight: 800;
+  text-shadow: $text-shadow-strong;
 }
 
 .ops-title {
@@ -178,8 +178,8 @@ onUnmounted(async () => {
 
 .ops-tabs {
   display: flex; gap: 7px; min-width: 0; overflow-x: auto;
-  padding: 5px; border: 1px solid rgba(255,255,255,0.07); border-radius: 999px;
-  background: rgba(255,255,255,0.035);
+  padding: 5px; border: 1px solid $color-border; border-radius: 999px;
+  background: $surface-contrast-soft;
 }
 
 .ops-tab {
@@ -190,12 +190,12 @@ onUnmounted(async () => {
   white-space: nowrap;
   text-shadow: $text-shadow-strong;
 
-  &:hover { color: $color-text-primary; background: rgba(255,255,255,0.045); border-color: rgba(34,247,255,0.14); }
+  &:hover { color: $color-text-primary; background: $color-bg-hover; border-color: $color-border-focus; }
   &.active {
-    color: $neon-cyan;
-    background: linear-gradient(135deg, rgba(34,247,255,0.16), rgba(168,85,255,0.12));
-    border-color: rgba(34,247,255,0.28);
-    box-shadow: inset 0 0 18px rgba(34,247,255,0.08), $glow-soft;
+    color: $color-primary;
+    background: $color-bg-active;
+    border-color: $color-border-focus;
+    box-shadow: none;
   }
 }
 
@@ -212,9 +212,9 @@ onUnmounted(async () => {
 
 .ops-server-select {
   flex-shrink: 0; display: flex; align-items: center; gap: 6px;
-  padding: 5px; border-radius: 999px; background: rgba(255,255,255,0.035);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: inset 0 0 18px rgba(0,0,0,0.22);
+  padding: 5px; border-radius: 999px; background: $surface-contrast-soft;
+  border: 1px solid $color-border;
+  box-shadow: none;
 }
 .opt-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: $color-text-muted;
   &.connected { background: $color-success; } &.disconnected { background: $color-text-muted; }

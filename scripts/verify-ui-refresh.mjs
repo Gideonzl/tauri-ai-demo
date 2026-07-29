@@ -15,6 +15,7 @@ const opsView = readFileSync(resolve(root, 'src/views/OpsView.vue'), 'utf8')
 const batchPanel = readFileSync(resolve(root, 'src/views/ops/BatchPanel.vue'), 'utf8')
 const workspace = readFileSync(resolve(root, 'src/views/WorkspaceView.vue'), 'utf8')
 const terminalPanel = readFileSync(resolve(root, 'src/components/TerminalPanel.vue'), 'utf8')
+const aiChat = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -66,7 +67,7 @@ assertIncludes(global, 'readability-high', '全局必须提供高可读性文字
 assertIncludes(global, '.el-button--primary', 'Element Plus 主按钮必须统一霓虹化')
 
 assertIncludes(mainLayout, 'shell-aurora', '主布局必须有霓虹氛围光层')
-assertIncludes(mainLayout, 'shell-contrast-scrim', '主布局必须有对比度遮罩，避免背景光影响文字')
+assert.ok(!mainLayout.includes('shell-contrast-scrim'), '主布局不能保留覆盖内容的全屏阴影层')
 assertIncludes(mainLayout, 'tb-status-strip', '顶部栏必须重排为状态胶囊布局')
 assertIncludes(mainLayout, 'cmd-fab-ring', 'AI 悬浮按钮必须有灯管环形光效')
 assertIncludes(mainLayout, '$shell-topbar-bg', '主布局顶栏必须跟随主题明暗切换')
@@ -83,7 +84,17 @@ assertIncludes(terminalPanel, '$surface-contrast', '终端标题栏必须使用�
 
 assertIncludes(opsView, 'ops-hero', '智能运维页必须有驾驶舱 Hero 区')
 assertIncludes(opsView, 'ops-tab-label', '智能运维页按钮必须重排为胶囊标签')
+assertIncludes(opsView, '$shell-workspace-bg', '智能运维页背景必须跟随明暗主题，不能压暗亮色工作区')
+assertIncludes(opsView, 'box-shadow: none', '智能运维页必须移除覆盖式大阴影')
 assertIncludes(batchPanel, 'bp-runbook-chip', '批量页剧本按钮必须保留可视化胶囊')
 assertIncludes(batchPanel, 'bp-runbook-delete', '自定义剧本删除按钮必须可见')
+
+assertIncludes(aiChat, '&.user', 'AI 对话必须提供用户消息布局')
+assertIncludes(aiChat, 'max-width: 85%', '用户消息必须右侧收束，避免整栏卡片化')
+assertIncludes(aiChat, 'max-width: 90%', 'AI 消息必须保留阅读留白')
+assertIncludes(aiChat, 'border-left: 2px solid $color-primary', 'AI 消息必须用轻量来源标识替代厚重阴影')
+assertIncludes(aiChat, 'box-shadow: none', 'AI 对话气泡必须移除厚重投影')
+assertIncludes(sideNav, '&::before', '侧边栏选中态必须使用自适应指示条')
+assertIncludes(sideNav, 'border-radius: 8px', '侧边栏选中态必须避免大圆形按钮效果')
 
 console.log('UI refresh checks passed')
