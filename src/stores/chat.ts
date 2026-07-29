@@ -105,24 +105,18 @@ export const useChatStore = defineStore('chat', () => {
     return conversations.value.filter(c => c.agentId === agentId && c.messages.length > 0)
   }
 
-  /** 获取当前活跃会话（或指定 agent 的首个非空会话）的消息 */
-  function getMessages(agentId: string): ChatMessage[] {
-    // 优先返回活跃会话的消息（如果 agent 匹配）
-    if (activeConversation.value && activeConversation.value.agentId === agentId) {
-      return activeConversation.value.messages
-    }
-    // 否则返回该 agent 最近一个有消息的会话
-    const convs = getConversationsByAgent(agentId)
-    return convs.length > 0 ? convs[0].messages : []
+  /** 获取当前活跃会话的消息（与 agent 解绑 —— 一条对话持续，切 agent 不换对话） */
+  function getMessages(_agentId: string): ChatMessage[] {
+    return activeConversation.value?.messages || []
   }
 
   // === 消息操作 ===
 
-  /** 添加用户消息到当前活跃会话（如无活跃会话则自动创建） */
+  /** 添加用户消息到当前活跃会话（仅当没有活跃会话时才新建，切 agent 不新建） */
   function addUserMessage(agentId: string, content: string) {
     let conv = activeConversation.value
-    if (!conv || conv.agentId !== agentId) {
-      // 没有活跃会话或 agent 不匹配 → 创建新会话
+    if (!conv) {
+      // 没有任何活跃会话 → 创建新会话
       conv = createConversation(agentId)
     }
     conv.messages.push({
@@ -140,12 +134,12 @@ export const useChatStore = defineStore('chat', () => {
     saveToStorage()
   }
 
-  /** 开始流式输出 */
+  /** 开始流式输出 —— 追加到当前活跃会话 */
   function startStreaming(agentId: string) {
     isGenerating.value = true
     streamingBuffer.value = ''
     const conv = activeConversation.value
-    if (conv && conv.agentId === agentId) {
+    if (conv) {
       conv.messages.push({
         id: genMsgId(),
         role: 'assistant',
@@ -162,18 +156,16 @@ export const useChatStore = defineStore('chat', () => {
     streamingBuffer.value += chunk
   }
 
-  /** 结束流式输出 */
-  function finishStreaming(agentId: string) {
+  /** 结束流式输出 —— 写回当前活跃会话 */
+  function finishStreaming(_agentId: string) {
     isGenerating.value = false
     const conv = activeConversation.value
-    if (conv && conv.agentId === agentId) {
+    if (conv) {
       const streamingMsg = conv.messages.find(m => m.isStreaming)
       if (streamingMsg) {
         streamingMsg.content = streamingBuffer.value
         streamingMsg.isStreaming = false
       }
-    }
-    if (conv) {
       conv.updatedAt = Date.now()
       saveToStorage()
     }

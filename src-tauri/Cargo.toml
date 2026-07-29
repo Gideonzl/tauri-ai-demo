@@ -1,6 +1,6 @@
 [package]
 name = "aiterminal"
-version = "0.1.0"
+version = "1.0.0"
 description = "AITerminal - Remote SSH + AI Terminal"
 authors = ["Rust Protocol Engineer"]
 edition = "2021"

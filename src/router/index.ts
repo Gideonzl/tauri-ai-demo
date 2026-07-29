@@ -33,6 +33,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/OpsView.vue'),
       },
       {
+        path: 'sftp',
+        name: 'Sftp',
+        component: () => import('@/views/SftpView.vue'),
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingsView.vue'),

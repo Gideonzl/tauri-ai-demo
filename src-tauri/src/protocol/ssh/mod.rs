@@ -172,10 +172,36 @@ pub async fn ssh_test_connect(config: &SshConnectConfig) -> AppResult<SshTestRes
     })
 }
 
-pub async fn connect(config: SshConnectConfig) -> AppResult<SshSessionInfo> {
-    let cfg = Arc::new(client::Config::default());
-    let mut handle = client::connect(cfg, (config.host.as_str(), config.port), SshHandler).await
-        .map_err(|e| AppError::with_source(ErrorCode::SshHandshakeFailed, "TCP handshake failed", e.to_string()))?;
+/// Build a client config WITH keepalive enabled.
+///
+/// The default russh config sends no keepalive, so an idle SSH connection
+/// (while the user is chatting with the AI, or the AI is "thinking") gets
+/// silently dropped by NAT / stateful firewalls. russh never notices, and the
+/// next command hangs on a half-open socket — surfacing to the user as
+/// "no output / connection dropped". A 15s keepalive with up to 4 misses
+/// (~60s grace) keeps the tunnel warm and lets russh detect a real death fast.
+fn build_client_config() -> client::Config {
+    client::Config {
+        keepalive_interval: Some(std::time::Duration::from_secs(15)),
+        keepalive_max: 4,
+        // Never garbage-collect a connection that is merely idle-but-alive.
+        inactivity_timeout: None,
+        ..Default::default()
+    }
+}
+
+/// TCP connect + authenticate, returning a live handle.
+/// Shared by the initial `connect()` and the transparent `reconnect_session()`
+/// so both paths get identical keepalive + timeout behavior.
+async fn establish_handle(config: &SshConnectConfig) -> AppResult<client::Handle<SshHandler>> {
+    let cfg = Arc::new(build_client_config());
+    let connect_fut = client::connect(cfg, (config.host.as_str(), config.port), SshHandler);
+    let dur = std::time::Duration::from_millis(config.timeout_ms.max(5000));
+    let mut handle = match tokio::time::timeout(dur, connect_fut).await {
+        Ok(Ok(h)) => h,
+        Ok(Err(e)) => return Err(AppError::with_source(ErrorCode::SshHandshakeFailed, "TCP handshake failed", e.to_string())),
+        Err(_) => return Err(AppError::new(ErrorCode::SshHandshakeFailed, "TCP handshake timed out")),
+    };
 
     let auth_ok = match &config.auth {
         SshAuthMethod::Password { password } => {
@@ -192,10 +218,36 @@ pub async fn connect(config: SshConnectConfig) -> AppResult<SshSessionInfo> {
     };
 
     if !auth_ok { return Err(AppError::new(ErrorCode::SshAuthFailed, "Authentication rejected")); }
+    Ok(handle)
+}
 
+pub async fn connect(config: SshConnectConfig) -> AppResult<SshSessionInfo> {
+    let handle = establish_handle(&config).await?;
     let id = gen_id();
     SESSIONS.lock().await.insert(id.clone(), SshSession { config: config.clone(), handle: Some(handle), cmd_tx: None });
     Ok(SshSessionInfo { session_id: id, config, state: SshSessionState::Connected })
+}
+
+/// Re-establish a dead session's handle in place, reusing the stored config
+/// (which already holds the credentials).
+/// This is what makes command execution self-healing: the AI never has to ask
+/// the user to reconnect or re-run anything by hand.
+async fn reconnect_session(session_id: &str) -> AppResult<()> {
+    // Snapshot the config first — don't hold the lock across the network round-trip.
+    let config = {
+        let sessions = SESSIONS.lock().await;
+        let session = sessions.get(session_id)
+            .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+        session.config.clone()
+    };
+
+    let handle = establish_handle(&config).await?;
+
+    let mut sessions = SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed during reconnect"))?;
+    session.handle = Some(handle);
+    Ok(())
 }
 
 /// Open interactive shell — opens channel using handle, then hands channel to background task
@@ -251,34 +303,128 @@ pub async fn resize_shell(session_id: &str, cols: u32, rows: u32) -> AppResult<(
     Ok(())
 }
 
-/// Execute single command via exec channel — uses handle stored in session
-pub async fn exec_command(session_id: &str, command: &str) -> AppResult<String> {
-    let mut sessions = SESSIONS.lock().await;
-    let session = sessions.get_mut(session_id)
-        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+/// Structured result of a non-interactive command execution.
+/// Lets the frontend distinguish "ran fine, no output" from "actually failed",
+/// so an empty stdout is never mistaken for a dropped connection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecResult {
+    pub stdout: String,
+    pub stderr: String,
+    /// Remote process exit code (None if the server never sent one, e.g. on timeout)
+    pub exit_code: Option<i32>,
+    /// True when we stopped waiting because the command kept running past the timeout
+    pub timed_out: bool,
+}
 
-    let handle = session.handle.as_mut()
-        .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
-
-    let mut channel = handle.channel_open_session().await
-        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Exec channel: {}", e)))?;
-
+/// Open an exec channel and start the command, bounded by a timeout.
+/// A half-open (idle-dropped) connection makes `channel_open_session` hang;
+/// the timeout turns that hang into a fast, recoverable error so the caller
+/// can reconnect instead of leaving the AI waiting on a dead socket.
+async fn open_exec_channel(
+    handle: &client::Handle<SshHandler>,
+    command: &str,
+) -> AppResult<russh::Channel<russh::client::Msg>> {
+    let open_fut = handle.channel_open_session();
+    let channel = match tokio::time::timeout(std::time::Duration::from_secs(12), open_fut).await {
+        Ok(Ok(ch)) => ch,
+        Ok(Err(e)) => return Err(AppError::new(ErrorCode::SshChannelOpenFailed, format!("Exec channel: {}", e))),
+        Err(_) => return Err(AppError::new(ErrorCode::SshChannelOpenFailed, "Channel open timed out")),
+    };
     channel.exec(true, command).await
         .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Exec: {}", e)))?;
+    Ok(channel)
+}
 
-    let mut output = String::new();
+/// Temporarily take the session handle so command execution can await without
+/// keeping the global session map locked. The handle is put back before the
+/// opened channel is drained.
+async fn open_exec_channel_for_session(
+    session_id: &str,
+    command: &str,
+) -> AppResult<russh::Channel<russh::client::Msg>> {
+    let handle = {
+        let mut sessions = SESSIONS.lock().await;
+        let session = sessions.get_mut(session_id)
+            .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+        session.handle.take()
+            .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?
+    };
+
+    let result = open_exec_channel(&handle, command).await;
+
+    let mut sessions = SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed during exec"))?;
+    session.handle = Some(handle);
+
+    result
+}
+
+/// Drain a running exec channel into a structured result.
+async fn read_exec_output(mut channel: russh::Channel<russh::client::Msg>) -> AppResult<ExecResult> {
+    let mut stdout = String::new();
     let mut stderr = String::new();
+    let mut exit_code: Option<i32> = None;
+    let mut timed_out = false;
+
+    // The command may take a moment to produce its first byte; once data flows,
+    // gaps between messages should be short. A hung command (e.g. tail -f) trips
+    // the idle timeout and returns whatever was produced so far, flagged as timed_out.
+    let first_wait = std::time::Duration::from_secs(30);
+    let idle_wait = std::time::Duration::from_secs(20);
+    let mut wait_for = first_wait;
+
     loop {
-        match channel.wait().await {
-            Some(ChannelMsg::Data { ref data }) => output.push_str(&String::from_utf8_lossy(data)),
-            Some(ChannelMsg::ExtendedData { ref data, .. }) => stderr.push_str(&String::from_utf8_lossy(data)),
-            Some(ChannelMsg::ExitStatus { .. }) | Some(ChannelMsg::Eof) | None => break,
-            _ => {}
+        match tokio::time::timeout(wait_for, channel.wait()).await {
+            Ok(Some(ChannelMsg::Data { ref data })) => {
+                stdout.push_str(&String::from_utf8_lossy(data));
+                wait_for = idle_wait;
+            }
+            Ok(Some(ChannelMsg::ExtendedData { ref data, .. })) => {
+                stderr.push_str(&String::from_utf8_lossy(data));
+                wait_for = idle_wait;
+            }
+            // exit-status arrives before EOF per the SSH spec — record it, keep reading
+            Ok(Some(ChannelMsg::ExitStatus { exit_status })) => {
+                exit_code = Some(exit_status as i32);
+            }
+            Ok(Some(ChannelMsg::Eof)) | Ok(None) => break,
+            Ok(_) => {}
+            Err(_) => { timed_out = true; break; }
         }
     }
     channel.close().await.ok();
-    if !stderr.is_empty() { output.push_str(&stderr); }
-    Ok(output)
+
+    Ok(ExecResult { stdout, stderr, exit_code, timed_out })
+}
+
+/// Execute single command via exec channel — returns structured result.
+/// Self-healing: if opening the channel fails or times out (the connection was
+/// idle-dropped), transparently reconnect using the stored config and retry once.
+/// The frontend/AI never sees the reconnect — it just gets the command output.
+pub async fn exec_command_full(session_id: &str, command: &str) -> AppResult<ExecResult> {
+    let channel = match open_exec_channel_for_session(session_id, command).await {
+        Ok(ch) => ch,
+        Err(_) => {
+            // Connection is likely dead — reconnect and retry once.
+            reconnect_session(session_id).await?;
+            open_exec_channel_for_session(session_id, command).await?
+        }
+    };
+
+    read_exec_output(channel).await
+}
+
+/// Backward-compatible string variant (command palette + quick diagnostics).
+/// Concatenates stdout and stderr, same shape as the original API.
+pub async fn exec_command(session_id: &str, command: &str) -> AppResult<String> {
+    let r = exec_command_full(session_id, command).await?;
+    let mut out = r.stdout;
+    if !r.stderr.is_empty() {
+        if !out.is_empty() && !out.ends_with('\n') { out.push('\n'); }
+        out.push_str(&r.stderr);
+    }
+    Ok(out)
 }
 
 pub async fn disconnect(session_id: &str) -> AppResult<()> {

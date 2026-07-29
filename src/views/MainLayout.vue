@@ -152,8 +152,14 @@
       <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
     </div>
 
-    <!-- AI 命令助手悬浮按钮 -->
-    <button class="cmd-fab" :title="t('cmd.openHint') + ' (Ctrl+K)'" @click="showCmdPalette = true">
+    <!-- AI 命令助手悬浮按钮（可拖拽） -->
+    <button
+      class="cmd-fab"
+      :class="{ dragging: fabDragging }"
+      :style="fabStyle"
+      :title="t('cmd.openHint') + ' (Ctrl+K)'"
+      @mousedown="fabMouseDown"
+    >
       <el-icon :size="20"><MagicStick /></el-icon>
     </button>
 
@@ -167,7 +173,7 @@
 
 <script setup lang="ts">
 
-import { ref, reactive, onMounted, onUnmounted, provide } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, provide, computed } from 'vue'
 
 import { useRouter } from 'vue-router'
 import { useConfigStore } from '@/stores/config'
@@ -203,6 +209,48 @@ const showCmdPalette = ref(false)
 function onGlobalKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); showCmdPalette.value = true }
 }
+
+// 悬浮按钮拖拽 —— 拖动移位（记忆位置），轻点打开助手
+const FAB_SIZE = 46
+const fabPos = ref<{ x: number; y: number } | null>(null)
+try { const s = localStorage.getItem('cmd-fab-pos'); if (s) fabPos.value = JSON.parse(s) } catch {}
+const fabDragging = ref(false)
+let fabMoved = false
+let fabStartX = 0, fabStartY = 0, fabOrigX = 0, fabOrigY = 0
+
+const fabStyle = computed(() => {
+  if (!fabPos.value) return {}
+  return { left: fabPos.value.x + 'px', top: fabPos.value.y + 'px', right: 'auto', bottom: 'auto' }
+})
+
+function fabMouseDown(e: MouseEvent) {
+  fabMoved = false
+  fabStartX = e.clientX; fabStartY = e.clientY
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  fabOrigX = rect.left; fabOrigY = rect.top
+  document.addEventListener('mousemove', fabMouseMove)
+  document.addEventListener('mouseup', fabMouseUp)
+  e.preventDefault()
+}
+function fabMouseMove(e: MouseEvent) {
+  const dx = e.clientX - fabStartX, dy = e.clientY - fabStartY
+  if (!fabMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) fabDragging.value = fabMoved = true
+  if (!fabMoved) return
+  const x = Math.max(4, Math.min(window.innerWidth - FAB_SIZE - 4, fabOrigX + dx))
+  const y = Math.max(4, Math.min(window.innerHeight - FAB_SIZE - 4, fabOrigY + dy))
+  fabPos.value = { x, y }
+}
+function fabMouseUp() {
+  document.removeEventListener('mousemove', fabMouseMove)
+  document.removeEventListener('mouseup', fabMouseUp)
+  if (!fabMoved) {
+    showCmdPalette.value = true
+  } else if (fabPos.value) {
+    try { localStorage.setItem('cmd-fab-pos', JSON.stringify(fabPos.value)) } catch {}
+  }
+  fabDragging.value = false
+}
+
 onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey) })
 onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey) })
 
@@ -745,7 +793,7 @@ onUnmounted(() => {
   height: 46px;
   border: none;
   border-radius: 50%;
-  cursor: pointer;
+  cursor: grab;
   color: #fff;
   background: $gradient-primary;
   box-shadow: $elevation-2, $glow-soft;
@@ -753,12 +801,21 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
+  user-select: none;
+  -webkit-user-select: none;
 
   &:hover {
     transform: translateY(-2px) scale(1.05);
     box-shadow: $elevation-3, $glow-primary;
   }
   &:active { transform: scale(0.96); }
+
+  &.dragging {
+    cursor: grabbing;
+    transition: none;
+    transform: scale(1.08);
+    box-shadow: $elevation-3, $glow-primary;
+  }
 }
 
 </style>

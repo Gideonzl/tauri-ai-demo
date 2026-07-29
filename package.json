@@ -1,11 +1,12 @@
 {
   "name": "aiterminal",
   "private": true,
-  "version": "0.4.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:agent-execution": "node scripts/verify-agent-execution.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

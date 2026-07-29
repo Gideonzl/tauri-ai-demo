@@ -58,17 +58,64 @@
       <div class="ctx-item" @click="ctxAct('upload')"><el-icon :size="13"><Upload /></el-icon><span>{{ t('sftp.upload') }}</span></div>
       <div class="ctx-item" @click="ctxAct('chmod')"><el-icon :size="13"><Lock /></el-icon><span>{{ t('sftp.permissions') }}</span></div>
       <div class="ctx-sep"></div>
+      <div class="ctx-item" v-if="ctxNode && !isArchive(ctxNode)" @click="ctxAct('compress')"><el-icon :size="13"><Box /></el-icon><span>{{ t('sftp.compress') }}</span></div>
+      <div class="ctx-item" v-if="ctxNode && isArchive(ctxNode)" @click="ctxAct('extract')"><el-icon :size="13"><FolderOpened /></el-icon><span>{{ t('sftp.extract') }}</span></div>
+      <div class="ctx-item" v-if="ctxNode?.isDir" @click="ctxAct('folderSize')"><el-icon :size="13"><DataLine /></el-icon><span>{{ t('sftp.folderSize') }}</span></div>
+      <div class="ctx-item" v-if="ctxNode" @click="ctxAct('properties')"><el-icon :size="13"><InfoFilled /></el-icon><span>{{ t('sftp.properties') }}</span></div>
+      <div class="ctx-sep"></div>
       <div class="ctx-item" @click="ctxAct('copyPath')"><el-icon :size="13"><Link /></el-icon><span>{{ t('sftp.copyPath') }}</span></div>
       <div class="ctx-item" @click="ctxAct('copyName')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('sftp.copyName') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item" @click="ctxAct('sendToAI')"><el-icon :size="13"><ChatDotRound /></el-icon><span>{{ t('sftp.sendToAI') }}</span></div>
     </div>
+
+    <!-- 可视化权限编辑器 -->
+    <el-dialog v-model="permDlg.visible" :title="t('sftp.permTitle')" width="360px" append-to-body @contextmenu.prevent>
+      <div class="perm-target">{{ permDlg.name }}</div>
+      <table class="perm-grid">
+        <thead>
+          <tr><th></th><th>{{ t('sftp.permRead') }}</th><th>{{ t('sftp.permWrite') }}</th><th>{{ t('sftp.permExec') }}</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, ri) in permRows" :key="ri">
+            <td class="perm-role">{{ row.label }}</td>
+            <td><el-checkbox v-model="permBits[ri][0]" /></td>
+            <td><el-checkbox v-model="permBits[ri][1]" /></td>
+            <td><el-checkbox v-model="permBits[ri][2]" /></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="perm-preview">
+        <span class="perm-octal">{{ permOctal }}</span>
+        <span class="perm-symbolic">{{ permSymbolic }}</span>
+      </div>
+      <template #footer>
+        <el-button size="small" @click="permDlg.visible = false">{{ t('common.cancel') }}</el-button>
+        <el-button size="small" type="primary" :loading="permDlg.applying" @click="applyPerms">{{ t('sftp.permApply') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 文件属性 -->
+    <el-dialog v-model="propDlg.visible" :title="t('sftp.properties')" width="420px" append-to-body @contextmenu.prevent>
+      <div v-loading="propDlg.loading" class="prop-body">
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propName') }}</span><span class="prop-v">{{ propDlg.name }}</span></div>
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propPath') }}</span><span class="prop-v mono">{{ propDlg.path }}</span></div>
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propType') }}</span><span class="prop-v">{{ propDlg.type }}</span></div>
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propSize') }}</span><span class="prop-v mono">{{ propDlg.size }}</span></div>
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propPerms') }}</span><span class="prop-v mono">{{ propDlg.perms }}</span></div>
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propOwner') }}</span><span class="prop-v mono">{{ propDlg.owner }}</span></div>
+        <div class="prop-row"><span class="prop-k">{{ t('sftp.propModified') }}</span><span class="prop-v mono">{{ propDlg.modified }}</span></div>
+      </div>
+      <template #footer>
+        <el-button size="small" type="primary" @click="propDlg.visible = false">{{ t('common.close') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, inject, onMounted, onUnmounted, watch, computed } from 'vue'
-import { FolderOpened, FolderAdd, Document, Refresh, Edit, Delete, Download, Upload, Lock, SetUp, CopyDocument, Link, Files, ChatDotRound, DocumentCopy, VideoPlay, Picture, DataLine, Setting, Notebook, Coffee, Cpu, Monitor, MagicStick, Coin, HomeFilled, View, Sort, Search } from '@element-plus/icons-vue'
+import { FolderOpened, FolderAdd, Document, Refresh, Edit, Delete, Download, Upload, Lock, SetUp, CopyDocument, Link, Files, ChatDotRound, DocumentCopy, VideoPlay, Picture, DataLine, Setting, Notebook, Coffee, Cpu, Monitor, MagicStick, Coin, HomeFilled, View, Sort, Search, Box, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSshStore } from '@/stores/ssh'
 import { sftpReadDir, sftpMkdir, sftpRemove, sftpRename, sftpStat, sshExec, sftpDownload, sftpUpload, sftpChmod, sftpTouch } from '@/api/tauri'
@@ -352,18 +399,135 @@ async function ctxAct(cmd: string) {
       } catch (e: any) { ElMessage.error(t('sftp.uploadFailed') + ': ' + (e?.message || e)) }
       break
     }
-    case 'chmod': {
-      if (!n) break
-      try {
-        const { value } = await ElMessageBox.prompt(t('sftp.chmodPlaceholder'), t('sftp.chmodTitle'), { inputValue: '755' })
-        const sid = getSessionId()
-        if (sid) { await sftpChmod(sid, n.path, value); ElMessage.success(t('sftp.chmodDone', { mode: value })) }
-      } catch {} break
-    }
+    case 'chmod': if (n) openPermDialog(n); break
+    case 'compress': if (n) await doCompress(n); break
+    case 'extract': if (n) await doExtract(n); break
+    case 'folderSize': if (n) await doFolderSize(n); break
+    case 'properties': if (n) await openPropDialog(n); break
     case 'copyName': if(n){navigator.clipboard.writeText(n.label);ElMessage.success(t('sftp.copied'))} break
     case 'copyPath': if(n){navigator.clipboard.writeText(n.path);ElMessage.success(t('sftp.copied'))} break
     case 'sendToAI': if(n&&injectFilePathToAI){injectFilePathToAI(n.path,n.isDir?'directory':'file',sshStore.activeSession?.serverName);ElMessage.success(t('sftp.sentToAI'))} break
   }
+}
+
+// ═══════ 压缩包判定 ═══════
+function isArchive(node: FileNode): boolean {
+  return /\.(tar\.gz|tgz|tar|zip|gz|bz2|xz|7z|rar)$/i.test(node.label)
+}
+
+// ═══════ 可视化权限编辑器 ═══════
+const permRows = [
+  { label: t('sftp.permOwner') },
+  { label: t('sftp.permGroup') },
+  { label: t('sftp.permOther') },
+]
+const permDlg = reactive({ visible: false, name: '', path: '', applying: false })
+const permBits = reactive([[false, false, false], [false, false, false], [false, false, false]])
+
+const permOctal = computed(() => permBits.map(row => (row[0] ? 4 : 0) + (row[1] ? 2 : 0) + (row[2] ? 1 : 0)).join(''))
+const permSymbolic = computed(() => permBits.map(row => (row[0] ? 'r' : '-') + (row[1] ? 'w' : '-') + (row[2] ? 'x' : '-')).join(''))
+
+function setBitsFromOctal(oct: string) {
+  const digits = oct.padStart(3, '0').slice(-3).split('').map(d => parseInt(d) || 0)
+  digits.forEach((d, i) => { permBits[i][0] = !!(d & 4); permBits[i][1] = !!(d & 2); permBits[i][2] = !!(d & 1) })
+}
+
+async function openPermDialog(n: FileNode) {
+  permDlg.name = n.label; permDlg.path = n.path
+  setBitsFromOctal(n.isDir ? '755' : '644') // sensible default
+  // 尝试读取真实权限
+  const sid = getSessionId()
+  if (sid) {
+    try {
+      const out = (await sshExec(sid, `stat -c '%a' '${n.path.replace(/'/g, `'\\''`)}' 2>/dev/null`)).trim()
+      if (/^[0-7]{3,4}$/.test(out)) setBitsFromOctal(out)
+    } catch {}
+  }
+  permDlg.visible = true
+}
+
+async function applyPerms() {
+  const sid = getSessionId()
+  permDlg.applying = true
+  try {
+    if (sid) await sftpChmod(sid, permDlg.path, permOctal.value)
+    ElMessage.success(t('sftp.permApplied', { mode: permOctal.value }))
+    permDlg.visible = false
+    handleRefresh()
+  } catch (e: any) { ElMessage.error(String(e?.message || e)) }
+  finally { permDlg.applying = false }
+}
+
+// ═══════ 文件属性 ═══════
+const propDlg = reactive({ visible: false, loading: false, name: '', path: '', type: '', size: '-', perms: '-', owner: '-', modified: '-' })
+
+async function openPropDialog(n: FileNode) {
+  propDlg.name = n.label; propDlg.path = n.path
+  propDlg.type = n.isDir ? t('sftp.propTypeDir') : t('sftp.propTypeFile')
+  propDlg.size = n.size ? formatSize(n.size) : '-'
+  propDlg.perms = '-'; propDlg.owner = '-'; propDlg.modified = '-'
+  propDlg.visible = true
+  const sid = getSessionId()
+  if (sid) {
+    propDlg.loading = true
+    try {
+      const p = n.path.replace(/'/g, `'\\''`)
+      const out = (await sshExec(sid, `stat -c '%s|%A|%a|%U:%G|%y' '${p}' 2>/dev/null`)).trim()
+      const parts = out.split('|')
+      if (parts.length >= 5) {
+        propDlg.size = formatSize(parseInt(parts[0]) || 0) + (n.isDir ? '' : ` (${parts[0]} B)`)
+        propDlg.perms = `${parts[1]} (${parts[2]})`
+        propDlg.owner = parts[3]
+        propDlg.modified = parts[4].split('.')[0]
+      }
+    } catch {} finally { propDlg.loading = false }
+  }
+}
+
+// ═══════ 压缩 / 解压 ═══════
+async function doCompress(n: FileNode) {
+  const sid = getSessionId()
+  if (!sid) { ElMessage.warning(t('sftp.noConnection')); return }
+  const dir = n.path.substring(0, n.path.lastIndexOf('/')) || '/'
+  const archive = `${n.label}.tar.gz`
+  ElMessage.info(t('sftp.compressing'))
+  try {
+    await sshExec(sid, `cd '${dir.replace(/'/g, `'\\''`)}' && tar -czf '${archive.replace(/'/g, `'\\''`)}' '${n.label.replace(/'/g, `'\\''`)}'`)
+    ElMessage.success(t('sftp.compressed', { name: archive }))
+    handleRefresh()
+  } catch (e: any) { ElMessage.error(String(e?.message || e)) }
+}
+
+async function doExtract(n: FileNode) {
+  const sid = getSessionId()
+  if (!sid) { ElMessage.warning(t('sftp.noConnection')); return }
+  const dir = n.path.substring(0, n.path.lastIndexOf('/')) || '/'
+  const f = n.label
+  const p = n.path.replace(/'/g, `'\\''`)
+  let cmd = ''
+  if (/\.(tar\.gz|tgz)$/i.test(f)) cmd = `tar -xzf '${p}'`
+  else if (/\.tar$/i.test(f)) cmd = `tar -xf '${p}'`
+  else if (/\.zip$/i.test(f)) cmd = `unzip -o '${p}'`
+  else if (/\.gz$/i.test(f)) cmd = `gunzip -k '${p}'`
+  else if (/\.(bz2|xz)$/i.test(f)) cmd = `tar -xf '${p}'`
+  else { ElMessage.warning('Unsupported'); return }
+  ElMessage.info(t('sftp.extracting'))
+  try {
+    await sshExec(sid, `cd '${dir.replace(/'/g, `'\\''`)}' && ${cmd}`)
+    ElMessage.success(t('sftp.extracted'))
+    handleRefresh()
+  } catch (e: any) { ElMessage.error(String(e?.message || e)) }
+}
+
+async function doFolderSize(n: FileNode) {
+  const sid = getSessionId()
+  if (!sid) { ElMessage.warning(t('sftp.noConnection')); return }
+  ElMessage.info(t('sftp.calculating'))
+  try {
+    const out = (await sshExec(sid, `du -sh '${n.path.replace(/'/g, `'\\''`)}' 2>/dev/null`)).trim()
+    const size = out.split(/\s+/)[0] || '?'
+    ElMessage.success(t('sftp.folderSizeResult', { path: n.label, size }))
+  } catch (e: any) { ElMessage.error(String(e?.message || e)) }
 }
 
 /** Upload one or more local files to a remote directory */
@@ -483,5 +647,27 @@ onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', h
 // Old node-icon styling (now just for alignment)
 .node-icon {
   color: inherit; // Inherit from badge
+}
+
+// ═══ 权限编辑器 ═══
+.perm-target { font-size: $font-size-sm; color: $color-text-secondary; font-family: $font-family-mono; margin-bottom: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.perm-grid { width: 100%; border-collapse: collapse;
+  th { font-size: $font-size-xs; font-weight: 600; color: $color-text-secondary; padding: 4px 8px; text-align: center; }
+  td { padding: 6px 8px; text-align: center; }
+  .perm-role { text-align: left; font-size: $font-size-sm; color: $color-text-primary; }
+}
+.perm-preview { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px; border-radius: $border-radius-md; background: $color-bg-input;
+  .perm-octal { font-size: 20px; font-weight: 700; font-family: $font-family-mono; color: $color-primary; }
+  .perm-symbolic { font-size: $font-size-md; font-family: $font-family-mono; color: $color-text-secondary; letter-spacing: 1px; }
+}
+
+// ═══ 文件属性 ═══
+.prop-body { display: flex; flex-direction: column; gap: 2px; min-height: 60px; }
+.prop-row { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; border-bottom: 1px solid $color-border-light;
+  &:last-child { border-bottom: none; }
+}
+.prop-k { width: 80px; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; }
+.prop-v { flex: 1; font-size: $font-size-sm; color: $color-text-primary; word-break: break-all;
+  &.mono { font-family: $font-family-mono; font-size: $font-size-xs; }
 }
 </style>

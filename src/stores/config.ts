@@ -20,22 +20,22 @@ const THEMES: Record<string, ThemeColors> = {
 
 export const useConfigStore = defineStore('config', () => {
   const defaultModel = ref('deepseek-chat'); const hasToken = ref(false)
-  const colorScheme = ref<ColorScheme>('tech'); const customColors = ref<ThemeColors>(THEMES['tech'])
-  const currentColors = computed<ThemeColors>(() => colorScheme.value === 'custom' ? customColors.value : (THEMES[colorScheme.value] || THEMES['tech']))
+  const colorScheme = ref<ColorScheme>('min-light'); const customColors = ref<ThemeColors>(THEMES['min-light'])
+  const currentColors = computed<ThemeColors>(() => colorScheme.value === 'custom' ? customColors.value : (THEMES[colorScheme.value] || THEMES['min-light']))
   async function init() {
     hasToken.value = !!localStorage.getItem('ai-model-configs')
     try {
       const s = localStorage.getItem('color-scheme')
-      if (s) { const p = JSON.parse(s); colorScheme.value = p.scheme || 'tech'; if (p.custom) customColors.value = { ...customColors.value, ...p.custom } }
+      if (s) { const p = JSON.parse(s); colorScheme.value = p.scheme || 'min-light'; if (p.custom) customColors.value = { ...customColors.value, ...p.custom } }
     } catch {}
-    // One-time migration to the new professional "tech" default —
-    // only for users still on the old default theme (respects deliberate choices).
+    // One-time migration to the new "min-light" default —
+    // only for users still on an auto-assigned default (respects deliberate choices).
     try {
-      if (!localStorage.getItem('design-v2')) {
-        localStorage.setItem('design-v2', '1')
-        if (colorScheme.value === 'termius-dark') {
-          colorScheme.value = 'tech'
-          localStorage.setItem('color-scheme', JSON.stringify({ scheme: 'tech' }))
+      if (!localStorage.getItem('design-v3')) {
+        localStorage.setItem('design-v3', '1')
+        if (colorScheme.value === 'termius-dark' || colorScheme.value === 'tech') {
+          colorScheme.value = 'min-light'
+          localStorage.setItem('color-scheme', JSON.stringify({ scheme: 'min-light' }))
         }
       }
     } catch {}

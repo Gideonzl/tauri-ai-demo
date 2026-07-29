@@ -60,20 +60,18 @@ const topItems = computed<NavItem[]>(() => [
   { id: 'history', path: '/history', label: t('nav.history'), icon: Clock },
   { id: 'ops', path: '/ops', label: t('nav.ops'), icon: Odometer },
   { id: 'ai', path: '/ai-config', label: t('nav.aiModels'), icon: Cpu },
-  { id: 'sftp', path: '', label: t('nav.sftp'), icon: FolderOpened },
+  { id: 'sftp', path: '/sftp', label: t('nav.sftp'), icon: FolderOpened },
 ])
 const bottomItems = computed<NavItem[]>(() => [
   { id: 'settings', path: '/settings', label: t('nav.settings'), icon: Setting },
 ])
 
 function isActive(item: NavItem): boolean {
-  if (item.id === 'sftp') return false  // SFTP is a panel toggle, never highlighted as route
   if (item.id === 'hosts') return route.path === '/' || route.path.startsWith('/?')
   return route.path === item.path
 }
 
 function navigate(item: NavItem) {
-  if (item.id === 'sftp') { if (route.path !== '/') router.push('/'); return }
   if (item.path === route.path) return
   router.push(item.path)
 }

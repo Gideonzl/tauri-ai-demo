@@ -100,6 +100,13 @@ pub async fn ssh_exec(session_id: String, command: String) -> AppResult<String> 
     ssh::exec_command(&session_id, &command).await
 }
 
+/// 执行单条命令并返回结构化结果（stdout / stderr / 退出码 / 是否超时）
+/// 供 AI 智能体使用：空输出可明确区分"成功无输出"与"执行失败"
+#[tauri::command]
+pub async fn ssh_exec_full(session_id: String, command: String) -> AppResult<ssh::ExecResult> {
+    ssh::exec_command_full(&session_id, &command).await
+}
+
 /// 打开交互式Shell（PTY分配 + shell启动）
 #[tauri::command]
 pub async fn ssh_open_shell(app: AppHandle, session_id: String, cols: u32, rows: u32) -> AppResult<()> {

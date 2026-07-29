@@ -4,37 +4,28 @@
  */
 <template>
   <div class="ai-chat" @contextmenu.prevent>
-    <!-- 智能体切换栏 + 历史按钮 -->
-    <div class="agent-bar">
-      <AgentSwitch />
-      <div class="agent-bar-actions">
-        <el-button
-          size="small"
-          text
-          :class="{ active: showHistory }"
-          @click="showHistory = !showHistory"
-          :title="t('ai.history')"
-        >
-          <el-icon :size="14"><Clock /></el-icon>
+    <!-- 紧凑头部：智能体选择 + 操作 -->
+    <div class="ai-header">
+      <el-select :model-value="agentStore.activeAgentId" @change="agentStore.switchAgent" size="small" class="agent-select" popper-class="agent-select-popper" :popper-append-to-body="false">
+        <template #prefix><el-icon :size="13"><component :is="agentIcons[agentStore.activeAgentId]" /></el-icon></template>
+        <el-option v-for="a in agentStore.agents" :key="a.id" :label="a.name" :value="a.id" />
+      </el-select>
+      <div class="ai-header-actions">
+        <el-button size="small" text :class="{ active: showHistory }" @click="showHistory = !showHistory" :title="t('ai.history')">
+          <el-icon :size="15"><Clock /></el-icon>
           <span v-if="historyCount > 0" class="history-count">{{ historyCount }}</span>
+        </el-button>
+        <el-button size="small" text @click="handleNewChat" :title="t('ai.newChat')">
+          <el-icon :size="15"><Plus /></el-icon>
         </el-button>
       </div>
     </div>
 
-    <!-- 当前服务器上下文指示器 -->
-    <div v-if="serverContext && serverContext.status === 'connected'" class="server-context-bar">
-      <el-icon :size="12"><Monitor /></el-icon>
-      <span class="ctx-server-name">{{ serverContext.serverName }}</span>
-      <span class="ctx-sep">|</span>
-      <span class="ctx-addr">{{ serverContext.username }}@{{ serverContext.host }}:{{ serverContext.port }}</span>
-      <span class="ctx-badge connected">{{ t('ai.connected') }}</span>
-    </div>
-
-    <!-- 对话标题栏 -->
-    <div v-if="activeConv" class="conv-title-bar" @dblclick="handleRenameConv">
-      <el-icon :size="12"><ChatDotRound /></el-icon>
-      <span class="conv-title">{{ activeConv.title }}</span>
-      <span class="conv-meta">{{ activeConv.messages.length }} {{ t('ai.messages') }}</span>
+    <!-- 服务器上下文细线 -->
+    <div v-if="serverContext && serverContext.status === 'connected'" class="ctx-line">
+      <span class="ctx-dot"></span>
+      <span class="ctx-name">{{ serverContext.serverName }}</span>
+      <span class="ctx-addr">{{ serverContext.username }}@{{ serverContext.host }}</span>
     </div>
 
     <!-- 历史对话面板 -->
@@ -75,26 +66,17 @@
       </div>
     </div>
 
-    <!-- 快速分析按钮 -->
-    <div class="quick-analysis-bar" v-if="quickAnalyses.length > 0">
-      <el-button
-        v-for="qa in quickAnalyses"
-        :key="qa.id"
-        size="small"
-        text
-        @click="handleQuickAnalysis(qa.prompt)"
-      >
-        {{ qa.label }}
-      </el-button>
-    </div>
-
     <!-- 消息列表 -->
     <div class="message-list" ref="messageListRef" @scroll="onScroll">
       <div v-if="messages.length === 0" class="empty-hint">
-        <el-icon :size="32" class="empty-icon"><ChatDotRound /></el-icon>
+        <el-icon :size="30" class="empty-icon"><ChatDotRound /></el-icon>
         <p>{{ agentStore.activeAgent.name }}</p>
         <p class="sub">{{ agentStore.activeAgent.description }}</p>
         <p class="sub sub-hint">{{ t('ai.emptyHint') }}</p>
+        <!-- 快捷分析仅在空状态显示 -->
+        <div class="quick-chips" v-if="quickAnalyses.length > 0">
+          <button v-for="qa in quickAnalyses" :key="qa.id" class="quick-chip" @click="handleQuickAnalysis(qa.prompt)">{{ qa.label }}</button>
+        </div>
       </div>
 
       <div
@@ -139,24 +121,15 @@
         :disabled="chatStore.isGenerating"
       />
       <div class="input-actions">
-        <div class="mode-select-wrapper">
-          <el-select v-model="agentStore.activeMode" size="small" class="mode-select" popper-class="mode-select-popper" :popper-append-to-body="false">
-            <el-option label="智能问答" value="qa">
-              <span class="mode-opt"><span class="mode-opt-label">💬 智能问答</span><span class="mode-opt-desc">仅分析与建议</span></span>
-            </el-option>
-            <el-option label="智能体" value="agent">
-              <span class="mode-opt"><span class="mode-opt-label">⚡ 智能体</span><span class="mode-opt-desc">可执行服务器命令</span></span>
-            </el-option>
-          </el-select>
-        </div>
-        <el-button
-          size="small"
-          @click="handleNewChat"
-          text
-        >
-          <el-icon :size="12"><Plus /></el-icon>
-          {{ t('ai.newChat') }}
-        </el-button>
+        <el-select v-model="agentStore.activeMode" size="small" class="mode-select" popper-class="mode-select-popper" :popper-append-to-body="false">
+          <el-option label="智能问答" value="qa">
+            <span class="mode-opt"><span class="mode-opt-label">💬 智能问答</span><span class="mode-opt-desc">仅分析与建议</span></span>
+          </el-option>
+          <el-option label="智能体" value="agent">
+            <span class="mode-opt"><span class="mode-opt-label">⚡ 智能体</span><span class="mode-opt-desc">可执行服务器命令</span></span>
+          </el-option>
+        </el-select>
+        <div class="ia-spacer"></div>
         <el-button
           :type="chatStore.isGenerating ? 'danger' : 'primary'"
           size="small"
@@ -185,15 +158,16 @@ import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/model'
 import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
-import { streamChat } from '@/utils/ai-chat'
+import { streamChat, isDangerousCommand } from '@/utils/ai-chat'
 import type { StreamControl, ServerContext } from '@/utils/ai-chat'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput } from '@/utils/server-diagnostics'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select } from '@element-plus/icons-vue'
-import AgentSwitch from '@/components/AgentSwitch.vue'
+import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select, Edit, SetUp, DataLine } from '@element-plus/icons-vue'
 import { useContextMenu } from '@/composables/useContextMenu'
+
+const agentIcons: Record<string, any> = { coder: Edit, ops: SetUp, analyst: DataLine, assistant: ChatDotRound }
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
@@ -280,10 +254,10 @@ watch(
 /** Active conversation (current) */
 const activeConv = computed(() => chatStore.activeConversation)
 
-/** All non-empty conversations for the current agent, sorted by last update */
+/** All non-empty conversations, sorted by last update (decoupled from agent) */
 const agentConversations = computed(() => {
   return chatStore.conversations
-    .filter((c: Conversation) => c.agentId === agentStore.activeAgentId && c.messages.length > 0)
+    .filter((c: Conversation) => c.messages.length > 0)
     .sort((a: Conversation, b: Conversation) => b.updatedAt - a.updatedAt)
 })
 
@@ -476,7 +450,8 @@ async function handleSend() {
     serverContext.value,
     sshStore.activeSession?.realSessionId || null,
     (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
-    agentStore.activeMode
+    agentStore.activeMode,
+    handleConfirmCommand
   )
 }
 
@@ -486,6 +461,27 @@ function handleStop() {
     currentStream = null
   }
   chatStore.finishStreaming(agentStore.activeAgentId)
+}
+
+/** Ask the user before every agent command; execution remains automatic after approval. */
+async function handleConfirmCommand(command: string): Promise<boolean> {
+  try {
+    const dangerous = isDangerousCommand(command)
+    await ElMessageBox.confirm(
+      `${dangerous ? '⚠️ ' : ''}智能体请求在服务器上执行命令：\n\n\`${command}\`\n\n是否允许执行？`,
+      dangerous ? '确认高危命令' : '确认执行',
+      {
+        type: 'warning',
+        confirmButtonText: '允许执行',
+        cancelButtonText: '拒绝',
+        distinguishCancelAndClose: true,
+        closeOnClickModal: false,
+      }
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function handleQuickAnalysis(prompt: string) {
@@ -547,7 +543,8 @@ async function handleQuickAnalysis(prompt: string) {
         serverContext.value,
         sshStore.activeSession?.realSessionId || null,
         (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
-        agentStore.activeMode
+        agentStore.activeMode,
+        handleConfirmCommand
       )
       return
     }
@@ -571,27 +568,24 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   overflow: hidden;
 }
 
-// === Agent bar ===
-.agent-bar {
+// === Compact header ===
+.ai-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 $spacing-sm;
+  gap: $spacing-sm;
+  padding: 6px $spacing-sm;
   border-bottom: 1px solid $color-border-light;
   flex-shrink: 0;
-  min-height: 36px;
 }
-
-.agent-bar-actions {
+.agent-select { width: 140px; }
+.ai-header-actions {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
 
-  .el-button {
-    position: relative;
-    &.active { color: $color-primary; }
-  }
+  .el-button { position: relative; &.active { color: $color-primary; } }
 }
 
 .history-count {
@@ -601,7 +595,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   font-size: 9px;
   font-weight: 700;
   color: $color-primary;
-  background: rgba(91, 155, 213, 0.15);
+  background: $color-bg-active;
   min-width: 14px;
   height: 14px;
   line-height: 14px;
@@ -610,65 +604,22 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   padding: 0 4px;
 }
 
-// === Server context ===
-.server-context-bar {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px $spacing-sm;
-  font-size: 10px;
-  font-family: $font-family-mono;
-  color: $color-text-secondary;
-  background-color: rgba(76, 175, 125, 0.06);
-  border-bottom: 1px solid rgba(76, 175, 125, 0.15);
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  .ctx-server-name { font-weight: 600; color: $color-text-primary; }
-  .ctx-sep { color: $color-text-muted; }
-  .ctx-addr { color: $color-text-secondary; }
-  .ctx-badge {
-    margin-left: auto;
-    font-size: 9px;
-    padding: 0 5px;
-    border-radius: 2px;
-    letter-spacing: 0.3px;
-    &.connected { color: $color-success; background: rgba(76, 175, 125, 0.12); }
-  }
-}
-
-// === Conversation title bar ===
-.conv-title-bar {
+// === Server context — thin subtle line ===
+.ctx-line {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px $spacing-sm;
-  font-size: $font-size-xs;
-  color: $color-text-secondary;
-  border-bottom: 1px solid $color-border-light;
+  padding: 3px $spacing-md;
+  font-size: 10px;
+  font-family: $font-family-mono;
+  color: $color-text-placeholder;
   flex-shrink: 0;
-  cursor: pointer;
-  transition: background-color $transition-fast;
+  white-space: nowrap;
+  overflow: hidden;
 
-  &:hover { background-color: $color-bg-hover; }
-
-  .conv-title {
-    font-weight: 500;
-    color: $color-text-regular;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  .conv-meta {
-    font-size: 10px;
-    color: $color-text-placeholder;
-    font-family: $font-family-mono;
-    flex-shrink: 0;
-  }
+  .ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-success; box-shadow: 0 0 4px rgba(76,175,125,0.5); flex-shrink: 0; }
+  .ctx-name { color: $color-text-secondary; font-weight: 600; }
+  .ctx-addr { color: $color-text-placeholder; overflow: hidden; text-overflow: ellipsis; }
 }
 
 // === History panel ===
@@ -848,13 +799,26 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 }
 
 // === Quick analysis ===
-.quick-analysis-bar {
+// === Quick analysis chips (empty state only) ===
+.quick-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: $spacing-xs $spacing-sm;
-  border-bottom: 1px solid $color-border-light;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 6px;
+  margin-top: $spacing-md;
+  padding: 0 $spacing-md;
+}
+.quick-chip {
+  padding: 4px 12px;
+  border: 1px solid $color-border;
+  border-radius: 14px;
+  background: $color-bg-input;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  transition: all $transition-fast;
+  &:hover { border-color: $color-primary; color: $color-primary; background: $color-bg-active; }
 }
 
 // === Streaming ===
@@ -898,13 +862,12 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 .input-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: $spacing-xs;
   margin-top: $spacing-xs;
 }
 
-.mode-select-wrapper { flex-shrink: 0; }
-.mode-select { width: 155px; }
+.ia-spacer { flex: 1; }
+.mode-select { width: 140px; flex-shrink: 0; }
 .mode-opt { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
 .mode-opt-label { font-size: $font-size-sm; font-weight: 500; color: $color-text-primary; }
 .mode-opt-desc { font-size: 10px; color: $color-text-placeholder; }

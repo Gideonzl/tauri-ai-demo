@@ -103,6 +103,41 @@ export class XTermFrontend {
     this.terminal.onData((data: string) => {
       this.input$.next(data)
     })
+
+    // ── Smart copy / paste key bindings ──
+    // Ctrl+C: copy selection if any (else fall through to SIGINT ^C)
+    // Ctrl+V: paste from clipboard
+    // Ctrl+Shift+C / Ctrl+Shift+V: always copy / paste
+    this.terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (e.type !== 'keydown') return true
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod || e.altKey) return true
+      const key = e.key.toLowerCase()
+
+      // Copy
+      if (key === 'c') {
+        const sel = this.terminal.getSelection()
+        if (e.shiftKey) {
+          if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+          return false
+        }
+        // Plain Ctrl+C: copy only when there is a selection, else let ^C through
+        if (sel) {
+          navigator.clipboard.writeText(sel).catch(() => {})
+          this.terminal.clearSelection()
+          return false
+        }
+        return true
+      }
+
+      // Paste (Ctrl+V / Ctrl+Shift+V): suppress the ^V control char and let the
+      // browser's native paste event insert the text (avoids double paste).
+      if (key === 'v') {
+        return false
+      }
+
+      return true
+    })
   }
 
   // ── Settings (font / cursor / scrollback / copy-on-select) ──

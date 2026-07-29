@@ -68,6 +68,21 @@ export async function sshExec(sessionId: string, command: string): Promise<strin
   return invoke<string>('ssh_exec', { sessionId, command })
 }
 
+/** 命令执行结构化结果 — 对应 Rust ExecResult */
+export interface SshExecResult {
+  stdout: string
+  stderr: string
+  /** 远端进程退出码；超时或未收到时为 null */
+  exit_code: number | null
+  /** 命令在超时时间内未结束时为 true */
+  timed_out: boolean
+}
+
+/** 执行命令并返回结构化结果（stdout/stderr/退出码/超时）— 供 AI 智能体判断成败 */
+export async function sshExecFull(sessionId: string, command: string): Promise<SshExecResult> {
+  return invoke<SshExecResult>('ssh_exec_full', { sessionId, command })
+}
+
 /** 打开交互式Shell（PTY分配 + shell启动，双向流） */
 export async function sshOpenShell(sessionId: string, cols: number = 80, rows: number = 24): Promise<void> {
   return invoke<void>('ssh_open_shell', { sessionId, cols, rows })

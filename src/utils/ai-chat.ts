@@ -68,18 +68,66 @@ function stripToolCalls(content: string): string {
   return content.replace(/<execute_command>[\s\S]*?<\/execute_command>/g, '').trim()
 }
 
-/** 在连接的服务器上执行命令 */
+/** 判断命令是否为高危操作，用于确认弹窗的警告样式。 */
+export function isDangerousCommand(command: string): boolean {
+  const c = command.toLowerCase()
+  const patterns: RegExp[] = [
+    /\brm\s+-[a-z]*(r|f)/,                 // rm -rf / -r / -f
+    /\bmkfs\.?\w*/,                         // mkfs / mkfs.ext4 ...
+    /\bdd\b[^|]*\bof=/,                     // dd of=...
+    /\bfdisk\b|\bparted\b|\bwipefs\b|\bsgdisk\b/,
+    /:\s*\(\)\s*\{\s*:\s*\|/,               // fork bomb :(){ :|:& };:
+    /\bshutdown\b|\breboot\b|\bhalt\b|\bpoweroff\b|\binit\s+0\b/,
+    /\biptables\s+-f\b|\bnft\s+flush\b|\bufw\s+reset\b/,
+    /\bdrop\s+(database|table)\b|\btruncate\s+table\b/,
+    /\bchmod\s+-r\s+0?777\b/,
+    /\b(userdel|groupdel|deluser)\b/,
+    /\bkill(all)?\s+-9\b|\bpkill\s+-9\b/,
+    />\s*\/dev\/(sd[a-z]|nvme\d|mapper)/,   // writing to raw disks
+    /\bmv\s+[^|&]*\s+\/(dev|etc|bin|sbin|boot|sys|proc|lib)\b/,
+    /\b(systemctl|service)\s+(stop|disable|mask)\b/,
+    /\bgit\s+(reset\s+--hard|clean\s+-[a-z]*f|push\b[^|]*--force)/,
+  ]
+  return patterns.some((re) => re.test(c))
+}
+
+/** 把结构化执行结果格式化成给模型看的清晰反馈 —
+ *  关键：空输出必须明确标注"成功、退出码 0"，绝不能让模型误判成连接断开 */
+function formatExecResult(r: { stdout: string; stderr: string; exit_code: number | null; timed_out: boolean }): string {
+  const out = (r.stdout || '').trim()
+  const err = (r.stderr || '').trim()
+  const parts: string[] = []
+  if (out) parts.push(out)
+  if (err) parts.push(`[stderr]\n${err}`)
+  let body = parts.join('\n')
+
+  if (r.timed_out) {
+    body += (body ? '\n' : '') + '[提示] 命令在超时时间内未结束（可能是持续运行的命令，如 tail -f / top），以上为已获取的部分输出。请改用带明确结束的命令（如加 head、-bn1、--no-pager）。'
+    return body
+  }
+  if (!out && !err) {
+    // 成功但无输出：明确告知，避免被当成失败/断线
+    return `[命令执行完毕，退出码 ${r.exit_code ?? 0}，无输出]`
+  }
+  if (r.exit_code != null && r.exit_code !== 0) {
+    body += `\n[退出码 ${r.exit_code} — 命令本身返回错误，请阅读上面的信息判断原因]`
+  }
+  return body
+}
+
+/** 在连接的服务器上执行命令，返回结构化后的文本反馈 */
 async function executeCommand(sessionId: string, command: string): Promise<string> {
   try {
     const isTauri = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__
     if (!isTauri) {
-      return `[Demo mode — server not available]\nCommand: ${command}\n(Connect to a real server via Tauri to execute commands)`
+      return `[Demo 模式 — 未连接真实服务器，无法执行]\n命令：${command}`
     }
-    const { sshExec } = await import('@/api/tauri')
-    const output = await sshExec(sessionId, command)
-    return output.trim() || '(command executed successfully, no output)'
+    const { sshExecFull } = await import('@/api/tauri')
+    const result = await sshExecFull(sessionId, command)
+    return formatExecResult(result)
   } catch (e: any) {
-    return `Error executing command: ${e?.message || e?.toString() || 'unknown error'}`
+    // 走到这里才是真正的通道/连接级错误
+    return `[执行错误] ${e?.message || e?.toString() || 'unknown error'}`
   }
 }
 
@@ -108,7 +156,8 @@ export async function streamChat(
   serverContext?: ServerContext | null,
   sessionId?: string | null,
   onToolStart?: (command: string) => void,
-  mode?: AgentMode
+  mode?: AgentMode,
+  onConfirmCommand?: (command: string) => Promise<boolean>
 ): Promise<StreamControl> {
   const modelStore = useModelStore()
   const config = modelStore.defaultConfig
@@ -162,10 +211,18 @@ ls -la /root
 **重要规则：**
 - 每个命令单独放在一个 <execute_command> 块中
 - 可以同时输出多个命令块
-- 先给出简要说明（如"我来查看一下..."），再执行命令
+- 先给出简要说明（如"我来查看一下..."），然后等待系统弹窗确认
+- 用户允许后由系统自动执行；用户拒绝后改用安全的替代方案或说明原因
 - 收到命令输出后，用自然语言解释结果
-- **永远不要**只给命令让用户自己去执行 — 你直接执行
-- 对于危险操作（rm -rf、drop database、iptables -F 等），先警告用户并确认`
+- **永远不要**只给命令让用户自己执行 — 系统会在确认后自动执行
+- 对于危险操作（rm -rf、drop database、iptables -F 等），先警告用户并确认
+
+**如何理解执行结果（关键，务必遵守）：**
+- 结果为"[命令执行完毕，退出码 0，无输出]"表示命令**成功但本身没有输出**（如 grep 无匹配、目录为空、服务无日志），这是**正常现象**，请据此继续分析或执行下一步。**绝不能**因此说"无输出/连接断了"。
+- 结果带"[退出码 N]"（N≠0）或 stderr，说明**命令本身报错**（权限不足、路径不存在、参数错误等），请阅读错误信息、修正命令后**自己重试**，或向用户解释原因并给出替代方案。
+- 结果为"[执行错误] ..."才可能是连接/通道问题。**系统底层已内置自动重连**，前端也会自动重试一次；如果仍收到该错误，请改用更轻量、更有界的诊断命令或说明当前错误。**绝不要**因此让用户手动执行，也**绝不要**声称"无法主动重连 / 环境受限 / 连接又断了"——你完全具备重连和重试能力。
+- **禁止**输出"请把命令复制到你的终端执行后把结果贴给我""建议你手动运行以下命令"之类的话。你就是执行者，请直接执行。
+- **在任何情况下都不要**要求用户"手动执行命令并把结果贴给你" —— 你具备执行能力，遇到空输出或报错请自行重试、换命令或换思路，而不是把任务退回给用户。`
   } else if (serverContext && serverContext.status === 'connected' && mode === 'qa') {
     // Q&A mode with server connected — explicitly tell AI to NOT execute commands
     systemContent += `
@@ -192,6 +249,7 @@ ls -la /root
         onError,
         effectiveSessionId,
         onToolStart,
+        onConfirmCommand,
         config,
         activeAbort
       )
@@ -220,10 +278,11 @@ async function runConversationLoop(
   onError: (error: string) => void,
   sessionId: string | null | undefined,
   onToolStart: ((command: string) => void) | undefined,
+  onConfirmCommand: ((command: string) => Promise<boolean>) | undefined,
   config: { apiBase: string; model: string; token: string; timeout?: number },
   abortController: AbortController
 ): Promise<void> {
-  const MAX_TOOL_ROUNDS = 5
+  const MAX_TOOL_ROUNDS = 20
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const requestMessages: ChatMessage[] = [
@@ -272,8 +331,6 @@ async function runConversationLoop(
     for (const tc of toolCalls) {
       if (abortController.signal.aborted) return
 
-      onToolStart?.(tc.command)
-
       if (!sessionId) {
         messages.push({
           role: 'user',
@@ -282,7 +339,30 @@ async function runConversationLoop(
         continue
       }
 
-      const result = await executeCommand(sessionId, tc.command)
+      // Ask once for permission, then execute the command automatically.
+      // This keeps the user in control without sending command execution back
+      // to a terminal they must operate manually.
+      if (onConfirmCommand) {
+        const approved = await onConfirmCommand(tc.command)
+        if (abortController.signal.aborted) return
+        if (!approved) {
+          messages.push({
+            role: 'user',
+            content: `命令: ${tc.command}\n\n输出:\n[用户拒绝执行该命令。请勿重复尝试同一命令，改用更安全的只读方式，或直接向用户说明并等待指示。]`,
+          })
+          continue
+        }
+      }
+
+      onToolStart?.(tc.command)
+
+      let result = await executeCommand(sessionId, tc.command)
+      // A "[执行错误]" is the only channel/connection-level failure. The Rust
+      // layer already self-reconnects, so a single retry almost always succeeds.
+      // Never surface this to the user as "please run it yourself".
+      if (/^\[执行错误\]/.test(result.trim())) {
+        result = await executeCommand(sessionId, tc.command)
+      }
 
       messages.push({
         role: 'user',
