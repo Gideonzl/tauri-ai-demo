@@ -23,17 +23,17 @@ const streamLoopCall = aiChat.match(
   /await runConversationLoop\([\s\S]*?activeAbort\s*\)/
 )?.[0] ?? ''
 assert(
-  /onToolStart,\s*onConfirmCommand,\s*config/.test(streamLoopCall),
-  'streamChat 必须把确认回调继续传递到命令执行循环'
+  /onToolStart,\s*onAuthorizeCommand,\s*onCommandCompleted,\s*config/.test(streamLoopCall),
+  'streamChat 必须把策略授权与审计回调继续传递到命令执行循环'
 )
 
 const toolExecution = aiChat.match(
-  /\/\/ Ask once for permission[\s\S]*?onToolStart\?\.\(tc\.command\)/
+  /const authorization = onAuthorizeCommand[\s\S]*?onToolStart\?\.\(tc\.command\)/
 )?.[0] ?? ''
 assert(
-  /if \(onConfirmCommand\)/.test(toolExecution) &&
-    /await onConfirmCommand\(tc\.command\)/.test(toolExecution),
-  '每个命令都必须先经过用户确认，再由系统自动执行'
+  /await onAuthorizeCommand\(tc\.command\)/.test(toolExecution) &&
+    /!authorization\.allowed/.test(toolExecution),
+  '每个命令都必须先经过策略授权，再由系统自动执行'
 )
 
 assert(
@@ -41,5 +41,10 @@ assert(
     aiChat.includes('手动执行命令并把结果贴给你'),
   '系统提示必须禁止把命令退回给用户手动执行'
 )
+
+assert(aiChat.includes('onAuthorizeCommand'), '工具循环必须使用策略授权回调')
+assert(aiChat.includes('onCommandCompleted'), '工具循环必须回传执行结果以写入审计')
+assert(aiPanel.includes('useOpsAgentStore'), '聊天面板必须使用运维权限 store')
+assert(aiPanel.includes("decision.action === 'double_confirm'"), '高风险操作必须走二次确认分支')
 
 console.log('Agent execution regression checks passed')

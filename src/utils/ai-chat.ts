@@ -24,6 +24,13 @@ export interface StreamControl {
   abort: () => void
 }
 
+/** Result returned by the UI policy gate before a remote command can run. */
+export interface CommandAuthorization {
+  allowed: boolean
+  auditId?: string
+  denialMessage: string
+}
+
 /** 动态获取合适的 fetch 函数（Tauri → plugin-http，浏览器 → 原生） */
 async function resolveFetch(): Promise<typeof globalThis.fetch> {
   try {
@@ -157,7 +164,8 @@ export async function streamChat(
   sessionId?: string | null,
   onToolStart?: (command: string) => void,
   mode?: AgentMode,
-  onConfirmCommand?: (command: string) => Promise<boolean>
+  onAuthorizeCommand?: (command: string) => Promise<CommandAuthorization>,
+  onCommandCompleted?: (command: string, result: string, authorization: CommandAuthorization) => void,
 ): Promise<StreamControl> {
   const modelStore = useModelStore()
   const config = modelStore.defaultConfig
@@ -249,7 +257,8 @@ ls -la /root
         onError,
         effectiveSessionId,
         onToolStart,
-        onConfirmCommand,
+        onAuthorizeCommand,
+        onCommandCompleted,
         config,
         activeAbort
       )
@@ -278,7 +287,8 @@ async function runConversationLoop(
   onError: (error: string) => void,
   sessionId: string | null | undefined,
   onToolStart: ((command: string) => void) | undefined,
-  onConfirmCommand: ((command: string) => Promise<boolean>) | undefined,
+  onAuthorizeCommand: ((command: string) => Promise<CommandAuthorization>) | undefined,
+  onCommandCompleted: ((command: string, result: string, authorization: CommandAuthorization) => void) | undefined,
   config: { apiBase: string; model: string; token: string; timeout?: number },
   abortController: AbortController
 ): Promise<void> {
@@ -339,19 +349,18 @@ async function runConversationLoop(
         continue
       }
 
-      // Ask once for permission, then execute the command automatically.
-      // This keeps the user in control without sending command execution back
-      // to a terminal they must operate manually.
-      if (onConfirmCommand) {
-        const approved = await onConfirmCommand(tc.command)
-        if (abortController.signal.aborted) return
-        if (!approved) {
-          messages.push({
-            role: 'user',
-            content: `命令: ${tc.command}\n\n输出:\n[用户拒绝执行该命令。请勿重复尝试同一命令，改用更安全的只读方式，或直接向用户说明并等待指示。]`,
-          })
-          continue
-        }
+      // Every command must pass the caller's policy gate. Missing hooks deny by
+      // default so future call sites cannot accidentally bypass authorization.
+      const authorization = onAuthorizeCommand
+        ? await onAuthorizeCommand(tc.command)
+        : { allowed: false, denialMessage: '系统未配置命令权限策略，已安全阻止执行。' }
+      if (abortController.signal.aborted) return
+      if (!authorization.allowed) {
+        messages.push({
+          role: 'user',
+          content: `命令: ${tc.command}\n\n输出:\n[策略已阻止执行：${authorization.denialMessage}。请勿重复尝试同一命令，改用安全的只读方式，或向用户说明限制。]`,
+        })
+        continue
       }
 
       onToolStart?.(tc.command)
@@ -363,6 +372,7 @@ async function runConversationLoop(
       if (/^\[执行错误\]/.test(result.trim())) {
         result = await executeCommand(sessionId, tc.command)
       }
+      onCommandCompleted?.(tc.command, result, authorization)
 
       messages.push({
         role: 'user',

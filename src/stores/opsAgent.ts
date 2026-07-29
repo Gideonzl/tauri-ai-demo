@@ -139,6 +139,14 @@ export const useOpsAgentStore = defineStore('opsAgent', () => {
     persistAudit()
   }
 
+  function setAuditApproval(id: string, approved: boolean) {
+    const event = auditEvents.value.find(item => item.id === id)
+    if (!event) return
+    event.approved = approved
+    if (!approved) event.status = 'denied'
+    persistAudit()
+  }
+
   function clearAudit() {
     auditEvents.value = []
     saveStorage(AUDIT_KEY, auditEvents.value)
@@ -153,6 +161,7 @@ export const useOpsAgentStore = defineStore('opsAgent', () => {
     decide,
     recordAudit,
     completeAudit,
+    setAuditApproval,
     clearAudit,
   }
 })

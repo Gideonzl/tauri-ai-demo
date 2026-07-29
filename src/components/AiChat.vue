@@ -11,6 +11,10 @@
         <el-option v-for="a in agentStore.agents" :key="a.id" :label="a.name" :value="a.id" />
       </el-select>
       <div class="ai-header-actions">
+        <template v-if="agentStore.activeAgentId === 'ops'">
+          <OpsPermissionControl :level="opsAgentStore.permissionLevel" @update:level="opsAgentStore.setPermissionLevel" />
+          <el-button size="small" text :title="t('ai.auditTitle')" @click="showAudit = true"><el-icon :size="15"><DocumentCopy /></el-icon></el-button>
+        </template>
         <el-button size="small" text :class="{ active: showHistory }" @click="showHistory = !showHistory" :title="t('ai.history')">
           <el-icon :size="15"><Clock /></el-icon>
           <span v-if="historyCount > 0" class="history-count">{{ historyCount }}</span>
@@ -148,6 +152,7 @@
       <div class="ctx-sep"></div>
       <div class="ctx-item" @click="msgMenuAct('selectAll')"><el-icon :size="13"><Select /></el-icon><span>{{ t('common.selectAll') }}</span></div>
     </div>
+    <OpsAuditDrawer v-model="showAudit" :events="opsAgentStore.auditEvents" @clear="opsAgentStore.clearAudit" />
   </div>
 </template>
 
@@ -157,15 +162,18 @@ import { useAgentStore } from '@/stores/agent'
 import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/model'
 import { useSshStore } from '@/stores/ssh'
+import { useOpsAgentStore } from '@/stores/opsAgent'
 import { useLocale } from '@/composables/useLocale'
-import { streamChat, isDangerousCommand } from '@/utils/ai-chat'
-import type { StreamControl, ServerContext } from '@/utils/ai-chat'
+import { streamChat } from '@/utils/ai-chat'
+import type { CommandAuthorization, StreamControl, ServerContext } from '@/utils/ai-chat'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput } from '@/utils/server-diagnostics'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select, Edit, SetUp, DataLine } from '@element-plus/icons-vue'
 import { useContextMenu } from '@/composables/useContextMenu'
+import OpsPermissionControl from '@/components/OpsPermissionControl.vue'
+import OpsAuditDrawer from '@/components/OpsAuditDrawer.vue'
 
 const agentIcons: Record<string, any> = { coder: Edit, ops: SetUp, analyst: DataLine, assistant: ChatDotRound }
 
@@ -173,10 +181,12 @@ const agentStore = useAgentStore()
 const chatStore = useChatStore()
 const modelStore = useModelStore()
 const sshStore = useSshStore()
+const opsAgentStore = useOpsAgentStore()
 const { t } = useLocale()
 
 const { register, unregister } = useContextMenu()
 const showHistory = ref(false)
+const showAudit = ref(false)
 
 // 消息右键菜单
 const msgMenu = reactive({ visible: false, x: 0, y: 0, msg: null as any })
@@ -239,6 +249,11 @@ const serverContext = computed<ServerContext | null>(() => {
     username: server.username,
     status: session.status,
   }
+})
+
+const activeHost = computed(() => {
+  const session = sshStore.activeSession
+  return { id: session?.serverId || '', name: session?.serverName || serverContext.value?.serverName || '' }
 })
 
 // Auto-switch to OPS agent when a server connects
@@ -451,7 +466,8 @@ async function handleSend() {
     sshStore.activeSession?.realSessionId || null,
     (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
     agentStore.activeMode,
-    handleConfirmCommand
+    handleConfirmCommand,
+    handleCommandCompleted,
   )
 }
 
@@ -463,25 +479,61 @@ function handleStop() {
   chatStore.finishStreaming(agentStore.activeAgentId)
 }
 
-/** Ask the user before every agent command; execution remains automatic after approval. */
-async function handleConfirmCommand(command: string): Promise<boolean> {
+/** Apply the selected policy, then ask only for the confirmation level it requires. */
+async function handleConfirmCommand(command: string): Promise<CommandAuthorization> {
+  const decision = opsAgentStore.decide(command, activeHost.value.id)
+  const auditId = opsAgentStore.recordAudit({
+    hostId: activeHost.value.id,
+    hostName: activeHost.value.name,
+    command,
+    decision,
+    approved: decision.action === 'allow' ? true : null,
+    status: decision.action === 'deny' ? 'denied' : 'pending',
+  })
+
+  if (decision.action === 'allow') {
+    return { allowed: true, auditId, denialMessage: '' }
+  }
+  if (decision.action === 'deny') {
+    ElMessage.warning(t('ai.commandBlocked'))
+    return { allowed: false, auditId, denialMessage: decision.reason }
+  }
+
   try {
-    const dangerous = isDangerousCommand(command)
     await ElMessageBox.confirm(
-      `${dangerous ? '⚠️ ' : ''}智能体请求在服务器上执行命令：\n\n\`${command}\`\n\n是否允许执行？`,
-      dangerous ? '确认高危命令' : '确认执行',
+      `${decision.action === 'double_confirm' ? '⚠️ ' : ''}${t('ai.riskChange')}：${decision.reason}\n\n${t('ai.auditUnknownHost')}：${activeHost.value.name || '-'}\n\n\`${command}\`\n\n${t('common.confirm')}？`,
+      decision.action === 'double_confirm' ? t('ai.confirmHighRisk') : t('ai.confirmChange'),
       {
         type: 'warning',
-        confirmButtonText: '允许执行',
-        cancelButtonText: '拒绝',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         distinguishCancelAndClose: true,
         closeOnClickModal: false,
       }
     )
-    return true
+    if (decision.action === 'double_confirm') {
+      await ElMessageBox.confirm(
+        `${t('ai.riskHigh')}：${decision.reason}\n\n\`${command}\`\n\n${t('ai.confirmHighRiskAgain')}？`,
+        t('ai.confirmHighRiskAgain'),
+        {
+          type: 'error',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          distinguishCancelAndClose: true,
+          closeOnClickModal: false,
+        }
+      )
+    }
+    opsAgentStore.setAuditApproval(auditId, true)
+    return { allowed: true, auditId, denialMessage: '' }
   } catch {
-    return false
+    opsAgentStore.setAuditApproval(auditId, false)
+    return { allowed: false, auditId, denialMessage: t('ai.commandBlocked') }
   }
+}
+
+function handleCommandCompleted(_command: string, result: string, authorization: CommandAuthorization) {
+  if (authorization.auditId) opsAgentStore.completeAudit(authorization.auditId, result)
 }
 
 async function handleQuickAnalysis(prompt: string) {
@@ -544,7 +596,8 @@ async function handleQuickAnalysis(prompt: string) {
         sshStore.activeSession?.realSessionId || null,
         (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
         agentStore.activeMode,
-        handleConfirmCommand
+        handleConfirmCommand,
+        handleCommandCompleted,
       )
       return
     }
