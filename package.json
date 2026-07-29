@@ -8,6 +8,7 @@
     "build": "vite build",
     "test:agent-execution": "node scripts/verify-agent-execution.mjs",
     "test:ops-permissions": "node scripts/verify-ops-permissions.mjs",
+    "test:ops-remediation": "node scripts/verify-ops-remediation.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
