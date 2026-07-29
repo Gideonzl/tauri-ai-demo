@@ -169,6 +169,7 @@ onUnmounted(async () => {
   display: flex; align-items: center; gap: 6px; margin-top: 3px;
   font-size: 20px; font-weight: 850; color: $color-text-primary;
   letter-spacing: -0.5px;
+  text-shadow: $text-shadow-strong;
 }
 
 .ops-header-right {
@@ -184,11 +185,12 @@ onUnmounted(async () => {
 .ops-tab {
   display: flex; align-items: center; gap: 5px; position: relative;
   padding: 7px 12px; border: 1px solid transparent; background: transparent; cursor: pointer;
-  font-size: $font-size-sm; color: $color-text-secondary; font-family: inherit;
+  font-size: $font-size-sm; color: $color-text-regular; font-family: inherit;
   border-radius: 999px; transition: all $transition-fast;
   white-space: nowrap;
+  text-shadow: $text-shadow-strong;
 
-  &:hover { color: $color-text-regular; background: rgba(255,255,255,0.045); border-color: rgba(34,247,255,0.14); }
+  &:hover { color: $color-text-primary; background: rgba(255,255,255,0.045); border-color: rgba(34,247,255,0.14); }
   &.active {
     color: $neon-cyan;
     background: linear-gradient(135deg, rgba(34,247,255,0.16), rgba(168,85,255,0.12));
@@ -212,6 +214,7 @@ onUnmounted(async () => {
   flex-shrink: 0; display: flex; align-items: center; gap: 6px;
   padding: 5px; border-radius: 999px; background: rgba(255,255,255,0.035);
   border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 0 18px rgba(0,0,0,0.22);
 }
 .opt-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: $color-text-muted;
   &.connected { background: $color-success; } &.disconnected { background: $color-text-muted; }
@@ -227,7 +230,7 @@ onUnmounted(async () => {
 
 .ops-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; color: $color-text-secondary;
+  gap: 8px; color: $color-text-regular;
   .el-icon { color: $color-text-muted; opacity: 0.4; }
   p { margin: 0; font-size: $font-size-md; }
   .sub { font-size: $font-size-sm; color: $color-text-placeholder; }

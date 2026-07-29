@@ -15,6 +15,7 @@
   <div class="app-shell" @contextmenu.self.prevent="onPageCtx">
     <div class="shell-aurora shell-aurora-a"></div>
     <div class="shell-aurora shell-aurora-b"></div>
+    <div class="shell-contrast-scrim"></div>
 
     <!-- 顶部品牌导航栏 -->
     <header class="app-topbar">
@@ -478,8 +479,18 @@ onUnmounted(() => {
   z-index: 0;
   border-radius: 999px;
   filter: blur(42px);
-  opacity: 0.72;
+  opacity: 0.54;
   mix-blend-mode: screen;
+}
+
+.shell-contrast-scrim {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.34), transparent 28%, transparent 70%, rgba(0,0,0,0.26)),
+    linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.30));
 }
 
 .shell-aurora-a {
@@ -508,7 +519,7 @@ onUnmounted(() => {
   padding: 0 18px;
   background:
     linear-gradient(90deg, rgba(34, 247, 255, 0.07), transparent 42%, rgba(168, 85, 255, 0.08)),
-    rgba(8, 12, 26, 0.72);
+    rgba(5, 8, 18, 0.88);
   backdrop-filter: blur(18px) saturate(1.35);
   border-bottom: 1px solid rgba(34, 247, 255, 0.16);
   box-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 16px 46px rgba(0,0,0,0.26);
@@ -525,7 +536,8 @@ onUnmounted(() => {
 .tb-status-strip {
   display: flex; align-items: center; gap: 8px; margin-left: 14px;
   padding: 5px 9px; border: 1px solid rgba(255,255,255,0.08); border-radius: 999px;
-  background: rgba(255,255,255,0.035); color: $color-text-secondary; font-size: 10px;
+  background: rgba(3, 7, 16, 0.72); color: $color-text-regular; font-size: 10px;
+  text-shadow: $text-shadow-strong;
   box-shadow: inset 0 0 18px rgba(255,255,255,0.025);
 }
 .tb-status-strip span:not(.tb-status-dot) { padding: 0 2px; }
@@ -534,8 +546,9 @@ onUnmounted(() => {
 .tb-cmd {
   display: flex; align-items: center; gap: 8px;
   height: 34px; min-width: 240px; padding: 0 10px; border: 1px solid rgba(34,247,255,0.2);
-  border-radius: 999px; background: rgba(255,255,255,0.045); cursor: pointer;
-  color: $color-text-secondary; font-family: inherit; font-size: $font-size-xs;
+  border-radius: 999px; background: $surface-contrast-soft; cursor: pointer;
+  color: $color-text-regular; font-family: inherit; font-size: $font-size-xs;
+  text-shadow: $text-shadow-strong;
   transition: all $transition-fast;
   &:hover { border-color: $neon-cyan; color: $color-text-primary; box-shadow: $glow-cyan; }
   .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $neon-cyan; background: rgba(34,247,255,0.08); padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(34,247,255,0.16); }
@@ -571,7 +584,7 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background: linear-gradient(180deg, rgba(13, 18, 38, 0.72), rgba(7, 10, 22, 0.78));
+  background: linear-gradient(180deg, rgba(9, 14, 30, 0.94), rgba(4, 7, 16, 0.96));
 
   backdrop-filter: blur(10px) saturate(1.1);
 
@@ -674,7 +687,7 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background: linear-gradient(180deg, rgba(12, 17, 34, 0.78), rgba(7, 10, 20, 0.84));
+  background: linear-gradient(180deg, rgba(10, 15, 32, 0.94), rgba(4, 7, 16, 0.96));
 
   backdrop-filter: blur(10px) saturate(1.1);
 

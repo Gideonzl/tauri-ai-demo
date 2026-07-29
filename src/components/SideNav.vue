@@ -132,7 +132,7 @@ function navigate(item: NavItem) {
   padding: 0 8px;
   border-radius: 16px;
   cursor: pointer;
-  color: $color-text-secondary;
+  color: $color-text-regular;
   transition: all $transition-fast;
   position: relative;
   white-space: nowrap;
@@ -143,7 +143,7 @@ function navigate(item: NavItem) {
 
   &:hover {
     background: rgba(255,255,255,0.04);
-    color: $color-text-regular;
+    color: $color-text-primary;
     border-color: rgba(34,247,255,0.13);
     .nav-icon-shell { transform: translateY(-1px) scale(1.04); border-color: rgba(34,247,255,0.36); box-shadow: $glow-soft; }
   }
@@ -174,6 +174,7 @@ function navigate(item: NavItem) {
   border: 1px solid rgba(255,255,255,0.08);
   background: rgba(255,255,255,0.035);
   color: inherit;
+  text-shadow: $text-shadow-strong;
   flex-shrink: 0;
   transition: all $transition-normal;
 

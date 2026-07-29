@@ -123,8 +123,33 @@ body::before {
   mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent 82%);
 }
 
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.20), rgba(0, 0, 0, 0.38)),
+    radial-gradient(circle at 50% 30%, transparent 0%, rgba(0, 0, 0, 0.24) 72%);
+}
+
+.contrast-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.28));
+}
+
+.readability-high {
+  color: $color-text-primary;
+  text-shadow: $text-shadow-strong;
+}
+
 #app {
   isolation: isolate;
+  position: relative;
+  z-index: 1;
 }
 
 
@@ -257,12 +282,13 @@ body::before {
 
 
 
-  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025)), $color-bg-input !important;
-  box-shadow: 0 0 0 1px $color-border inset, 0 0 20px rgba(34, 247, 255, 0.035) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.10)), $surface-contrast-soft !important;
+  box-shadow: 0 0 0 1px rgba(185, 231, 255, 0.16) inset, 0 0 20px rgba(34, 247, 255, 0.035) !important;
 
 
 
   color: $color-text-primary !important;
+  text-shadow: $text-shadow-strong;
 
 
 
@@ -301,7 +327,8 @@ body::before {
 
 
 
-  color: $color-text-placeholder !important;
+  color: $color-text-secondary !important;
+  opacity: 0.72;
 
 
 
