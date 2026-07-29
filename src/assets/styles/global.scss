@@ -88,6 +88,11 @@ body {
 
 
   background-color: $color-bg-app;
+  background-image:
+    radial-gradient(circle at 18% 4%, rgba(34, 247, 255, 0.13), transparent 26%),
+    radial-gradient(circle at 84% 10%, rgba(168, 85, 255, 0.16), transparent 30%),
+    radial-gradient(circle at 52% 100%, rgba(255, 79, 216, 0.08), transparent 28%);
+  background-attachment: fixed;
 
 
 
@@ -103,6 +108,23 @@ body {
 
 
 
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent 82%);
+}
+
+#app {
+  isolation: isolate;
 }
 
 
@@ -235,11 +257,8 @@ body {
 
 
 
-  background-color: $color-bg-input !important;
-
-
-
-  box-shadow: 0 0 0 1px $color-border inset !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025)), $color-bg-input !important;
+  box-shadow: 0 0 0 1px $color-border inset, 0 0 20px rgba(34, 247, 255, 0.035) !important;
 
 
 
@@ -251,6 +270,21 @@ body {
 
 
 
+}
+
+.el-button {
+  border-radius: 999px !important;
+  transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast, color $transition-fast !important;
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+}
+
+.el-button--primary {
+  border: 1px solid rgba(34, 247, 255, 0.58) !important;
+  background: linear-gradient(135deg, rgba(34, 247, 255, 0.95), rgba(168, 85, 255, 0.92)) !important;
+  box-shadow: 0 0 18px rgba(34, 247, 255, 0.28), 0 12px 30px rgba(0, 0, 0, 0.34) !important;
 }
 
 

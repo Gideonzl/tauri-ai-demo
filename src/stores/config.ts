@@ -2,10 +2,11 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { applyTheme } from '@/utils/theme'
 
-export type ColorScheme = 'tech' | 'termius-dark' | 'xterminal' | 'monokai' | 'one-dark' | 'dracula' | 'nord' | 'high-contrast' | 'catppuccin' | 'gruvbox-dark' | 'one-light' | 'github-light' | 'solarized-light' | 'min-light' | 'custom'
+export type ColorScheme = 'neon-ops' | 'tech' | 'termius-dark' | 'xterminal' | 'monokai' | 'one-dark' | 'dracula' | 'nord' | 'high-contrast' | 'catppuccin' | 'gruvbox-dark' | 'one-light' | 'github-light' | 'solarized-light' | 'min-light' | 'custom'
 export interface ThemeColors { bg: string; surface: string; text: string; textSecondary: string; keyword: string; string: string; number: string; comment: string; key: string; section: string; error: string; warning: string; info: string; variable: string; terminalBg: string; terminalFg: string; terminalCursor: string }
 
 const THEMES: Record<string, ThemeColors> = {
+  'neon-ops': { bg: '#070912', surface: '#10172d', text: '#f4fbff', textSecondary: '#8ea8c8', keyword: '#a855ff', string: '#42f58d', number: '#ffcc66', comment: '#52627c', key: '#22f7ff', section: '#ff4fd8', error: '#ff4d6d', warning: '#ffcc66', info: '#22f7ff', variable: '#ff4fd8', terminalBg: '#070912', terminalFg: '#f4fbff', terminalCursor: '#22f7ff' },
   'tech': { bg: '#0a0e17', surface: '#141b2b', text: '#e6edf7', textSecondary: '#8b99b4', keyword: '#60a5fa', string: '#4ade80', number: '#fbbf24', comment: '#5a6785', key: '#38bdf8', section: '#a78bfa', error: '#f87171', warning: '#fbbf24', info: '#38bdf8', variable: '#f472b6', terminalBg: '#0a0e17', terminalFg: '#e6edf7', terminalCursor: '#3b82f6' },
   'termius-dark': { bg: '#0d0d1a', surface: '#1b1b2f', text: '#e8e8f0', textSecondary: '#8888a0', keyword: '#c792ea', string: '#c3e88d', number: '#f78c6c', comment: '#546e7a', key: '#89ddff', section: '#ffcb6b', error: '#ff5370', warning: '#ffcb6b', info: '#82aaff', variable: '#f07178', terminalBg: '#0d0d1a', terminalFg: '#e8e8f0', terminalCursor: '#5b8def' },
   'xterminal': { bg: '#1a1b26', surface: '#24283b', text: '#c0caf5', textSecondary: '#565f89', keyword: '#bb9af7', string: '#9ece6a', number: '#ff9e64', comment: '#565f89', key: '#7dcfff', section: '#e0af68', error: '#f7768e', warning: '#e0af68', info: '#7aa2f7', variable: '#bb9af7', terminalBg: '#1a1b26', terminalFg: '#c0caf5', terminalCursor: '#7dcfff' },
@@ -20,13 +21,13 @@ const THEMES: Record<string, ThemeColors> = {
 
 export const useConfigStore = defineStore('config', () => {
   const defaultModel = ref('deepseek-chat'); const hasToken = ref(false)
-  const colorScheme = ref<ColorScheme>('min-light'); const customColors = ref<ThemeColors>(THEMES['min-light'])
-  const currentColors = computed<ThemeColors>(() => colorScheme.value === 'custom' ? customColors.value : (THEMES[colorScheme.value] || THEMES['min-light']))
+  const colorScheme = ref<ColorScheme>('neon-ops'); const customColors = ref<ThemeColors>(THEMES['neon-ops'])
+  const currentColors = computed<ThemeColors>(() => colorScheme.value === 'custom' ? customColors.value : (THEMES[colorScheme.value] || THEMES['neon-ops']))
   async function init() {
     hasToken.value = !!localStorage.getItem('ai-model-configs')
     try {
       const s = localStorage.getItem('color-scheme')
-      if (s) { const p = JSON.parse(s); colorScheme.value = p.scheme || 'min-light'; if (p.custom) customColors.value = { ...customColors.value, ...p.custom } }
+      if (s) { const p = JSON.parse(s); colorScheme.value = p.scheme || 'neon-ops'; if (p.custom) customColors.value = { ...customColors.value, ...p.custom } }
     } catch {}
     // One-time migration to the new "min-light" default —
     // only for users still on an auto-assigned default (respects deliberate choices).
@@ -36,6 +37,16 @@ export const useConfigStore = defineStore('config', () => {
         if (colorScheme.value === 'termius-dark' || colorScheme.value === 'tech') {
           colorScheme.value = 'min-light'
           localStorage.setItem('color-scheme', JSON.stringify({ scheme: 'min-light' }))
+        }
+      }
+    } catch {}
+    // One-time migration to the new neon cockpit default for users who stayed on previous defaults.
+    try {
+      if (!localStorage.getItem('design-neon-v1')) {
+        localStorage.setItem('design-neon-v1', '1')
+        if (colorScheme.value === 'min-light' || colorScheme.value === 'termius-dark' || colorScheme.value === 'tech') {
+          colorScheme.value = 'neon-ops'
+          localStorage.setItem('color-scheme', JSON.stringify({ scheme: 'neon-ops' }))
         }
       }
     } catch {}

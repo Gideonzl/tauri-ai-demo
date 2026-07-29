@@ -3,25 +3,32 @@
   <div class="ops-view" @contextmenu.prevent>
     <!-- 顶部栏 -->
     <div class="ops-header">
-      <div class="ops-title">
-        <el-icon :size="16"><Odometer /></el-icon>
-        <span>{{ t('ops.title') }}</span>
+      <div class="ops-hero">
+        <div class="ops-orb"><el-icon :size="18"><Odometer /></el-icon></div>
+        <div>
+          <div class="ops-eyebrow">NEON OPS CENTER</div>
+          <div class="ops-title">
+            <span>{{ t('ops.title') }}</span>
+          </div>
+        </div>
       </div>
-      <div class="ops-tabs">
-        <button v-for="tab in tabs" :key="tab.id" class="ops-tab" :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
-          <el-icon :size="13"><component :is="tab.icon" /></el-icon>
-          <span>{{ tab.label }}</span>
-          <span v-if="tab.id === 'alerts' && alertStore.unreadCount > 0" class="tab-badge">{{ alertStore.unreadCount }}</span>
-        </button>
-      </div>
-      <!-- 服务器选择器（巡检/告警/日志用）— 显示全部服务器，选中后按需连接 -->
-      <div v-if="needsSelector" class="ops-server-select">
-        <el-select v-model="selectedServerId" size="small" :placeholder="t('ops.selectServer')" :popper-append-to-body="false" style="width: 200px">
-          <el-option v-for="s in sshStore.servers" :key="s.id" :label="s.name" :value="s.id">
-            <span class="opt-dot" :class="serverConn(s.id)"></span>{{ s.name }}
-          </el-option>
-        </el-select>
-        <span v-if="connecting" class="ops-connecting"><el-icon :size="12" class="spin"><Loading /></el-icon></span>
+      <div class="ops-header-right">
+        <div class="ops-tabs">
+          <button v-for="tab in tabs" :key="tab.id" class="ops-tab" :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
+            <el-icon :size="14"><component :is="tab.icon" /></el-icon>
+            <span class="ops-tab-label">{{ tab.label }}</span>
+            <span v-if="tab.id === 'alerts' && alertStore.unreadCount > 0" class="tab-badge">{{ alertStore.unreadCount }}</span>
+          </button>
+        </div>
+        <!-- 服务器选择器（巡检/告警/日志用）— 显示全部服务器，选中后按需连接 -->
+        <div v-if="needsSelector" class="ops-server-select">
+          <el-select v-model="selectedServerId" size="small" :placeholder="t('ops.selectServer')" :popper-append-to-body="false" style="width: 220px">
+            <el-option v-for="s in sshStore.servers" :key="s.id" :label="s.name" :value="s.id">
+              <span class="opt-dot" :class="serverConn(s.id)"></span>{{ s.name }}
+            </el-option>
+          </el-select>
+          <span v-if="connecting" class="ops-connecting"><el-icon :size="12" class="spin"><Loading /></el-icon></span>
+        </div>
       </div>
     </div>
 
@@ -122,42 +129,90 @@ onUnmounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-.ops-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: $color-bg-app; }
+.ops-view {
+  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(34,247,255,0.10), transparent 32%),
+    radial-gradient(circle at 78% 14%, rgba(168,85,255,0.12), transparent 30%),
+    rgba(5, 8, 18, 0.35);
+}
 
 .ops-header {
-  display: flex; align-items: center; gap: $spacing-md;
-  height: 48px; padding: 0 $spacing-md; flex-shrink: 0;
-  border-bottom: 1px solid $color-border-light;
-  background: $glass-bg;
-  backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg;
+  min-height: 82px; padding: 14px 18px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(34,247,255,0.12);
+  background:
+    linear-gradient(90deg, rgba(34,247,255,0.07), transparent 48%, rgba(168,85,255,0.08)),
+    rgba(7, 11, 24, 0.58);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 54px rgba(0,0,0,0.18);
+}
+
+.ops-hero {
+  display: flex; align-items: center; gap: 12px; min-width: 210px;
+}
+
+.ops-orb {
+  width: 42px; height: 42px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: #061018;
+  background: linear-gradient(135deg, $neon-cyan, $neon-violet);
+  box-shadow: $glow-cyan, 0 14px 34px rgba(0,0,0,0.28);
+}
+
+.ops-eyebrow {
+  font-size: 9px; letter-spacing: 1.8px; color: $neon-cyan; font-weight: 800;
+  text-shadow: 0 0 14px rgba(34,247,255,0.32);
 }
 
 .ops-title {
-  display: flex; align-items: center; gap: 6px;
-  font-size: $font-size-md; font-weight: 600; color: $color-text-primary;
-  .el-icon { color: $color-primary; }
+  display: flex; align-items: center; gap: 6px; margin-top: 3px;
+  font-size: 20px; font-weight: 850; color: $color-text-primary;
+  letter-spacing: -0.5px;
 }
 
-.ops-tabs { display: flex; gap: 2px; flex: 1; }
+.ops-header-right {
+  display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; justify-content: flex-end;
+}
+
+.ops-tabs {
+  display: flex; gap: 7px; min-width: 0; overflow-x: auto;
+  padding: 5px; border: 1px solid rgba(255,255,255,0.07); border-radius: 999px;
+  background: rgba(255,255,255,0.035);
+}
 
 .ops-tab {
   display: flex; align-items: center; gap: 5px; position: relative;
-  padding: 5px 12px; border: none; background: transparent; cursor: pointer;
+  padding: 7px 12px; border: 1px solid transparent; background: transparent; cursor: pointer;
   font-size: $font-size-sm; color: $color-text-secondary; font-family: inherit;
-  border-radius: $border-radius-sm; transition: all $transition-fast;
+  border-radius: 999px; transition: all $transition-fast;
+  white-space: nowrap;
 
-  &:hover { color: $color-text-regular; background: $color-bg-hover; }
-  &.active { color: $color-primary; background: $color-bg-active; box-shadow: $glow-soft; }
+  &:hover { color: $color-text-regular; background: rgba(255,255,255,0.045); border-color: rgba(34,247,255,0.14); }
+  &.active {
+    color: $neon-cyan;
+    background: linear-gradient(135deg, rgba(34,247,255,0.16), rgba(168,85,255,0.12));
+    border-color: rgba(34,247,255,0.28);
+    box-shadow: inset 0 0 18px rgba(34,247,255,0.08), $glow-soft;
+  }
+}
+
+.ops-tab-label {
+  font-weight: 650;
 }
 
 .tab-badge {
   position: absolute; top: -2px; right: -2px;
   min-width: 15px; height: 15px; line-height: 15px; padding: 0 4px;
   font-size: 9px; font-weight: 700; color: #fff;
-  background: $color-danger; border-radius: 8px; text-align: center;
+  background: $color-danger; border-radius: 8px; text-align: center; box-shadow: $glow-danger;
 }
 
-.ops-server-select { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.ops-server-select {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 5px; border-radius: 999px; background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+}
 .opt-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: $color-text-muted;
   &.connected { background: $color-success; } &.disconnected { background: $color-text-muted; }
 }
@@ -165,7 +220,10 @@ onUnmounted(async () => {
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.ops-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.ops-body {
+  flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0;
+  padding: 12px;
+}
 
 .ops-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;

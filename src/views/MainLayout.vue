@@ -13,6 +13,8 @@
 <template>
 
   <div class="app-shell" @contextmenu.self.prevent="onPageCtx">
+    <div class="shell-aurora shell-aurora-a"></div>
+    <div class="shell-aurora shell-aurora-b"></div>
 
     <!-- 顶部品牌导航栏 -->
     <header class="app-topbar">
@@ -20,6 +22,12 @@
         <img src="/app-icon.png?v=2" class="tb-logo" alt="" />
         <span class="tb-name">AITerminal</span>
         <span class="tb-badge">{{ isTauriMode ? 'Console' : 'Web' }}</span>
+      </div>
+      <div class="tb-status-strip">
+        <span class="tb-status-dot"></span>
+        <span>SSH Mesh</span>
+        <span>AI Ops</span>
+        <span>Secure Runbooks</span>
       </div>
       <div class="tb-spacer"></div>
       <button class="tb-cmd" @click="showCmdPalette = true">
@@ -160,6 +168,7 @@
       :title="t('cmd.openHint') + ' (Ctrl+K)'"
       @mousedown="fabMouseDown"
     >
+      <span class="cmd-fab-ring"></span>
       <el-icon :size="20"><MagicStick /></el-icon>
     </button>
 
@@ -460,43 +469,82 @@ onUnmounted(() => {
   height: 100%;
   overflow: hidden;
   background: $gradient-app;
+  position: relative;
+}
+
+.shell-aurora {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 999px;
+  filter: blur(42px);
+  opacity: 0.72;
+  mix-blend-mode: screen;
+}
+
+.shell-aurora-a {
+  width: 360px;
+  height: 360px;
+  top: -160px;
+  left: 18%;
+  background: rgba(34, 247, 255, 0.24);
+}
+
+.shell-aurora-b {
+  width: 420px;
+  height: 420px;
+  right: -140px;
+  top: 8%;
+  background: rgba(168, 85, 255, 0.22);
 }
 
 // === 顶部品牌导航栏 ===
 .app-topbar {
-  height: 44px;
+  height: 56px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 14px;
-  background: $glass-bg;
-  backdrop-filter: blur(12px) saturate(1.2);
-  border-bottom: 1px solid $glass-border;
+  padding: 0 18px;
+  background:
+    linear-gradient(90deg, rgba(34, 247, 255, 0.07), transparent 42%, rgba(168, 85, 255, 0.08)),
+    rgba(8, 12, 26, 0.72);
+  backdrop-filter: blur(18px) saturate(1.35);
+  border-bottom: 1px solid rgba(34, 247, 255, 0.16);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 16px 46px rgba(0,0,0,0.26);
   z-index: 10;
 }
 .tb-brand { display: flex; align-items: center; gap: 8px; }
-.tb-logo { width: 22px; height: 22px; border-radius: 6px; }
-.tb-name { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: $color-text-primary; font-family: 'Inter', sans-serif; }
+.tb-logo { width: 28px; height: 28px; border-radius: 9px; box-shadow: $glow-cyan; }
+.tb-name { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; color: $color-text-primary; font-family: 'Inter', sans-serif; text-shadow: 0 0 18px rgba(34,247,255,0.22); }
 .tb-badge {
-  font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
-  color: $color-primary; background: $color-bg-active; padding: 2px 6px; border-radius: 4px;
+  font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
+  color: $neon-cyan; background: rgba(34,247,255,0.09); padding: 3px 7px; border-radius: 999px;
+  border: 1px solid rgba(34,247,255,0.22); box-shadow: inset 0 0 12px rgba(34,247,255,0.08);
 }
+.tb-status-strip {
+  display: flex; align-items: center; gap: 8px; margin-left: 14px;
+  padding: 5px 9px; border: 1px solid rgba(255,255,255,0.08); border-radius: 999px;
+  background: rgba(255,255,255,0.035); color: $color-text-secondary; font-size: 10px;
+  box-shadow: inset 0 0 18px rgba(255,255,255,0.025);
+}
+.tb-status-strip span:not(.tb-status-dot) { padding: 0 2px; }
+.tb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; box-shadow: 0 0 10px $color-success; }
 .tb-spacer { flex: 1; }
 .tb-cmd {
   display: flex; align-items: center; gap: 8px;
-  height: 30px; padding: 0 10px; border: 1px solid $color-border;
-  border-radius: $border-radius-md; background: $color-bg-input; cursor: pointer;
+  height: 34px; min-width: 240px; padding: 0 10px; border: 1px solid rgba(34,247,255,0.2);
+  border-radius: 999px; background: rgba(255,255,255,0.045); cursor: pointer;
   color: $color-text-secondary; font-family: inherit; font-size: $font-size-xs;
   transition: all $transition-fast;
-  &:hover { border-color: $color-primary; color: $color-text-primary; }
-  .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $color-text-muted; background: $color-bg-app; padding: 1px 5px; border-radius: 3px; }
+  &:hover { border-color: $neon-cyan; color: $color-text-primary; box-shadow: $glow-cyan; }
+  .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $neon-cyan; background: rgba(34,247,255,0.08); padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(34,247,255,0.16); }
 }
 .tb-icon-btn {
   width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
   border: none; border-radius: $border-radius-md; background: transparent; cursor: pointer;
   color: $color-text-secondary; transition: all $transition-fast;
-  &:hover { background: $color-bg-hover; color: $color-primary; }
+  &:hover { background: $color-bg-hover; color: $neon-cyan; box-shadow: $glow-soft; }
 }
 
 .main-layout {
@@ -510,6 +558,8 @@ onUnmounted(() => {
   min-height: 0;
 
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 
 }
 
@@ -521,13 +571,14 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background: $glass-bg;
+  background: linear-gradient(180deg, rgba(13, 18, 38, 0.72), rgba(7, 10, 22, 0.78));
 
   backdrop-filter: blur(10px) saturate(1.1);
 
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 
-  border-right: 1px solid $glass-border;
+  border-right: 1px solid rgba(34, 247, 255, 0.14);
+  box-shadow: 18px 0 54px rgba(0, 0, 0, 0.22);
 
   flex-shrink: 0;
 
@@ -609,7 +660,9 @@ onUnmounted(() => {
 
   flex-direction: column;
 
-  background-color: $color-bg-primary;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,247,255,0.055), transparent 36%),
+    rgba(5, 8, 18, 0.42);
 
 }
 
@@ -621,13 +674,14 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background: $glass-bg;
+  background: linear-gradient(180deg, rgba(12, 17, 34, 0.78), rgba(7, 10, 20, 0.84));
 
   backdrop-filter: blur(10px) saturate(1.1);
 
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 
-  border-left: 1px solid $glass-border;
+  border-left: 1px solid rgba(168, 85, 255, 0.18);
+  box-shadow: -18px 0 60px rgba(0, 0, 0, 0.28), -1px 0 0 rgba(255,255,255,0.04);
 
   flex-shrink: 0;
 
@@ -653,9 +707,8 @@ onUnmounted(() => {
 
   flex-shrink: 0;
 
-  border-bottom: 1px solid $color-border-light;
-
-  background-color: $color-bg-surface;
+  border-bottom: 1px solid rgba(168, 85, 255, 0.16);
+  background: rgba(255,255,255,0.035);
 
   padding: 0 $spacing-sm;
 
@@ -755,9 +808,10 @@ onUnmounted(() => {
 
   &.active {
 
-    color: $color-primary;
+    color: $neon-cyan;
 
-    background-color: $color-bg-active;
+    background: rgba(34,247,255,0.09);
+    box-shadow: inset 0 0 16px rgba(34,247,255,0.08), 0 0 16px rgba(34,247,255,0.08);
 
   }
 
@@ -791,18 +845,19 @@ onUnmounted(() => {
   z-index: 15000;
   width: 46px;
   height: 46px;
-  border: none;
+  border: 1px solid rgba(34,247,255,0.38);
   border-radius: 50%;
   cursor: grab;
   color: #fff;
   background: $gradient-primary;
-  box-shadow: $elevation-2, $glow-soft;
+  box-shadow: $elevation-2, $glow-cyan, $glow-violet;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   user-select: none;
   -webkit-user-select: none;
+  overflow: visible;
 
   &:hover {
     transform: translateY(-2px) scale(1.05);
@@ -818,5 +873,18 @@ onUnmounted(() => {
   }
 }
 
-</style>
+.cmd-fab-ring {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid rgba(34,247,255,0.28);
+  box-shadow: inset 0 0 12px rgba(34,247,255,0.12), 0 0 20px rgba(168,85,255,0.20);
+  animation: pulse-neon-ring 2.2s ease-in-out infinite;
+}
 
+@keyframes pulse-neon-ring {
+  0%, 100% { transform: scale(0.94); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 0.95; }
+}
+
+</style>

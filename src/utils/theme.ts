@@ -167,6 +167,18 @@ const THEME_DEFS: Record<string, ThemeDef> = {
       info: '#82aaff', variable: '#f07178',
     },
   },
+  'neon-ops': {
+    primary: '#22f7ff',
+    bg: '#070912',
+    surface: '#10172d',
+    text: '#f4fbff',
+    textSecondary: '#8ea8c8',
+    syntax: {
+      keyword: '#a855ff', string_: '#42f58d', number: '#ffcc66', comment: '#52627c',
+      key: '#22f7ff', section: '#ff4fd8', error: '#ff4d6d', warning: '#ffcc66',
+      info: '#22f7ff', variable: '#ff4fd8',
+    },
+  },
   'xterminal': {
     primary: '#8ab4ff',
     bg: '#1a1b26',
@@ -361,6 +373,9 @@ function buildPalette(def: ThemeDef): Record<string, string> {
   const glassBorder = isLight ? rgba('#000000', 0.08) : rgba('#ffffff', 0.10)
   const glowPrimary = `0 0 16px ${rgba(primary, isLight ? 0.22 : 0.38)}`
   const glowSoft = `0 0 10px ${rgba(primary, 0.18)}`
+  const neonCyan = primary
+  const neonViolet = def.syntax.keyword
+  const neonPink = def.syntax.variable
   const gradPrimary = `linear-gradient(135deg, ${primary}, ${lighten(primary, 0.18)})`
   const gradApp = isLight
     ? `linear-gradient(160deg, ${bg}, ${lerpColor(bg, primary, 0.05)})`
@@ -405,6 +420,12 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--glass-border': glassBorder,
     '--glow-primary': glowPrimary,
     '--glow-soft': glowSoft,
+    '--neon-cyan': neonCyan,
+    '--neon-violet': neonViolet,
+    '--neon-pink': neonPink,
+    '--glow-cyan': `0 0 22px ${rgba(neonCyan, isLight ? 0.2 : 0.42)}`,
+    '--glow-violet': `0 0 26px ${rgba(neonViolet, isLight ? 0.18 : 0.36)}`,
+    '--glow-danger': `0 0 22px ${rgba(def.syntax.error, isLight ? 0.18 : 0.34)}`,
     '--gradient-primary': gradPrimary,
     '--gradient-app': gradApp,
     '--gradient-surface': gradSurface,

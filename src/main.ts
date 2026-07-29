@@ -27,12 +27,12 @@ try {
   const raw = localStorage.getItem('color-scheme')
   if (raw) {
     const p = JSON.parse(raw)
-    applyTheme(p.scheme || 'min-light', p.custom)
+    applyTheme(p.scheme || 'neon-ops', p.custom)
   } else {
-    applyTheme('min-light')
+    applyTheme('neon-ops')
   }
 } catch {
-  applyTheme('min-light')
+  applyTheme('neon-ops')
 }
 
 const app = createApp(App)

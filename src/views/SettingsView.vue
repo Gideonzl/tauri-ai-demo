@@ -310,6 +310,7 @@ function savingRule() {
 }
 
 const themes = {
+  'neon-ops': { keyword: '#a855ff', string: '#42f58d', number: '#ffcc66', key: '#22f7ff' },
   'tech': { keyword: '#60a5fa', string: '#4ade80', number: '#fbbf24', key: '#38bdf8' },
   'termius-dark': { keyword: '#c792ea', string: '#c3e88d', number: '#f78c6c', key: '#89ddff' },
   'xterminal': { keyword: '#bb9af7', string: '#9ece6a', number: '#ff9e64', key: '#7dcfff' },

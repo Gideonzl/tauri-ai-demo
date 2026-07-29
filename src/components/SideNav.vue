@@ -6,6 +6,7 @@
 -->
 <template>
   <nav class="side-nav" @contextmenu.prevent>
+    <div class="rail-glow"></div>
     <!-- Top section: main navigation -->
     <div class="nav-top">
       <div
@@ -16,7 +17,9 @@
         :title="item.label"
         @click="navigate(item)"
       >
-        <el-icon :size="18"><component :is="item.icon" /></el-icon>
+        <span class="nav-icon-shell">
+          <el-icon :size="18"><component :is="item.icon" /></el-icon>
+        </span>
         <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
       </div>
     </div>
@@ -31,7 +34,9 @@
         :title="item.label"
         @click="navigate(item)"
       >
-        <el-icon :size="18"><component :is="item.icon" /></el-icon>
+        <span class="nav-icon-shell">
+          <el-icon :size="18"><component :is="item.icon" /></el-icon>
+        </span>
         <span v-if="showLabels" class="nav-label">{{ item.label }}</span>
       </div>
     </div>
@@ -83,15 +88,30 @@ function navigate(item: NavItem) {
   flex-direction: column;
   height: 100%;
   width: 100%;
-  padding: 0;
+  padding: 10px 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.rail-glow {
+  position: absolute;
+  left: 7px;
+  top: 18px;
+  bottom: 18px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(34,247,255,0.7), rgba(168,85,255,0.6), transparent);
+  box-shadow: $glow-cyan;
+  opacity: 0.55;
 }
 
 .nav-top {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding-top: $spacing-md;
-  gap: 1px;
+  padding-top: $spacing-sm;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-bottom {
@@ -99,40 +119,66 @@ function navigate(item: NavItem) {
   flex-direction: column;
   align-items: stretch;
   margin-top: auto;
-  padding-bottom: $spacing-md;
-  gap: 1px;
+  padding-bottom: $spacing-sm;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  height: 38px;
-  padding: 0 $spacing-md;
-  border-radius: 0;
+  height: 44px;
+  padding: 0 8px;
+  border-radius: 16px;
   cursor: pointer;
   color: $color-text-secondary;
   transition: all $transition-fast;
   position: relative;
   white-space: nowrap;
   overflow: hidden;
-  border-left: 2px solid transparent;
+  border: 1px solid transparent;
   animation: fade-in-up 0.3s ease backwards;
-
-  .el-icon {
-    transition: transform $transition-normal, filter $transition-normal;
-  }
+  background: transparent;
 
   &:hover {
-    background-color: $color-bg-hover;
+    background: rgba(255,255,255,0.04);
     color: $color-text-regular;
-    .el-icon { transform: scale(1.14); }
+    border-color: rgba(34,247,255,0.13);
+    .nav-icon-shell { transform: translateY(-1px) scale(1.04); border-color: rgba(34,247,255,0.36); box-shadow: $glow-soft; }
   }
 
   &.active {
-    color: $color-primary;
-    background-color: $color-bg-active;
-    border-left-color: $color-primary;
-    .el-icon { filter: drop-shadow(0 0 6px var(--color-primary, #5b8def)); }
+    color: $neon-cyan;
+    background:
+      linear-gradient(90deg, rgba(34,247,255,0.16), rgba(168,85,255,0.08)),
+      rgba(255,255,255,0.035);
+    border-color: rgba(34,247,255,0.28);
+    box-shadow: inset 0 0 18px rgba(34,247,255,0.08), 0 0 22px rgba(34,247,255,0.08);
+    .nav-icon-shell {
+      color: #061018;
+      background: linear-gradient(135deg, $neon-cyan, $neon-violet);
+      border-color: rgba(255,255,255,0.4);
+      box-shadow: $glow-cyan;
+    }
+  }
+}
+
+.nav-icon-shell {
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.035);
+  color: inherit;
+  flex-shrink: 0;
+  transition: all $transition-normal;
+
+  .el-icon {
+    transition: transform $transition-normal, filter $transition-normal;
   }
 }
 
@@ -145,7 +191,7 @@ function navigate(item: NavItem) {
 .nav-label {
   margin-left: $spacing-sm;
   font-size: $font-size-sm;
-  font-weight: 500;
+  font-weight: 650;
   color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
