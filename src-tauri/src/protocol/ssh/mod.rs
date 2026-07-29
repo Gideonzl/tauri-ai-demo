@@ -101,6 +101,46 @@ fn emit_status(app: &AppHandle, sid: &str, status: &str, error: &str) {
     let _ = app.emit("ssh-status", serde_json::json!({ "sessionId": sid, "status": status, "error": error }));
 }
 
+/// The exec and PTY APIs share one russh handle. An exec operation temporarily
+/// owns it while opening a channel, so a simultaneous terminal startup must
+/// wait for that short critical section instead of reporting a false
+/// "Handle not available" connection failure.
+async fn take_session_handle(session_id: &str) -> AppResult<client::Handle<SshHandler>> {
+    // Exec channel creation can wait up to 12 seconds, so the PTY queue must
+    // outlive that normal critical section instead of misreporting it as a
+    // failed connection on a slow server.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
+
+    loop {
+        let handle = {
+            let mut sessions = SESSIONS.lock().await;
+            let session = sessions.get_mut(session_id)
+                .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+            session.handle.take()
+        };
+
+        if let Some(handle) = handle {
+            return Ok(handle);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(AppError::new(ErrorCode::SshChannelOpenFailed, "SSH session stayed busy while opening another channel"));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+}
+
+async fn restore_session_handle(session_id: &str, handle: client::Handle<SshHandler>) -> AppResult<()> {
+    let mut sessions = SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed while opening SSH channel"))?;
+    // Do not overwrite a newer handle that may have been installed by a
+    // reconnect while this older operation was still completing.
+    if session.handle.is_none() {
+        session.handle = Some(handle);
+    }
+    Ok(())
+}
+
 // ============================================================
 // Shell channel task (owns channel, not handle)
 // ============================================================
@@ -253,29 +293,33 @@ async fn reconnect_session(session_id: &str) -> AppResult<()> {
 /// Open interactive shell — opens channel using handle, then hands channel to background task
 /// Handle REMAINS in session for exec/SFTP operations
 pub async fn open_shell(app: AppHandle, session_id: &str, cols: u32, rows: u32) -> AppResult<()> {
-    let mut sessions = SESSIONS.lock().await;
-    let session = sessions.get_mut(session_id)
-        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+    let handle = take_session_handle(session_id).await?;
+    let channel_result: AppResult<russh::Channel<russh::client::Msg>> = async {
+        let channel = handle.channel_open_session().await
+            .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Channel open: {}", e)))?;
 
-    // If a previous shell channel exists, gracefully replace it without emitting "disconnected"
-    if let Some(old_tx) = session.cmd_tx.take() {
-        old_tx.send(ShellCmd::Replace).ok();
-    }
+        channel.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[]).await
+            .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("PTY: {}", e)))?;
 
-    let handle = session.handle.as_mut()
-        .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
-
-    let channel = handle.channel_open_session().await
-        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Channel open: {}", e)))?;
-
-    channel.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[]).await
-        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("PTY: {}", e)))?;
-
-    channel.request_shell(true).await
-        .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Shell: {}", e)))?;
+        channel.request_shell(true).await
+            .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Shell: {}", e)))?;
+        Ok(channel)
+    }.await;
+    restore_session_handle(session_id, handle).await?;
+    let channel = channel_result?;
 
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-    session.cmd_tx = Some(cmd_tx);
+    {
+        let mut sessions = SESSIONS.lock().await;
+        let session = sessions.get_mut(session_id)
+            .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed before PTY startup"))?;
+        // If a previous shell channel exists, gracefully replace it without
+        // emitting a disconnected state for the new terminal.
+        if let Some(old_tx) = session.cmd_tx.take() {
+            old_tx.send(ShellCmd::Replace).ok();
+        }
+        session.cmd_tx = Some(cmd_tx);
+    }
 
     let sid = session_id.to_string();
     tokio::spawn(shell_task(channel, sid, cmd_rx, app));
@@ -341,20 +385,10 @@ async fn open_exec_channel_for_session(
     session_id: &str,
     command: &str,
 ) -> AppResult<russh::Channel<russh::client::Msg>> {
-    let handle = {
-        let mut sessions = SESSIONS.lock().await;
-        let session = sessions.get_mut(session_id)
-            .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
-        session.handle.take()
-            .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?
-    };
+    let handle = take_session_handle(session_id).await?;
 
     let result = open_exec_channel(&handle, command).await;
-
-    let mut sessions = SESSIONS.lock().await;
-    let session = sessions.get_mut(session_id)
-        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed during exec"))?;
-    session.handle = Some(handle);
+    restore_session_handle(session_id, handle).await?;
 
     result
 }
