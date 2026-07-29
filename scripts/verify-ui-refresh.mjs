@@ -94,6 +94,11 @@ assertIncludes(aiChat, 'max-width: 85%', '用户消息必须右侧收束，避�
 assertIncludes(aiChat, 'max-width: 90%', 'AI 消息必须保留阅读留白')
 assertIncludes(aiChat, 'border-left: 2px solid $color-primary', 'AI 消息必须用轻量来源标识替代厚重阴影')
 assertIncludes(aiChat, 'box-shadow: none', 'AI 对话气泡必须移除厚重投影')
+assertIncludes(aiChat, 'assistant-identity', 'AI 对话必须把身份与状态收束为一个轻量头部')
+assertIncludes(aiChat, 'composer-shell', 'AI 对话必须使用独立的简洁编辑器容器')
+assertIncludes(aiChat, 'chat-composer', 'AI 对话编辑器必须拥有专用样式钩子')
+assertIncludes(aiChat, 'message-body {\n      background: transparent', 'AI 回复必须去卡片化，突出阅读内容')
+assertIncludes(aiChat, 'assistant-address', 'AI 对话头部必须保留当前服务器地址信息')
 assertIncludes(sideNav, '&::before', '侧边栏选中态必须使用自适应指示条')
 assertIncludes(sideNav, 'border-radius: 8px', '侧边栏选中态必须避免大圆形按钮效果')
 

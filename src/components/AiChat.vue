@@ -4,12 +4,22 @@
  */
 <template>
   <div class="ai-chat" @contextmenu.prevent>
-    <!-- 紧凑头部：智能体选择 + 操作 -->
+    <!-- 对话头部：身份、连接状态与低存在感操作 -->
     <div class="ai-header">
-      <el-select :model-value="agentStore.activeAgentId" @change="agentStore.switchAgent" size="small" class="agent-select" popper-class="agent-select-popper" :popper-append-to-body="false">
-        <template #prefix><el-icon :size="13"><component :is="agentIcons[agentStore.activeAgentId]" /></el-icon></template>
-        <el-option v-for="a in agentStore.agents" :key="a.id" :label="a.name" :value="a.id" />
-      </el-select>
+      <div class="assistant-identity">
+        <span class="assistant-avatar"><el-icon :size="15"><component :is="agentIcons[agentStore.activeAgentId]" /></el-icon></span>
+        <div class="assistant-copy">
+          <el-select :model-value="agentStore.activeAgentId" @change="agentStore.switchAgent" size="small" class="agent-select" popper-class="agent-select-popper" :popper-append-to-body="false">
+            <el-option v-for="a in agentStore.agents" :key="a.id" :label="a.name" :value="a.id" />
+          </el-select>
+          <span v-if="serverContext && serverContext.status === 'connected'" class="assistant-state">
+            <span class="ctx-dot"></span>
+            <span>{{ serverContext.serverName }}</span>
+            <span class="assistant-address">{{ serverContext.username }}@{{ serverContext.host }}</span>
+          </span>
+          <span v-else class="assistant-state">{{ agentStore.activeAgent.description }}</span>
+        </div>
+      </div>
       <div class="ai-header-actions">
         <template v-if="agentStore.activeAgentId === 'ops'">
           <OpsPermissionControl :level="opsAgentStore.permissionLevel" @update:level="opsAgentStore.setPermissionLevel" />
@@ -26,13 +36,6 @@
           <el-icon :size="15"><Plus /></el-icon>
         </el-button>
       </div>
-    </div>
-
-    <!-- 服务器上下文细线 -->
-    <div v-if="serverContext && serverContext.status === 'connected'" class="ctx-line">
-      <span class="ctx-dot"></span>
-      <span class="ctx-name">{{ serverContext.serverName }}</span>
-      <span class="ctx-addr">{{ serverContext.username }}@{{ serverContext.host }}</span>
     </div>
 
     <!-- 历史对话面板 -->
@@ -130,33 +133,37 @@
 
     <!-- 输入区域 -->
     <div class="input-area">
-      <el-input
-        v-model="inputText"
-        type="textarea"
-        :rows="2"
-        :placeholder="`${t('ai.send')} ${agentStore.activeAgent.name}...`"
-        resize="none"
-        @keydown.enter.exact.prevent="handleSend"
-        :disabled="chatStore.isGenerating"
-      />
-      <div class="input-actions">
-        <el-select v-model="agentStore.activeMode" size="small" class="mode-select" popper-class="mode-select-popper" :popper-append-to-body="false">
-          <el-option label="智能问答" value="qa">
-            <span class="mode-opt"><span class="mode-opt-label">💬 智能问答</span><span class="mode-opt-desc">仅分析与建议</span></span>
-          </el-option>
-          <el-option label="智能体" value="agent">
-            <span class="mode-opt"><span class="mode-opt-label">⚡ 智能体</span><span class="mode-opt-desc">可执行服务器命令</span></span>
-          </el-option>
-        </el-select>
-        <div class="ia-spacer"></div>
-        <el-button
-          :type="chatStore.isGenerating ? 'danger' : 'primary'"
-          size="small"
-          :disabled="!inputText.trim() && !chatStore.isGenerating"
-          @click="chatStore.isGenerating ? handleStop() : handleSend()"
-        >
-          {{ chatStore.isGenerating ? t('ai.stop') : t('ai.send') }}
-        </el-button>
+      <div class="composer-shell">
+        <el-input
+          v-model="inputText"
+          class="chat-composer"
+          type="textarea"
+          :rows="3"
+          :placeholder="`${t('ai.send')} ${agentStore.activeAgent.name}...`"
+          resize="none"
+          @keydown.enter.exact.prevent="handleSend"
+          :disabled="chatStore.isGenerating"
+        />
+        <div class="input-actions">
+          <el-select v-model="agentStore.activeMode" size="small" class="mode-select" popper-class="mode-select-popper" :popper-append-to-body="false">
+            <el-option label="智能问答" value="qa">
+              <span class="mode-opt"><span class="mode-opt-label">💬 智能问答</span><span class="mode-opt-desc">仅分析与建议</span></span>
+            </el-option>
+            <el-option label="智能体" value="agent">
+              <span class="mode-opt"><span class="mode-opt-label">⚡ 智能体</span><span class="mode-opt-desc">可执行服务器命令</span></span>
+            </el-option>
+          </el-select>
+          <div class="ia-spacer"></div>
+          <el-button
+            class="composer-send"
+            :type="chatStore.isGenerating ? 'danger' : 'primary'"
+            size="small"
+            :disabled="!inputText.trim() && !chatStore.isGenerating"
+            @click="chatStore.isGenerating ? handleStop() : handleSend()"
+          >
+            {{ chatStore.isGenerating ? t('ai.stop') : t('ai.send') }}
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -889,12 +896,32 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   align-items: center;
   justify-content: space-between;
   gap: $spacing-sm;
-  padding: 8px $spacing-md;
+  min-height: 54px;
+  padding: 8px 12px;
   border-bottom: 1px solid $color-border;
-  background: $surface-contrast-soft;
+  background: transparent;
   flex-shrink: 0;
 }
-.agent-select { width: 148px; }
+.assistant-identity { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.assistant-avatar {
+  width: 30px; height: 30px; border-radius: $border-radius-md;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: $color-primary; background: $color-bg-active; flex-shrink: 0;
+}
+.assistant-copy { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.agent-select { width: 138px; }
+.agent-select :deep(.el-select__wrapper),
+.agent-select :deep(.el-input__wrapper) {
+  min-height: 20px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.agent-select :deep(.el-select__selected-item),
+.agent-select :deep(.el-input__inner) { color: $color-text-primary !important; font-weight: 650; }
+.assistant-state { display: flex; align-items: center; gap: 4px; max-width: 170px; color: $color-text-placeholder; font-size: 10px; white-space: nowrap; overflow: hidden; }
+.assistant-address { overflow: hidden; text-overflow: ellipsis; }
+.ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-success; flex-shrink: 0; }
 .ai-header-actions {
   display: flex;
   align-items: center;
@@ -918,24 +945,6 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   border-radius: 7px;
   text-align: center;
   padding: 0 4px;
-}
-
-// === Server context — thin subtle line ===
-.ctx-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px $spacing-md;
-  font-size: 10px;
-  font-family: $font-family-mono;
-  color: $color-text-placeholder;
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-
-  .ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-success; box-shadow: 0 0 4px rgba(76,175,125,0.5); flex-shrink: 0; }
-  .ctx-name { color: $color-text-secondary; font-weight: 600; }
-  .ctx-addr { color: $color-text-placeholder; overflow: hidden; text-overflow: ellipsis; }
 }
 
 // === History panel ===
@@ -1043,8 +1052,8 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 12px 18px;
-  background: linear-gradient(180deg, $color-bg-hover, transparent 18%), transparent;
+  padding: 18px 14px 22px;
+  background: transparent;
 }
 
 .empty-hint {
@@ -1067,24 +1076,25 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   animation: message-enter 0.25s ease-out;
 
   &.user {
-    margin-left: 28px;
+    margin-left: auto;
     max-width: 85%;
-    .message-role { color: $color-info; justify-content: flex-end; }
+    .message-role { display: none; }
     .message-body {
       background: $color-bg-active;
       border-color: transparent;
-      border-top-right-radius: 3px;
+      border-radius: $border-radius-md;
     }
   }
 
   &.assistant {
-    margin-right: 8px;
     max-width: 90%;
-    .message-role { color: $color-primary; }
+    .message-role { color: $color-text-secondary; margin-bottom: 5px; }
     .message-body {
-      background: $surface-contrast;
+      background: transparent;
+      border: none;
       border-left: 2px solid $color-primary;
-      border-top-left-radius: 3px;
+      border-radius: 0;
+      padding: 0 0 0 10px;
     }
   }
 }
@@ -1095,8 +1105,8 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   gap: $spacing-sm;
   font-size: $font-size-xs;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  text-transform: none;
+  letter-spacing: 0;
   margin-bottom: 2px;
 }
 
@@ -1109,7 +1119,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 }
 
 .message-body {
-  padding: 10px 12px;
+  padding: 9px 11px;
   border-radius: $border-radius-md;
   border: 1px solid $color-border;
   box-shadow: none;
@@ -1184,20 +1194,39 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 .input-area {
   padding: 10px 12px 12px;
   border-top: 1px solid $color-border;
-  background: $surface-contrast;
+  background: transparent;
   box-shadow: none;
   flex-shrink: 0;
+}
+
+.composer-shell {
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  background: $surface-contrast;
+  padding: 5px;
+  transition: border-color $transition-fast, background-color $transition-fast;
+  &:focus-within { border-color: $color-border-focus; }
+}
+.chat-composer :deep(.el-textarea__inner) {
+  min-height: 64px !important;
+  padding: 7px 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  resize: none !important;
+  line-height: 1.6;
 }
 
 .input-actions {
   display: flex;
   align-items: center;
   gap: $spacing-xs;
-  margin-top: $spacing-xs;
+  min-height: 28px;
+  padding: 2px 2px 0;
 }
 
 .ia-spacer { flex: 1; }
-.mode-select { width: 140px; flex-shrink: 0; }
+.mode-select { width: 124px; flex-shrink: 0; }
+.composer-send { min-width: 52px; }
 .mode-opt { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
 .mode-opt-label { font-size: $font-size-sm; font-weight: 500; color: $color-text-primary; }
 .mode-opt-desc { font-size: 10px; color: $color-text-placeholder; }

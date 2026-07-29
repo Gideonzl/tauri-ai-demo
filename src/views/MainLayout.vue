@@ -701,7 +701,7 @@ onUnmounted(() => {
 
 .ai-top-bar {
 
-  height: $header-height;
+  height: 34px;
 
   display: flex;
 
@@ -710,7 +710,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 
   border-bottom: 1px solid $color-border;
-  background: $surface-contrast-soft;
+  background: transparent;
 
   padding: 0 $spacing-sm;
 
@@ -724,9 +724,9 @@ onUnmounted(() => {
 
 .ai-toggle-btn {
 
-  width: 24px;
+  width: 22px;
 
-  height: 24px;
+  height: 22px;
 
   display: flex;
 
@@ -774,11 +774,11 @@ onUnmounted(() => {
 
 .right-tab {
 
-  padding: 4px 10px;
+  padding: 0 10px;
 
   border: none;
 
-  border-radius: $border-radius-sm;
+  border-radius: 0;
 
   cursor: pointer;
 
@@ -812,8 +812,8 @@ onUnmounted(() => {
 
     color: $color-primary;
 
-    background: $color-bg-active;
-    box-shadow: inset 0 0 16px $color-bg-hover, $glow-soft;
+    background: transparent;
+    box-shadow: inset 0 -2px 0 $color-primary;
 
   }
 
