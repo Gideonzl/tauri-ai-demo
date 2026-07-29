@@ -67,15 +67,6 @@
         </keep-alive>
       </router-view>
 
-      <!-- 固定停靠在工作区，避免覆盖右侧 AI 面板的操作按钮 -->
-      <button
-        class="cmd-fab"
-        :title="t('cmd.openHint') + ' (Ctrl+K)'"
-        @click="showCmdPalette = true"
-      >
-        <span class="cmd-fab-ring"></span>
-        <el-icon :size="20"><MagicStick /></el-icon>
-      </button>
     </main>
 
 
@@ -179,6 +170,20 @@
     </div>
     <!-- /main-layout -->
 
+    <!-- 全局可拖拽的 AI 命令助手入口，避免遮挡当前工作区内容 -->
+    <button
+      v-if="cmdFabReady"
+      class="cmd-fab"
+      :class="{ dragging: isCmdFabDragging }"
+      :style="cmdFabStyle"
+      :title="t('cmd.openHint') + ' (Ctrl+K)'"
+      @pointerdown="onCmdFabPointerDown"
+      @click="openCmdPaletteFromFab"
+    >
+      <span class="cmd-fab-ring"></span>
+      <el-icon :size="20"><MagicStick /></el-icon>
+    </button>
+
     <!-- 右键菜单 -->
     <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
       <div class="ctx-item" @click="ctxAct('refresh')"><el-icon :size="13"><Refresh /></el-icon><span>{{ t('common.refresh') }}</span></div>
@@ -231,8 +236,82 @@ function onGlobalKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); showCmdPalette.value = true }
 }
 
-onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey) })
-onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey) })
+const CMD_FAB_SIZE = 46
+const CMD_FAB_MARGIN = 14
+const CMD_FAB_POSITION_KEY = 'ai-command-fab-position'
+const cmdFabPosition = reactive({ x: 0, y: 0 })
+const cmdFabReady = ref(false)
+const isCmdFabDragging = ref(false)
+const cmdFabStyle = computed(() => ({ left: `${cmdFabPosition.x}px`, top: `${cmdFabPosition.y}px` }))
+let cmdFabStartX = 0
+let cmdFabStartY = 0
+let cmdFabStartPosition = { x: 0, y: 0 }
+let cmdFabDragged = false
+
+function clampCmdFabPosition(x: number, y: number) {
+  return {
+    x: Math.max(CMD_FAB_MARGIN, Math.min(window.innerWidth - CMD_FAB_SIZE - CMD_FAB_MARGIN, x)),
+    y: Math.max(CMD_FAB_MARGIN, Math.min(window.innerHeight - CMD_FAB_SIZE - CMD_FAB_MARGIN, y)),
+  }
+}
+
+function saveCmdFabPosition() {
+  try { localStorage.setItem(CMD_FAB_POSITION_KEY, JSON.stringify(cmdFabPosition)) } catch {}
+}
+
+function restoreCmdFabPosition() {
+  const fallback = clampCmdFabPosition(window.innerWidth - CMD_FAB_SIZE - 22, window.innerHeight - CMD_FAB_SIZE - 22)
+  try {
+    const saved = JSON.parse(localStorage.getItem(CMD_FAB_POSITION_KEY) || 'null')
+    if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) Object.assign(cmdFabPosition, clampCmdFabPosition(saved.x, saved.y))
+    else Object.assign(cmdFabPosition, fallback)
+  } catch { Object.assign(cmdFabPosition, fallback) }
+  cmdFabReady.value = true
+}
+
+function onCmdFabPointerDown(e: PointerEvent) {
+  if (e.button !== 0) return
+  cmdFabStartX = e.clientX
+  cmdFabStartY = e.clientY
+  cmdFabStartPosition = { ...cmdFabPosition }
+  cmdFabDragged = false
+  isCmdFabDragging.value = true
+  ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  document.addEventListener('pointermove', onCmdFabPointerMove)
+  document.addEventListener('pointerup', onCmdFabPointerUp)
+  document.addEventListener('pointercancel', onCmdFabPointerUp)
+  document.body.style.userSelect = 'none'
+}
+
+function onCmdFabPointerMove(e: PointerEvent) {
+  const dx = e.clientX - cmdFabStartX
+  const dy = e.clientY - cmdFabStartY
+  if (Math.abs(dx) + Math.abs(dy) > 4) cmdFabDragged = true
+  Object.assign(cmdFabPosition, clampCmdFabPosition(cmdFabStartPosition.x + dx, cmdFabStartPosition.y + dy))
+}
+
+function onCmdFabPointerUp() {
+  isCmdFabDragging.value = false
+  document.removeEventListener('pointermove', onCmdFabPointerMove)
+  document.removeEventListener('pointerup', onCmdFabPointerUp)
+  document.removeEventListener('pointercancel', onCmdFabPointerUp)
+  document.body.style.userSelect = ''
+  saveCmdFabPosition()
+  if (cmdFabDragged) window.setTimeout(() => { cmdFabDragged = false }, 0)
+}
+
+function openCmdPaletteFromFab() {
+  if (cmdFabDragged) return
+  showCmdPalette.value = true
+}
+
+function onWindowResize() {
+  Object.assign(cmdFabPosition, clampCmdFabPosition(cmdFabPosition.x, cmdFabPosition.y))
+  saveCmdFabPosition()
+}
+
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey); restoreCmdFabPosition(); window.addEventListener('resize', onWindowResize) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey); window.removeEventListener('resize', onWindowResize); onCmdFabPointerUp() })
 
 const rightPanelTab = ref<'ai' | 'monitor'>('ai')
 
@@ -875,24 +954,23 @@ onUnmounted(() => {
 
 // AI 命令助手悬浮按钮
 .cmd-fab {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  z-index: 3;
+  position: fixed;
+  z-index: 30;
   width: 46px;
   height: 46px;
   border: 1px solid $color-border-focus;
   border-radius: 50%;
-  cursor: pointer;
+  cursor: grab;
   color: $color-on-primary;
   background: $gradient-primary;
   box-shadow: $elevation-1;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, left 0.08s linear, top 0.08s linear;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
   overflow: visible;
 
   &:hover {
@@ -900,6 +978,12 @@ onUnmounted(() => {
     box-shadow: $elevation-2;
   }
   &:active { transform: scale(0.96); }
+
+  &.dragging {
+    cursor: grabbing;
+    transition: none;
+    transform: scale(1.03);
+  }
 
 }
 
