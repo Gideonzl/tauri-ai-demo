@@ -3,9 +3,6 @@
  * 每个快速分析类型对应一组可在远端服务器上执行的命令
  * 命令设计原则：安全（只读）、快速（超时控制）、输出精简
  */
-import { sshExec } from '@/api/tauri'
-import type { ServerContext } from './ai-chat'
-
 /** 单项诊断命令 */
 export interface DiagnosticCommand {
   label: string
@@ -68,25 +65,13 @@ export const DIAGNOSTIC_GROUPS: Record<string, DiagnosticGroup> = {
   },
 }
 
-/** 执行单个命令并返回带标签的结果 */
-export async function runCommand(
-  sessionId: string,
-  cmd: DiagnosticCommand,
-  timeoutMs: number = 15000
-): Promise<string> {
-  try {
-    const output = await sshExec(sessionId, cmd.command)
-    const trimmed = output.trim()
-    return trimmed || '(no output)'
-  } catch (e: any) {
-    return `Error: ${e?.message || e?.toString() || 'unknown'}`
-  }
-}
-
-/** 执行一组诊断命令并返回汇总输出 */
+/**
+ * Execute a diagnostic group through an injected executor. The caller owns
+ * authorization and audit recording, so quick diagnostics cannot bypass policy.
+ */
 export async function runDiagnostics(
-  sessionId: string,
   groupId: string,
+  execute: (command: DiagnosticCommand) => Promise<string>,
   onProgress?: (label: string) => void
 ): Promise<string> {
   const group = DIAGNOSTIC_GROUPS[groupId]
@@ -95,7 +80,7 @@ export async function runDiagnostics(
   const results: string[] = []
   for (const cmd of group.commands) {
     onProgress?.(cmd.label)
-    const output = await runCommand(sessionId, cmd)
+    const output = await execute(cmd)
     results.push(output)
   }
 

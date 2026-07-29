@@ -168,7 +168,8 @@ import { streamChat } from '@/utils/ai-chat'
 import type { CommandAuthorization, StreamControl, ServerContext } from '@/utils/ai-chat'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
-import { runDiagnostics, formatDiagnosticOutput } from '@/utils/server-diagnostics'
+import { runDiagnostics, formatDiagnosticOutput, type DiagnosticCommand } from '@/utils/server-diagnostics'
+import { sshExecFull, type SshExecResult } from '@/api/tauri'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select, Edit, SetUp, DataLine } from '@element-plus/icons-vue'
 import { useContextMenu } from '@/composables/useContextMenu'
@@ -338,7 +339,7 @@ const quickAnalyses = computed(() => [
   { id: 'health', label: t('quickAnalysis.systemHealth'), prompt: t('quickAnalysis.systemHealthPrompt') },
   { id: 'disk', label: t('quickAnalysis.diskUsage'), prompt: t('quickAnalysis.diskUsagePrompt') },
   { id: 'network', label: t('quickAnalysis.network'), prompt: t('quickAnalysis.networkPrompt') },
-  { id: 'process', label: t('quickAnalysis.processes'), prompt: t('quickAnalysis.processesPrompt') },
+  { id: 'processes', label: t('quickAnalysis.processes'), prompt: t('quickAnalysis.processesPrompt') },
   { id: 'security', label: t('quickAnalysis.security'), prompt: t('quickAnalysis.securityPrompt') },
 ])
 
@@ -536,6 +537,34 @@ function handleCommandCompleted(_command: string, result: string, authorization:
   if (authorization.auditId) opsAgentStore.completeAudit(authorization.auditId, result)
 }
 
+function formatDiagnosticResult(result: SshExecResult): string {
+  const parts = [result.stdout.trim(), result.stderr.trim() ? `[stderr]\n${result.stderr.trim()}` : ''].filter(Boolean)
+  if (result.timed_out) return `${parts.join('\n') || '[无输出]'}\n[命令超时，已返回部分结果]`
+  if (parts.length === 0) return `[命令执行完毕，退出码 ${result.exit_code ?? 0}，无输出]`
+  return `${parts.join('\n')}${result.exit_code && result.exit_code !== 0 ? `\n[退出码 ${result.exit_code}]` : ''}`
+}
+
+async function runAuthorizedDiagnostic(item: DiagnosticCommand): Promise<string> {
+  const sessionId = sshStore.activeSession?.realSessionId
+  if (!sessionId) return '[策略已阻止] 当前没有可用的 SSH 会话。'
+  const authorization = await handleConfirmCommand(item.command)
+  if (!authorization.allowed) return `[策略已阻止] ${authorization.denialMessage}`
+
+  let output: string
+  try {
+    let result = await sshExecFull(sessionId, item.command)
+    output = formatDiagnosticResult(result)
+    if (/^\[执行错误\]/.test(output)) {
+      result = await sshExecFull(sessionId, item.command)
+      output = formatDiagnosticResult(result)
+    }
+  } catch (error: any) {
+    output = `[执行错误] ${error?.message || String(error)}`
+  }
+  handleCommandCompleted(item.command, output, authorization)
+  return output
+}
+
 async function handleQuickAnalysis(prompt: string) {
   if (chatStore.isGenerating) return
   if (!modelStore.defaultConfig) {
@@ -553,7 +582,7 @@ async function handleQuickAnalysis(prompt: string) {
       scrollToBottom()
 
       try {
-        const output = await runDiagnostics(session.realSessionId, groupId)
+        const output = await runDiagnostics(groupId, runAuthorizedDiagnostic)
         // Replace placeholder with actual command output + analysis prompt
         const conv = chatStore.activeConversation
         if (conv) {

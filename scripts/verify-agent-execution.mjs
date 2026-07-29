@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 const aiChat = readFileSync(resolve(root, 'src/utils/ai-chat.ts'), 'utf8')
 const aiPanel = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
+const diagnostics = readFileSync(resolve(root, 'src/utils/server-diagnostics.ts'), 'utf8')
 
 function assert(condition, message) {
   if (!condition) {
@@ -46,5 +47,8 @@ assert(aiChat.includes('onAuthorizeCommand'), '工具循环必须使用策略授
 assert(aiChat.includes('onCommandCompleted'), '工具循环必须回传执行结果以写入审计')
 assert(aiPanel.includes('useOpsAgentStore'), '聊天面板必须使用运维权限 store')
 assert(aiPanel.includes("decision.action === 'double_confirm'"), '高风险操作必须走二次确认分支')
+assert(!diagnostics.includes("import { sshExec }"), '快捷诊断不得直接调用 sshExec')
+assert(/runDiagnostics\s*\(\s*groupId\s*:\s*string\s*,\s*execute/.test(diagnostics), '快捷诊断必须接收已授权的执行器')
+assert(aiPanel.includes('runAuthorizedDiagnostic'), '聊天面板必须为快捷诊断提供已授权执行器')
 
 console.log('Agent execution regression checks passed')
