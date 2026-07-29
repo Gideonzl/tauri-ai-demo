@@ -116,6 +116,11 @@
         @execute="executeRemediationPlan"
         @stop="handleStopRemediation"
       />
+      <OrchestrationTaskCard
+        v-if="agentStore.activeAgentId === 'ops' && orchestrationStore.currentTask?.taskType === 'remediation'"
+        :task="orchestrationStore.currentTask"
+        :running="orchestrationStore.isRunning"
+      />
       <div v-if="chatStore.isGenerating" class="generating-bar">
         <span class="generating-dot" />
         {{ t('ai.think') }}
@@ -174,13 +179,15 @@ import { useModelStore } from '@/stores/model'
 import { useSshStore } from '@/stores/ssh'
 import { useOpsAgentStore } from '@/stores/opsAgent'
 import { useRemediationStore } from '@/stores/remediation'
+import { useOrchestrationStore } from '@/stores/orchestration'
 import { useLocale } from '@/composables/useLocale'
 import { streamChat } from '@/utils/ai-chat'
 import type { CommandAuthorization, StreamControl, ServerContext } from '@/utils/ai-chat'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput, type DiagnosticCommand } from '@/utils/server-diagnostics'
-import { createConservativeRemediationPlan, shouldStopAfterStep, type RemediationStep } from '@/utils/ops-remediation'
+import { createConservativeRemediationPlan, shouldStopAfterStep, type RemediationPlan, type RemediationStep } from '@/utils/ops-remediation'
+import type { OrchestrationTask } from '@/utils/ops-orchestration'
 import { sshExecFull, type SshExecResult } from '@/api/tauri'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select, Edit, SetUp, DataLine } from '@element-plus/icons-vue'
@@ -188,6 +195,7 @@ import { useContextMenu } from '@/composables/useContextMenu'
 import OpsPermissionControl from '@/components/OpsPermissionControl.vue'
 import OpsAuditDrawer from '@/components/OpsAuditDrawer.vue'
 import RemediationPlanCard from '@/components/RemediationPlanCard.vue'
+import OrchestrationTaskCard from '@/components/OrchestrationTaskCard.vue'
 
 const agentIcons: Record<string, any> = { coder: Edit, ops: SetUp, analyst: DataLine, assistant: ChatDotRound }
 
@@ -197,6 +205,7 @@ const modelStore = useModelStore()
 const sshStore = useSshStore()
 const opsAgentStore = useOpsAgentStore()
 const remediationStore = useRemediationStore()
+const orchestrationStore = useOrchestrationStore()
 const { t } = useLocale()
 
 const { register, unregister } = useContextMenu()
@@ -561,6 +570,51 @@ function handleCommandCompleted(_command: string, result: string, authorization:
   if (authorization.auditId) opsAgentStore.completeAudit(authorization.auditId, result)
 }
 
+function syncRemediationToOrchestration(plan: RemediationPlan) {
+  const ctx = serverContext.value
+  const task: OrchestrationTask = {
+    id: `ops-orchestration-${plan.id}`,
+    mode: 'single',
+    taskType: 'remediation',
+    title: plan.title,
+    concurrency: 1,
+    targets: [{
+      hostId: plan.hostId,
+      hostName: plan.hostName,
+      hostAddress: ctx ? `${ctx.username}@${ctx.host}:${ctx.port}` : plan.hostName,
+      sessionId: sshStore.activeSession?.realSessionId,
+      status: 'pending',
+    }],
+    steps: plan.steps.map(step => ({
+      id: step.id,
+      title: step.title,
+      command: step.command,
+      verifyCommand: step.verifyCommand,
+      risk: step.risk,
+      stopOnFailure: step.stopOnFailure,
+      status: step.status,
+      auditId: step.auditId,
+      outputSummary: step.outputSummary,
+      verificationSummary: step.verificationSummary,
+    })),
+    status: 'queued',
+    createdAt: plan.createdAt,
+  }
+  orchestrationStore.setTask(task)
+}
+
+function mirrorRemediationPlanStatus(status: 'running' | 'completed' | 'failed' | 'stopped') {
+  orchestrationStore.setTaskStatus(status)
+  if (!activeHost.value.id) return
+  if (status === 'running') orchestrationStore.setTargetStatus(activeHost.value.id, 'running')
+  if (status === 'completed') {
+    orchestrationStore.setTargetStatus(activeHost.value.id, 'completed')
+    orchestrationStore.appendTargetSummary(activeHost.value.id, t('ai.remediationCompleted'))
+  }
+  if (status === 'failed') orchestrationStore.setTargetStatus(activeHost.value.id, 'failed', t('ai.remediationFailed'))
+  if (status === 'stopped') orchestrationStore.setTargetStatus(activeHost.value.id, 'skipped', t('ai.remediationStopped'))
+}
+
 function formatDiagnosticResult(result: SshExecResult): string {
   const parts = [result.stdout.trim(), result.stderr.trim() ? `[stderr]\n${result.stderr.trim()}` : ''].filter(Boolean)
   if (result.timed_out) return `${parts.join('\n') || '[无输出]'}\n[命令超时，已返回部分结果]`
@@ -623,12 +677,14 @@ async function handleStartRemediation(issueText = inputText.value.trim()) {
   })
 
   remediationStore.setPlan(plan)
+  syncRemediationToOrchestration(plan)
   ElMessage.success(t('ai.remediationCreated'))
   scrollToBottom()
 }
 
 function handleStopRemediation() {
   remediationStore.stopPlan()
+  orchestrationStore.stopTask()
   ElMessage.warning(t('ai.remediationStopped'))
 }
 
@@ -637,6 +693,8 @@ async function runRemediationCommand(step: RemediationStep, command: string, ver
   if (!sessionId) {
     remediationStore.setStepStatus(step.id, 'failed')
     remediationStore.appendStepOutput(step.id, t('ai.remediationNoSession'), verification)
+    orchestrationStore.setStepStatus(step.id, 'failed')
+    orchestrationStore.appendStepOutput(step.id, t('ai.remediationNoSession'), verification)
     return false
   }
 
@@ -644,9 +702,15 @@ async function runRemediationCommand(step: RemediationStep, command: string, ver
   if (!authorization.allowed) {
     remediationStore.setStepStatus(step.id, 'skipped')
     remediationStore.appendStepOutput(step.id, authorization.denialMessage, verification)
+    orchestrationStore.setStepStatus(step.id, 'skipped')
+    orchestrationStore.appendStepOutput(step.id, authorization.denialMessage, verification)
     return false
   }
   if (authorization.auditId && !verification) remediationStore.setStepAudit(step.id, authorization.auditId)
+  if (authorization.auditId && !verification) {
+    const orchStep = orchestrationStore.currentTask?.steps.find(item => item.id === step.id)
+    if (orchStep) orchStep.auditId = authorization.auditId
+  }
 
   let output = ''
   try {
@@ -662,6 +726,7 @@ async function runRemediationCommand(step: RemediationStep, command: string, ver
 
   handleCommandCompleted(command, output, authorization)
   remediationStore.appendStepOutput(step.id, output, verification)
+  orchestrationStore.appendStepOutput(step.id, output, verification)
   return !/^\[执行错误\]/.test(output.trim()) && !/\[退出码 [1-9]/.test(output)
 }
 
@@ -670,16 +735,21 @@ async function executeRemediationPlan() {
   if (!plan || remediationStore.isRunning) return
 
   remediationStore.setPlanStatus('running')
+  mirrorRemediationPlanStatus('running')
   for (const step of plan.steps) {
     if (remediationStore.currentPlan?.status === 'stopped') return
     remediationStore.setStepStatus(step.id, 'waiting_approval')
+    orchestrationStore.setStepStatus(step.id, 'waiting_approval')
 
     remediationStore.setStepStatus(step.id, 'running')
+    orchestrationStore.setStepStatus(step.id, 'running')
     const executed = await runRemediationCommand(step, step.command)
     if (!executed) {
       remediationStore.setStepStatus(step.id, step.status === 'skipped' ? 'skipped' : 'failed')
+      orchestrationStore.setStepStatus(step.id, step.status === 'skipped' ? 'skipped' : 'failed')
       if (shouldStopAfterStep(step)) {
         remediationStore.setPlanStatus(step.status === 'skipped' ? 'stopped' : 'failed')
+        mirrorRemediationPlanStatus(step.status === 'skipped' ? 'stopped' : 'failed')
         ElMessage.error(t('ai.remediationFailed'))
         return
       }
@@ -687,16 +757,20 @@ async function executeRemediationPlan() {
     }
 
     remediationStore.setStepStatus(step.id, 'verifying')
+    orchestrationStore.setStepStatus(step.id, 'verifying')
     const verified = await runRemediationCommand(step, step.verifyCommand, true)
     remediationStore.setStepStatus(step.id, verified ? 'completed' : 'failed')
+    orchestrationStore.setStepStatus(step.id, verified ? 'completed' : 'failed')
     if (!verified && shouldStopAfterStep(step)) {
       remediationStore.setPlanStatus('failed')
+      mirrorRemediationPlanStatus('failed')
       ElMessage.error(t('ai.remediationFailed'))
       return
     }
   }
 
   remediationStore.setPlanStatus('completed')
+  mirrorRemediationPlanStatus('completed')
   ElMessage.success(t('ai.remediationCompleted'))
 }
 
