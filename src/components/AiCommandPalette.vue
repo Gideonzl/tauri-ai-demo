@@ -239,18 +239,18 @@ async function runOnServer() {
 .cp-kbd { font-size: 10px; font-family: $font-family-mono; color: $color-text-muted; background: $color-bg-input; padding: 3px 7px; border-radius: 4px; }
 .cp-close { cursor: pointer; color: $color-text-secondary; &:hover { color: $color-danger; } }
 
-.cp-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; padding: 16px 18px 18px; }
-.cp-composer { display: grid; grid-template-columns: auto 1fr; column-gap: 11px; padding: 13px 14px 10px; border: 1px solid $color-border; border-radius: 12px; background: $color-bg-input; transition: border-color $transition-fast, box-shadow $transition-fast;
-  &:focus-within { border-color: $color-primary; box-shadow: 0 0 0 3px $color-bg-active; }
+.cp-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; padding: 18px 20px 20px; }
+.cp-composer { display: grid; grid-template-columns: 28px 1fr; column-gap: 10px; padding: 0; background: transparent;
   &.running { opacity: .8; }
 }
-.cp-input-icon { color: $color-primary; margin-top: 4px; flex-shrink: 0; }
+.cp-input-icon { color: $color-primary; margin-top: 13px; justify-self: center; flex-shrink: 0; }
 .cp-input {
-  width: 100%; min-height: 64px; border: none; outline: none; resize: none; background: transparent;
-  color: $color-text-primary; font-size: $font-size-md; font-family: inherit; line-height: 1.55;
+  width: 100%; min-height: 58px; box-sizing: border-box; padding: 12px 13px; border: 1px solid $color-border; border-radius: 10px; outline: none; resize: none; background: $color-bg-input;
+  color: $color-text-primary; font-size: $font-size-md; font-family: inherit; line-height: 1.55; transition: border-color $transition-fast, box-shadow $transition-fast;
+  &:focus { border-color: $color-primary; box-shadow: 0 0 0 2px $color-bg-active; }
   &::placeholder { color: $color-text-placeholder; }
 }
-.cp-composer-foot { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; color: $color-text-placeholder; font-size: 10px;
+.cp-composer-foot { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 7px; color: $color-text-placeholder; font-size: 10px;
   kbd { font-family: $font-family-mono; font-size: 10px; color: $color-text-secondary; background: $color-bg-hover; border: 1px solid $color-border-light; border-radius: 3px; padding: 1px 4px; }
 }
 .cp-submit { flex-shrink: 0; min-width: 72px; }
