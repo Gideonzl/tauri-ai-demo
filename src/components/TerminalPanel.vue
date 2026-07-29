@@ -164,9 +164,6 @@ function recordCommand(data: string) {
 let frontend: XTermFrontend | null = null
 let session: BaseSession | null = null
 let subs: ReturnType<typeof Subject.combine> | null = null
-let ptyRetryTimer: ReturnType<typeof window.setTimeout> | null = null
-let ptyRetryAttempts = 0
-const MAX_PTY_RETRY_ATTEMPTS = 1
 
 function formatPtyError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
@@ -245,7 +242,6 @@ async function createSession(): Promise<void> {
     wireSessionStreams(s)
     try {
       await s.start()
-      ptyRetryAttempts = 0
       frontend.writeln('\x1b[1;32m● PTY shell connected\x1b[0m')
       // A carriage return is harmless when a prompt is already visible and
       // asks shells that suppress their first prompt to render one now.
@@ -259,17 +255,6 @@ async function createSession(): Promise<void> {
       s.destroy()
       frontend.writeln(`\x1b[1;31m● PTY unavailable: ${formatPtyError(e)}\x1b[0m`)
       session = null
-
-      if (ptyRetryAttempts < MAX_PTY_RETRY_ATTEMPTS && isPanelActive.value && props.session?.realSessionId) {
-        ptyRetryAttempts += 1
-        frontend.writeln('\x1b[2m  Retrying interactive shell automatically…\x1b[0m')
-        ptyRetryTimer = window.setTimeout(() => {
-          ptyRetryTimer = null
-          if (frontend && isPanelActive.value && isReal.value && !session) void createSession()
-        }, 800)
-      } else {
-        frontend.writeln('\x1b[2m  The SSH server rejected the PTY shell; reconnecting will try again.\x1b[0m')
-      }
     }
   } else {
     // ── Demo/offline terminal (Tabby: LocalTerminalSession) ──
@@ -327,11 +312,6 @@ watch(
     const rsid = props.session?.realSessionId
     if (count > 0 && frontend && isPanelActive.value && rsid && !(session instanceof SSHShellSession)) {
       console.log('[TerminalPanel] → creating PTY shell for realSessionId:', rsid)
-      ptyRetryAttempts = 0
-      if (ptyRetryTimer) {
-        window.clearTimeout(ptyRetryTimer)
-        ptyRetryTimer = null
-      }
       frontend.writeln('\r\n\x1b[1;36m● Opening PTY shell...\x1b[0m')
       createSession()
     }
@@ -368,8 +348,6 @@ watch(() => configStore.colorScheme, () => {
 })
 
 onUnmounted(() => {
-  if (ptyRetryTimer) window.clearTimeout(ptyRetryTimer)
-  ptyRetryTimer = null
   unregister(hideTermMenu)
   document.removeEventListener('click', hideTermMenu)
   subs?.unsubscribe()

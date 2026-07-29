@@ -8,7 +8,7 @@ use russh::ChannelMsg;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, Mutex};
 use tauri::{AppHandle, Emitter};
 
 // ============================================================
@@ -110,71 +110,23 @@ async fn shell_task(
     session_id: String,
     mut cmd_rx: mpsc::UnboundedReceiver<ShellCmd>,
     app: AppHandle,
-    mut ready_tx: Option<oneshot::Sender<AppResult<()>>>,
 ) {
+    emit_status(&app, &session_id, "connected", "");
+
     loop {
         tokio::select! {
             cmd = cmd_rx.recv() => {
                 match cmd {
                     Some(ShellCmd::Data(data)) => { channel.data(&data[..]).await.ok(); }
                     Some(ShellCmd::Resize(c, r)) => { channel.window_change(c, r, 0, 0).await.ok(); }
-                    Some(ShellCmd::Replace) => {
-                        if let Some(tx) = ready_tx.take() {
-                            let _ = tx.send(Err(AppError::new(ErrorCode::SshChannelOpenFailed, "PTY shell was replaced before it started")));
-                        }
-                        channel.close().await.ok();
-                        return;
-                    }
-                    Some(ShellCmd::Close) | None => {
-                        if let Some(tx) = ready_tx.take() {
-                            let _ = tx.send(Err(AppError::new(ErrorCode::SshChannelOpenFailed, "PTY shell was closed before it started")));
-                        }
-                        channel.close().await.ok();
-                        emit_status(&app, &session_id, "disconnected", "");
-                        return;
-                    }
+                    Some(ShellCmd::Replace) => { channel.close().await.ok(); return; }
+                    Some(ShellCmd::Close) | None => { channel.close().await.ok(); emit_status(&app, &session_id, "disconnected", ""); return; }
                 }
             }
             msg = channel.wait() => {
                 match msg {
-                    Some(ChannelMsg::Success) => {
-                        // `request_shell(true)` asks the server to explicitly confirm that
-                        // the interactive shell was accepted. Do not report a usable PTY
-                        // before that confirmation: otherwise a rejected shell looks like a
-                        // successful connection with no prompt.
-                        if let Some(tx) = ready_tx.take() {
-                            let _ = tx.send(Ok(()));
-                            emit_status(&app, &session_id, "connected", "");
-                        }
-                    }
-                    Some(ChannelMsg::Failure) => {
-                        let error = AppError::new(ErrorCode::SshChannelOpenFailed, "SSH server rejected the interactive PTY shell");
-                        if let Some(tx) = ready_tx.take() {
-                            let _ = tx.send(Err(error.clone()));
-                        }
-                        emit_status(&app, &session_id, "error", &error.to_string());
-                        channel.close().await.ok();
-                        return;
-                    }
-                    Some(ChannelMsg::OpenFailure(reason)) => {
-                        let error = AppError::new(ErrorCode::SshChannelOpenFailed, format!("SSH channel open failed: {:?}", reason));
-                        if let Some(tx) = ready_tx.take() {
-                            let _ = tx.send(Err(error.clone()));
-                        }
-                        emit_status(&app, &session_id, "error", &error.to_string());
-                        return;
-                    }
                     Some(ChannelMsg::Data { data }) => { let _ = app.emit("ssh-data", serde_json::json!({ "sessionId": &session_id, "data": String::from_utf8_lossy(&data) })); }
-                    Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => {
-                        if let Some(tx) = ready_tx.take() {
-                            let error = AppError::new(ErrorCode::SshChannelOpenFailed, "SSH server closed the PTY shell before startup completed");
-                            let _ = tx.send(Err(error.clone()));
-                            emit_status(&app, &session_id, "error", &error.to_string());
-                        } else {
-                            emit_status(&app, &session_id, "disconnected", "");
-                        }
-                        return;
-                    }
+                    Some(ChannelMsg::Eof) | None => { emit_status(&app, &session_id, "disconnected", ""); return; }
                     _ => {}
                 }
             }
@@ -300,91 +252,33 @@ async fn reconnect_session(session_id: &str) -> AppResult<()> {
 
 /// Open interactive shell — opens channel using handle, then hands channel to background task
 /// Handle REMAINS in session for exec/SFTP operations
-async fn open_shell_channel(
-    handle: &mut client::Handle<SshHandler>,
-    cols: u32,
-    rows: u32,
-) -> AppResult<russh::Channel<russh::client::Msg>> {
+pub async fn open_shell(app: AppHandle, session_id: &str, cols: u32, rows: u32) -> AppResult<()> {
+    let mut sessions = SESSIONS.lock().await;
+    let session = sessions.get_mut(session_id)
+        .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
+
+    // If a previous shell channel exists, gracefully replace it without emitting "disconnected"
+    if let Some(old_tx) = session.cmd_tx.take() {
+        old_tx.send(ShellCmd::Replace).ok();
+    }
+
+    let handle = session.handle.as_mut()
+        .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
+
     let channel = handle.channel_open_session().await
         .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Channel open: {}", e)))?;
 
-    // Request the PTY without its own reply, then wait for the mandatory shell
-    // confirmation in shell_task. This matches russh's interactive example
-    // while still making a rejected shell an explicit open_shell error.
-    channel.request_pty(false, "xterm", cols.max(1), rows.max(1), 0, 0, &[]).await
+    channel.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[]).await
         .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("PTY: {}", e)))?;
 
     channel.request_shell(true).await
         .map_err(|e| AppError::new(ErrorCode::SshChannelOpenFailed, format!("Shell: {}", e)))?;
 
-    Ok(channel)
-}
-
-pub async fn open_shell(app: AppHandle, session_id: &str, cols: u32, rows: u32) -> AppResult<()> {
-    let initial_attempt = {
-        let mut sessions = SESSIONS.lock().await;
-        let session = sessions.get_mut(session_id)
-            .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session not found"))?;
-        let handle = session.handle.as_mut()
-            .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle not available"))?;
-        open_shell_channel(handle, cols, rows).await
-    };
-
-    // A connected SSH session can be idle-dropped after authentication. Reuse
-    // the same transparent reconnect strategy as exec commands and retry once,
-    // so the user never has to reconnect manually just to obtain a PTY.
-    let channel = match initial_attempt {
-        Ok(channel) => channel,
-        Err(_) => {
-            reconnect_session(session_id).await?;
-            let mut sessions = SESSIONS.lock().await;
-            let session = sessions.get_mut(session_id)
-                .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed during PTY reconnect"))?;
-            let handle = session.handle.as_mut()
-                .ok_or_else(|| AppError::new(ErrorCode::SshChannelOpenFailed, "Handle unavailable after PTY reconnect"))?;
-            open_shell_channel(handle, cols, rows).await?
-        }
-    };
-
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-    let (ready_tx, ready_rx) = oneshot::channel();
-    {
-        let mut sessions = SESSIONS.lock().await;
-        let session = sessions.get_mut(session_id)
-            .ok_or_else(|| AppError::new(ErrorCode::SshSessionTimeout, "Session removed before PTY startup"))?;
-
-        // If a previous shell exists, replace it only after the new channel has
-        // been created successfully; a failed reconnect must not kill a usable shell.
-        if let Some(old_tx) = session.cmd_tx.take() {
-            old_tx.send(ShellCmd::Replace).ok();
-        }
-        session.cmd_tx = Some(cmd_tx.clone());
-    }
+    session.cmd_tx = Some(cmd_tx);
 
     let sid = session_id.to_string();
-    tokio::spawn(shell_task(channel, sid, cmd_rx, app, Some(ready_tx)));
-
-    let startup = match tokio::time::timeout(std::time::Duration::from_secs(10), ready_rx).await {
-        Ok(Ok(result)) => result,
-        Ok(Err(_)) => Err(AppError::new(ErrorCode::SshChannelOpenFailed, "PTY shell startup task ended unexpectedly")),
-        Err(_) => Err(AppError::new(ErrorCode::SshChannelOpenFailed, "Timed out waiting for SSH PTY shell confirmation")),
-    };
-
-    if let Err(error) = startup {
-        // A timed-out task may still be waiting for a server response; explicitly
-        // stop it and remove the sender so later writes cannot target a dead shell.
-        let _ = cmd_tx.send(ShellCmd::Close);
-        let mut sessions = SESSIONS.lock().await;
-        if let Some(session) = sessions.get_mut(session_id) {
-            // Another open_shell call may have already replaced this channel.
-            // Only clear our own sender; clearing the newer one leaves a live
-            // shell unable to receive keyboard input.
-            if session.cmd_tx.as_ref().is_some_and(|current| current.same_channel(&cmd_tx)) {
-                session.cmd_tx = None;
-            }
-        }
-        return Err(error);
-    }
+    tokio::spawn(shell_task(channel, sid, cmd_rx, app));
 
     Ok(())
 }
