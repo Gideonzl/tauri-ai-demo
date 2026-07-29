@@ -13,6 +13,9 @@
       <div class="ai-header-actions">
         <template v-if="agentStore.activeAgentId === 'ops'">
           <OpsPermissionControl :level="opsAgentStore.permissionLevel" @update:level="opsAgentStore.setPermissionLevel" />
+          <el-button size="small" text :title="t('ai.remediationStart')" @click="handleStartRemediation()">
+            <el-icon :size="15"><Monitor /></el-icon>
+          </el-button>
           <el-button size="small" text :title="t('ai.auditTitle')" @click="showAudit = true"><el-icon :size="15"><DocumentCopy /></el-icon></el-button>
         </template>
         <el-button size="small" text :class="{ active: showHistory }" @click="showHistory = !showHistory" :title="t('ai.history')">
@@ -106,6 +109,13 @@
       </div>
 
       <!-- 生成中指示器 -->
+      <RemediationPlanCard
+        v-if="agentStore.activeAgentId === 'ops' && remediationStore.currentPlan"
+        :plan="remediationStore.currentPlan"
+        :running="remediationStore.isRunning"
+        @execute="executeRemediationPlan"
+        @stop="handleStopRemediation"
+      />
       <div v-if="chatStore.isGenerating" class="generating-bar">
         <span class="generating-dot" />
         {{ t('ai.think') }}
@@ -163,18 +173,21 @@ import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/model'
 import { useSshStore } from '@/stores/ssh'
 import { useOpsAgentStore } from '@/stores/opsAgent'
+import { useRemediationStore } from '@/stores/remediation'
 import { useLocale } from '@/composables/useLocale'
 import { streamChat } from '@/utils/ai-chat'
 import type { CommandAuthorization, StreamControl, ServerContext } from '@/utils/ai-chat'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput, type DiagnosticCommand } from '@/utils/server-diagnostics'
+import { createConservativeRemediationPlan, shouldStopAfterStep, type RemediationStep } from '@/utils/ops-remediation'
 import { sshExecFull, type SshExecResult } from '@/api/tauri'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Monitor, Clock, Plus, Close, CopyDocument, DocumentCopy, Select, Edit, SetUp, DataLine } from '@element-plus/icons-vue'
 import { useContextMenu } from '@/composables/useContextMenu'
 import OpsPermissionControl from '@/components/OpsPermissionControl.vue'
 import OpsAuditDrawer from '@/components/OpsAuditDrawer.vue'
+import RemediationPlanCard from '@/components/RemediationPlanCard.vue'
 
 const agentIcons: Record<string, any> = { coder: Edit, ops: SetUp, analyst: DataLine, assistant: ChatDotRound }
 
@@ -183,6 +196,7 @@ const chatStore = useChatStore()
 const modelStore = useModelStore()
 const sshStore = useSshStore()
 const opsAgentStore = useOpsAgentStore()
+const remediationStore = useRemediationStore()
 const { t } = useLocale()
 
 const { register, unregister } = useContextMenu()
@@ -437,6 +451,16 @@ async function handleSend() {
   }
   if (chatStore.isGenerating) return
 
+  const wantsRemediation = agentStore.activeAgentId === 'ops'
+    && agentStore.activeMode === 'agent'
+    && /(自愈|修复|帮我修|故障|异常|起不来|磁盘满|端口|服务)/.test(text)
+
+  if (wantsRemediation && sshStore.activeSession?.status === 'connected') {
+    inputText.value = ''
+    await handleStartRemediation(text)
+    return
+  }
+
   chatStore.addUserMessage(agentStore.activeAgentId, text)
   inputText.value = ''
   userScrolledUp.value = false
@@ -563,6 +587,117 @@ async function runAuthorizedDiagnostic(item: DiagnosticCommand): Promise<string>
   }
   handleCommandCompleted(item.command, output, authorization)
   return output
+}
+
+async function collectRemediationEvidence(): Promise<string> {
+  const groups = ['health', 'disk', 'processes', 'network']
+  const outputs: string[] = []
+  for (const groupId of groups) {
+    const output = await runDiagnostics(groupId, runAuthorizedDiagnostic, (label) => {
+      ElMessage.info(`${t('ai.remediationCollecting')} ${label}`)
+    })
+    outputs.push(`--- ${groupId} ---\n${output}`)
+  }
+  return outputs.join('\n\n')
+}
+
+async function handleStartRemediation(issueText = inputText.value.trim()) {
+  const session = sshStore.activeSession
+  if (!session?.realSessionId || session.status !== 'connected') {
+    ElMessage.warning(t('ai.remediationNoSession'))
+    return
+  }
+  if (remediationStore.isRunning) return
+
+  const prompt = issueText || messages.value[messages.value.length - 1]?.content || '请对当前服务器执行保守自愈检查'
+  chatStore.addUserMessage(agentStore.activeAgentId, prompt)
+  chatStore.addUserMessage(agentStore.activeAgentId, t('ai.remediationCollecting'))
+  scrollToBottom()
+
+  const diagnosticOutput = await collectRemediationEvidence()
+  const plan = createConservativeRemediationPlan({
+    hostId: activeHost.value.id,
+    hostName: activeHost.value.name || session.serverName,
+    issueText: prompt,
+    diagnosticOutput,
+  })
+
+  remediationStore.setPlan(plan)
+  ElMessage.success(t('ai.remediationCreated'))
+  scrollToBottom()
+}
+
+function handleStopRemediation() {
+  remediationStore.stopPlan()
+  ElMessage.warning(t('ai.remediationStopped'))
+}
+
+async function runRemediationCommand(step: RemediationStep, command: string, verification = false): Promise<boolean> {
+  const sessionId = sshStore.activeSession?.realSessionId
+  if (!sessionId) {
+    remediationStore.setStepStatus(step.id, 'failed')
+    remediationStore.appendStepOutput(step.id, t('ai.remediationNoSession'), verification)
+    return false
+  }
+
+  const authorization = await handleConfirmCommand(command)
+  if (!authorization.allowed) {
+    remediationStore.setStepStatus(step.id, 'skipped')
+    remediationStore.appendStepOutput(step.id, authorization.denialMessage, verification)
+    return false
+  }
+  if (authorization.auditId && !verification) remediationStore.setStepAudit(step.id, authorization.auditId)
+
+  let output = ''
+  try {
+    let result = await sshExecFull(sessionId, command)
+    output = formatDiagnosticResult(result)
+    if (/^\[执行错误\]/.test(output.trim())) {
+      result = await sshExecFull(sessionId, command)
+      output = formatDiagnosticResult(result)
+    }
+  } catch (error: any) {
+    output = `[执行错误] ${error?.message || String(error)}`
+  }
+
+  handleCommandCompleted(command, output, authorization)
+  remediationStore.appendStepOutput(step.id, output, verification)
+  return !/^\[执行错误\]/.test(output.trim()) && !/\[退出码 [1-9]/.test(output)
+}
+
+async function executeRemediationPlan() {
+  const plan = remediationStore.currentPlan
+  if (!plan || remediationStore.isRunning) return
+
+  remediationStore.setPlanStatus('running')
+  for (const step of plan.steps) {
+    if (remediationStore.currentPlan?.status === 'stopped') return
+    remediationStore.setStepStatus(step.id, 'waiting_approval')
+
+    remediationStore.setStepStatus(step.id, 'running')
+    const executed = await runRemediationCommand(step, step.command)
+    if (!executed) {
+      remediationStore.setStepStatus(step.id, step.status === 'skipped' ? 'skipped' : 'failed')
+      if (shouldStopAfterStep(step)) {
+        remediationStore.setPlanStatus(step.status === 'skipped' ? 'stopped' : 'failed')
+        ElMessage.error(t('ai.remediationFailed'))
+        return
+      }
+      continue
+    }
+
+    remediationStore.setStepStatus(step.id, 'verifying')
+    const verified = await runRemediationCommand(step, step.verifyCommand, true)
+    remediationStore.setStepStatus(step.id, verified ? 'completed' : 'failed')
+    if (!verified && shouldStopAfterStep(step)) {
+      remediationStore.setPlanStatus('failed')
+      ElMessage.error(t('ai.remediationFailed'))
+      return
+    }
+  }
+
+  remediationStore.setPlanStatus('completed')
+  ElMessage.success(t('ai.remediationCompleted'))
 }
 
 async function handleQuickAnalysis(prompt: string) {

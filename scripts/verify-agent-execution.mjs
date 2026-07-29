@@ -50,5 +50,13 @@ assert(aiPanel.includes("decision.action === 'double_confirm'"), '高风险操�
 assert(!diagnostics.includes("import { sshExec }"), '快捷诊断不得直接调用 sshExec')
 assert(/runDiagnostics\s*\(\s*groupId\s*:\s*string\s*,\s*execute/.test(diagnostics), '快捷诊断必须接收已授权的执行器')
 assert(aiPanel.includes('runAuthorizedDiagnostic'), '聊天面板必须为快捷诊断提供已授权执行器')
+assert(aiPanel.includes('useRemediationStore'), '聊天面板必须使用自愈 store')
+assert(aiPanel.includes('RemediationPlanCard'), '聊天面板必须展示自愈计划卡片')
+assert(aiPanel.includes('createConservativeRemediationPlan'), '自愈必须通过本地计划生成器创建计划')
+assert(aiPanel.includes('executeRemediationPlan'), '聊天面板必须提供计划执行函数')
+assert(aiPanel.includes('shouldStopAfterStep'), '自愈失败后必须根据停止策略停止后续步骤')
+assert(aiPanel.includes('runRemediationCommand(step, step.command)'), '自愈执行步骤必须通过统一授权执行器')
+assert(aiPanel.includes('runRemediationCommand(step, step.verifyCommand, true)'), '自愈验证步骤也必须通过统一授权执行器')
+assert(aiPanel.includes('await handleConfirmCommand(command)'), '自愈执行器必须复用统一授权回调')
 
 console.log('Agent execution regression checks passed')
