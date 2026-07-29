@@ -28,6 +28,11 @@
           <button class="bp-task-btn" :class="{ active: taskType === 'command' }" @click="taskType = 'command'">{{ t('ops.batchTaskCommand') }}</button>
         </div>
         <el-input v-if="taskType === 'command'" v-model="command" size="small" :placeholder="t('ops.batchCommandPlaceholder')" class="bp-cmd-input" @keydown.enter="run" />
+        <div v-if="taskType === 'command'" class="bp-orch-controls">
+          <span class="bp-orch-label">{{ t('ops.orchConcurrencyLabel') }}</span>
+          <el-input-number v-model="concurrency" size="small" :min="1" :max="Math.max(1, selected.size)" controls-position="right" class="bp-concurrency" />
+          <el-checkbox v-model="stopOnChangeFailure">{{ t('ops.orchFailurePolicy') }}</el-checkbox>
+        </div>
         <el-button type="primary" size="small" :loading="running" :disabled="running" @click="run">
           {{ running ? t('ops.batchRunning') : t('ops.batchRun') }}
         </el-button>
@@ -37,6 +42,12 @@
       </div>
 
       <div class="bp-results" v-if="results.length">
+        <OrchestrationTaskCard
+          v-if="taskType === 'command' && orchestrationStore.currentTask"
+          :task="orchestrationStore.currentTask"
+          :running="orchestrationStore.isRunning"
+          class="bp-orch-card"
+        />
         <!-- 巡检对比表 -->
         <div v-if="taskType === 'inspect'" class="bp-compare">
           <div v-for="r in results" :key="r.serverId" class="bp-compare-row" :class="r.status">
@@ -53,7 +64,7 @@
         <div v-else class="bp-cmd-results">
           <div v-for="r in results" :key="r.serverId" class="bp-cmd-card" :class="r.status">
             <div class="bp-cmd-head">
-              <span class="bp-conn-dot" :class="r.status === 'done' ? 'connected' : r.status === 'failed' ? 'error' : 'connecting'"></span>
+              <span class="bp-conn-dot" :class="r.status === 'done' ? 'connected' : (r.status === 'failed' || r.status === 'skipped') ? 'error' : 'connecting'"></span>
               <span class="bp-cmd-server">{{ r.serverName }}</span>
               <span class="bp-cmd-badge" :class="r.status">{{ statusText(r.status) }}</span>
             </div>
@@ -70,30 +81,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { DocumentCopy, Files } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useSshStore } from '@/stores/ssh'
+import { sshExecFull, type SshExecResult } from '@/api/tauri'
+import { useSshStore, type SshServer } from '@/stores/ssh'
 import { useInspectionStore } from '@/stores/inspection'
+import { useOpsAgentStore } from '@/stores/opsAgent'
+import { useOrchestrationStore } from '@/stores/orchestration'
 import { useLocale } from '@/composables/useLocale'
+import {
+  createCommandTask,
+  runWithConcurrency,
+  shouldStopRemaining,
+  summarizeOrchestration,
+  type OrchestrationTargetInput,
+} from '@/utils/ops-orchestration'
+import OrchestrationTaskCard from '@/components/OrchestrationTaskCard.vue'
 
 const sshStore = useSshStore()
 const inspection = useInspectionStore()
+const opsAgentStore = useOpsAgentStore()
+const orchestrationStore = useOrchestrationStore()
 const { t } = useLocale()
 
 const selected = reactive(new Set<string>())
 const taskType = ref<'inspect' | 'command'>('inspect')
 const command = ref('')
 const running = ref(false)
+const concurrency = ref(2)
+const stopOnChangeFailure = ref(true)
+const orchestrationSummary = computed(() => orchestrationStore.currentTask ? summarizeOrchestration(orchestrationStore.currentTask) : '')
 
 interface BatchResult {
   serverId: string; serverName: string
-  status: 'connecting' | 'running' | 'done' | 'failed'
+  status: 'connecting' | 'running' | 'done' | 'failed' | 'skipped'
   output?: string; score?: number; critical?: number; warning?: number
 }
 const results = ref<BatchResult[]>([])
-
-const DANGER = /\b(rm\s+-rf|mkfs|dd\s+if=|reboot|shutdown|halt|iptables\s+-F|drop\s+database|>\s*\/dev\/(sd|nvme))/i
 
 function toggle(id: string) { selected.has(id) ? selected.delete(id) : selected.add(id) }
 function toggleAll() {
@@ -108,6 +133,7 @@ function statusText(s: string): string {
   if (s === 'connecting') return t('ops.batchConnecting')
   if (s === 'running') return t('ops.batchRunning')
   if (s === 'done') return t('ops.batchSuccess')
+  if (s === 'skipped') return t('ops.orchTarget_skipped')
   return t('ops.batchFailed')
 }
 function scoreColor(s: number): string {
@@ -117,7 +143,7 @@ function scoreColor(s: number): string {
 }
 
 /** 取得可用 sessionId：已连接则复用，否则临时连接。返回 {id, transient} */
-async function resolveSession(server: any): Promise<{ id: string; transient: boolean } | null> {
+async function resolveSession(server: SshServer): Promise<{ id: string; transient: boolean } | null> {
   const existing = sshStore.sessions.find(s => s.serverId === server.id && s.status === 'connected' && s.realSessionId)
   if (existing?.realSessionId) return { id: existing.realSessionId, transient: false }
   try {
@@ -131,24 +157,117 @@ async function resolveSession(server: any): Promise<{ id: string; transient: boo
   } catch { return null }
 }
 
+function selectedTargets(): OrchestrationTargetInput[] {
+  return sshStore.servers
+    .filter(server => selected.has(server.id))
+    .map(server => ({
+      hostId: server.id,
+      hostName: server.name,
+      hostAddress: `${server.username}@${server.host}:${server.port}`,
+      sessionId: sshStore.sessions.find(session => session.serverId === server.id && session.status === 'connected')?.realSessionId,
+    }))
+}
+
+function formatExecResult(result: SshExecResult): string {
+  const parts = [result.stdout.trim(), result.stderr.trim() ? `[stderr]\n${result.stderr.trim()}` : ''].filter(Boolean)
+  const body = parts.join('\n') || `[命令执行完毕，退出码 ${result.exit_code ?? 0}，无输出]`
+  if (result.timed_out) return `${body}\n[命令超时，已返回部分结果]`
+  if (result.exit_code && result.exit_code !== 0) return `${body}\n[退出码 ${result.exit_code}]`
+  return body
+}
+
+async function authorizeBatchCommand(server: SshServer, commandText: string): Promise<{ allowed: boolean; auditId?: string; reason: string }> {
+  const decision = opsAgentStore.decide(commandText, server.id)
+  const auditId = opsAgentStore.recordAudit({
+    hostId: server.id,
+    hostName: server.name,
+    command: commandText,
+    decision,
+    approved: decision.action === 'allow' ? true : null,
+    status: decision.action === 'deny' ? 'denied' : 'pending',
+  })
+
+  if (decision.action === 'allow') return { allowed: true, auditId, reason: '' }
+  if (decision.action === 'deny') return { allowed: false, auditId, reason: decision.reason }
+
+  try {
+    await ElMessageBox.confirm(
+      `${decision.action === 'double_confirm' ? '⚠️ ' : ''}${t('ai.riskChange')}：${decision.reason}\n\n${server.name} (${server.username}@${server.host})\n\n\`${commandText}\`\n\n${t('common.confirm')}？`,
+      decision.action === 'double_confirm' ? t('ai.confirmHighRisk') : t('ai.confirmChange'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        distinguishCancelAndClose: true,
+        closeOnClickModal: false,
+      }
+    )
+    if (decision.action === 'double_confirm') {
+      await ElMessageBox.confirm(
+        `${t('ai.riskHigh')}：${decision.reason}\n\n${server.name} (${server.username}@${server.host})\n\n\`${commandText}\`\n\n${t('ai.confirmHighRiskAgain')}？`,
+        t('ai.confirmHighRiskAgain'),
+        {
+          type: 'error',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          distinguishCancelAndClose: true,
+          closeOnClickModal: false,
+        }
+      )
+    }
+    opsAgentStore.setAuditApproval(auditId, true)
+    return { allowed: true, auditId, reason: '' }
+  } catch {
+    opsAgentStore.setAuditApproval(auditId, false)
+    return { allowed: false, auditId, reason: t('ai.commandBlocked') }
+  }
+}
+
 async function run() {
   if (selected.size === 0) { ElMessage.warning(t('ops.batchSelectFirst')); return }
   if (taskType.value === 'command') {
     if (!command.value.trim()) return
-    if (DANGER.test(command.value)) {
-      try { await ElMessageBox.confirm(t('ops.batchDangerConfirm', { n: selected.size }), t('common.confirm'), { type: 'warning' }) } catch { return }
-    }
   }
 
   running.value = true
   const targets = sshStore.servers.filter(s => selected.has(s.id))
   results.value = targets.map(s => ({ serverId: s.id, serverName: s.name, status: 'connecting' as const }))
+  if (taskType.value === 'command') {
+    const task = createCommandTask({
+      mode: 'batch',
+      title: command.value.trim(),
+      command: command.value.trim(),
+      targets: selectedTargets(),
+      concurrency: concurrency.value,
+    })
+    orchestrationStore.setTask(task)
+    orchestrationStore.setTaskStatus('running')
+  } else {
+    orchestrationStore.clearTask()
+  }
 
-  await Promise.all(targets.map(async (server, idx) => {
+  let stopRemaining = false
+  await runWithConcurrency(targets, taskType.value === 'command' ? Math.min(concurrency.value, Math.max(1, targets.length)) : targets.length, async (server, idx) => {
     const slot = results.value[idx]
+    const task = orchestrationStore.currentTask
+    const step = task?.steps[0]
+    if (stopRemaining) {
+      slot.status = 'skipped'
+      slot.output = t('ops.orchTarget_skipped')
+      orchestrationStore.setTargetStatus(server.id, 'skipped', slot.output)
+      return
+    }
+
+    orchestrationStore.setTargetStatus(server.id, 'connecting')
     const sess = await resolveSession(server)
-    if (!sess) { slot.status = 'failed'; slot.output = 'Connection failed'; return }
+    if (!sess) {
+      slot.status = 'failed'
+      slot.output = 'Connection failed'
+      orchestrationStore.setTargetStatus(server.id, 'failed', slot.output)
+      return
+    }
     slot.status = 'running'
+    orchestrationStore.setTargetStatus(server.id, 'running')
     try {
       if (taskType.value === 'inspect') {
         const rep = await inspection.runInspection(sess.id, server.name, server.id)
@@ -157,25 +276,68 @@ async function run() {
         slot.warning = rep.findings.filter(f => f.severity === 'warning').length
         slot.status = 'done'
       } else {
-        const { sshExec } = await import('@/api/tauri')
-        slot.output = (await sshExec(sess.id, command.value)).trim() || '(no output)'
-        slot.status = 'done'
+        if (step) orchestrationStore.setStepStatus(step.id, 'waiting_approval')
+        const authorization = await authorizeBatchCommand(server, command.value.trim())
+        if (!authorization.allowed) {
+          slot.status = 'skipped'
+          slot.output = authorization.reason
+          if (step) orchestrationStore.setStepStatus(step.id, 'skipped')
+          orchestrationStore.setTargetStatus(server.id, 'skipped', authorization.reason)
+          return
+        }
+
+        if (step) {
+          step.auditId = authorization.auditId
+          orchestrationStore.setStepStatus(step.id, 'running')
+        }
+        const execResult = await sshExecFull(sess.id, command.value.trim())
+        slot.output = formatExecResult(execResult)
+        if (authorization.auditId) opsAgentStore.completeAudit(authorization.auditId, slot.output)
+        const failed = execResult.timed_out || (execResult.exit_code !== null && execResult.exit_code !== 0)
+        slot.status = failed ? 'failed' : 'done'
+        orchestrationStore.appendTargetSummary(server.id, slot.output)
+        orchestrationStore.setTargetStatus(server.id, failed ? 'failed' : 'completed', failed ? slot.output : '')
+        if (step) {
+          orchestrationStore.appendStepOutput(step.id, `${server.name}: ${slot.output}`)
+          orchestrationStore.setStepStatus(step.id, failed ? 'failed' : 'completed')
+          if (failed && stopOnChangeFailure.value && task && shouldStopRemaining(task, { ...step, status: 'failed' })) {
+            stopRemaining = true
+            orchestrationStore.setTaskStatus('stopped')
+          }
+        }
       }
     } catch (e: any) {
       slot.status = 'failed'; slot.output = e?.message || String(e)
+      orchestrationStore.setTargetStatus(server.id, 'failed', slot.output)
+      if (step) {
+        orchestrationStore.appendStepOutput(step.id, `${server.name}: ${slot.output}`)
+        orchestrationStore.setStepStatus(step.id, 'failed')
+        if (stopOnChangeFailure.value && task && shouldStopRemaining(task, { ...step, status: 'failed' })) {
+          stopRemaining = true
+          orchestrationStore.setTaskStatus('stopped')
+        }
+      }
     } finally {
       if (sess.transient) { try { const { sshDisconnect } = await import('@/api/tauri'); await sshDisconnect(sess.id) } catch {} }
     }
-  }))
+  })
+
+  if (taskType.value === 'command' && orchestrationStore.currentTask?.status !== 'stopped') {
+    const failed = results.value.some(result => result.status === 'failed')
+    orchestrationStore.setTaskStatus(failed ? 'failed' : 'completed')
+    const step = orchestrationStore.currentTask.steps[0]
+    if (step && step.status !== 'skipped') orchestrationStore.setStepStatus(step.id, failed ? 'failed' : 'completed')
+  }
 
   running.value = false
 }
 
 function copyAll() {
-  const text = results.value.map(r => {
+  const body = results.value.map(r => {
     if (taskType.value === 'inspect') return `${r.serverName}: 健康分 ${r.score ?? '-'}（严重 ${r.critical ?? 0}/警告 ${r.warning ?? 0}）[${statusText(r.status)}]`
     return `### ${r.serverName} [${statusText(r.status)}]\n${r.output || ''}`
   }).join('\n\n')
+  const text = orchestrationSummary.value ? `${orchestrationSummary.value}\n\n${body}` : body
   navigator.clipboard.writeText(text)
   ElMessage.success(t('sftp.copied'))
 }
@@ -207,7 +369,7 @@ function copyAll() {
 
 // 右侧
 .bp-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
-.bp-taskbar { display: flex; align-items: center; gap: $spacing-sm; padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light; flex-shrink: 0; }
+.bp-taskbar { display: flex; align-items: center; gap: $spacing-sm; padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light; flex-shrink: 0; flex-wrap: wrap; }
 .bp-task-toggle { display: flex; background: $color-bg-input; border-radius: $border-radius-sm; padding: 2px; }
 .bp-task-btn {
   padding: 4px 12px; border: none; background: transparent; cursor: pointer; font-family: inherit;
@@ -215,8 +377,12 @@ function copyAll() {
   &.active { background: $gradient-primary; color: #fff; }
 }
 .bp-cmd-input { flex: 1; }
+.bp-orch-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; }
+.bp-orch-label { white-space: nowrap; }
+.bp-concurrency { width: 94px; }
 
 .bp-results { flex: 1; overflow-y: auto; padding: $spacing-md; min-height: 0; }
+.bp-orch-card { margin-bottom: $spacing-md; }
 
 // 巡检对比
 .bp-compare { display: flex; flex-direction: column; gap: 6px; }
@@ -244,6 +410,7 @@ function copyAll() {
 .bp-cmd-badge { font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 3px; text-transform: uppercase;
   &.done { color: $color-success; background: $color-bg-success-hover; }
   &.failed { color: $color-danger; background: $color-bg-danger-hover; }
+  &.skipped { color: $color-text-secondary; background: $color-bg-hover; }
   &.connecting, &.running { color: $color-warning; background: $color-bg-warning-hover; }
 }
 .bp-cmd-output { margin: 0; padding: $spacing-sm $spacing-md; font-family: $font-family-mono; font-size: $font-size-xs; line-height: 1.5; color: $color-text-regular; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }

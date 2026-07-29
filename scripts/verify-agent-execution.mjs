@@ -6,6 +6,7 @@ const aiChat = readFileSync(resolve(root, 'src/utils/ai-chat.ts'), 'utf8')
 const aiPanel = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
 const diagnostics = readFileSync(resolve(root, 'src/utils/server-diagnostics.ts'), 'utf8')
 const agentStore = readFileSync(resolve(root, 'src/stores/agent.ts'), 'utf8')
+const batchPanel = readFileSync(resolve(root, 'src/views/ops/BatchPanel.vue'), 'utf8')
 
 function assert(condition, message) {
   if (!condition) {
@@ -65,5 +66,11 @@ assert(agentStore.includes('每一步执行后必须验证'), '运维智能体�
 assert(agentStore.includes('不得让用户手动复制命令到终端'), '运维智能体不得把命令退回给用户手动执行')
 assert(agentStore.includes('修复计划必须包含：现象、证据、命令、风险、验证命令、失败后是否停止'), '运维智能体必须要求结构化修复计划')
 assert(agentStore.includes('高风险命令始终二次确认'), '运维智能体必须强调高风险命令的确认要求')
+assert(batchPanel.includes('useOrchestrationStore'), '批量页必须使用编排 store')
+assert(batchPanel.includes('createCommandTask'), '批量命令必须创建编排任务')
+assert(batchPanel.includes('runWithConcurrency'), '批量执行必须使用并发限制器')
+assert(batchPanel.includes('opsAgentStore.decide'), '批量命令必须复用权限策略')
+assert(!batchPanel.includes('const DANGER ='), '批量页不得使用独立高危正则绕过统一权限策略')
+assert(!batchPanel.includes('sshExec('), '批量页不得直接调用旧 sshExec 字符串接口')
 
 console.log('Agent execution regression checks passed')
