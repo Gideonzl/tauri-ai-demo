@@ -3,9 +3,15 @@
   <transition name="cp-fade">
     <div v-if="visible" class="cp-overlay" @click.self="close" @contextmenu.prevent>
       <div class="cp-panel">
-        <!-- 顶部：模式切换 -->
+        <!-- 顶部：助手身份与模式切换 -->
         <div class="cp-head">
-          <el-icon :size="16" class="cp-logo"><MagicStick /></el-icon>
+          <div class="cp-brand">
+            <el-icon :size="18" class="cp-logo"><MagicStick /></el-icon>
+            <div>
+              <strong>AI 命令助手</strong>
+              <span>{{ mode === 'gen' ? '将运维需求转成安全命令' : '逐项解读 Shell 命令' }}</span>
+            </div>
+          </div>
           <div class="cp-modes">
             <button class="cp-mode" :class="{ active: mode === 'gen' }" @click="switchMode('gen')">{{ t('cmd.genMode') }}</button>
             <button class="cp-mode" :class="{ active: mode === 'explain' }" @click="switchMode('explain')">{{ t('cmd.explainMode') }}</button>
@@ -14,30 +20,34 @@
           <el-icon :size="14" class="cp-close" @click="close"><Close /></el-icon>
         </div>
 
-        <!-- 输入 -->
-        <div class="cp-input-wrap">
-          <el-icon :size="15" class="cp-input-icon"><component :is="mode === 'gen' ? ChatLineRound : Document" /></el-icon>
-          <textarea
-            ref="inputRef"
-            v-model="input"
-            class="cp-input"
-            :placeholder="mode === 'gen' ? t('cmd.genPlaceholder') : t('cmd.explainPlaceholder')"
-            rows="2"
-            @keydown.enter.exact.prevent="submit"
-          ></textarea>
-          <el-button type="primary" size="small" class="cp-submit" :loading="running" :disabled="!input.trim() || running" @click="submit">
-            {{ running ? t('cmd.thinking') : (mode === 'gen' ? t('cmd.generate') : t('cmd.explain')) }}
-          </el-button>
-        </div>
+        <div class="cp-body">
+          <!-- 输入 -->
+          <div class="cp-composer" :class="{ running }">
+            <el-icon :size="18" class="cp-input-icon"><component :is="mode === 'gen' ? ChatLineRound : Document" /></el-icon>
+            <textarea
+              ref="inputRef"
+              v-model="input"
+              class="cp-input"
+              :placeholder="mode === 'gen' ? t('cmd.genPlaceholder') : t('cmd.explainPlaceholder')"
+              rows="3"
+              @keydown.enter.exact.prevent="submit"
+            ></textarea>
+            <div class="cp-composer-foot">
+              <span><kbd>Enter</kbd> {{ mode === 'gen' ? '生成命令' : '开始解释' }} · <kbd>Shift + Enter</kbd> 换行</span>
+              <el-button type="primary" class="cp-submit" :loading="running" :disabled="!input.trim() || running" @click="submit">
+                {{ running ? t('cmd.thinking') : (mode === 'gen' ? t('cmd.generate') : t('cmd.explain')) }}
+              </el-button>
+            </div>
+          </div>
 
         <!-- 快捷示例（生成模式，未有结果时） -->
-        <div v-if="mode === 'gen' && !output && !running" class="cp-examples">
-          <span class="cp-ex-label">{{ t('cmd.examples') }}</span>
-          <button v-for="ex in examples" :key="ex" class="cp-ex" @click="input = ex; submit()">{{ ex }}</button>
-        </div>
+          <div v-if="mode === 'gen' && !output && !running" class="cp-examples">
+            <span class="cp-ex-label">{{ t('cmd.examples') }}</span>
+            <button v-for="ex in examples" :key="ex" class="cp-ex" @click="input = ex; submit()">{{ ex }}</button>
+          </div>
 
         <!-- 结果 -->
-        <div v-if="output || running" class="cp-result">
+          <div v-if="output || running" class="cp-result">
           <!-- 生成模式：提取的命令卡 -->
           <div v-if="mode === 'gen' && extractedCmd" class="cp-cmd-card">
             <div class="cp-cmd-top">
@@ -62,6 +72,7 @@
           <div v-if="execOutput !== null" class="cp-exec">
             <div class="cp-exec-head">{{ t('cmd.output') }} · {{ activeServerName }}</div>
             <pre class="cp-exec-body">{{ execOutput || t('cmd.noOutput') }}</pre>
+          </div>
           </div>
         </div>
       </div>
@@ -200,50 +211,62 @@ async function runOnServer() {
 .cp-overlay {
   position: fixed; inset: 0; z-index: 20000;
   display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 12vh;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  padding: min(11vh, 100px) 20px 24px;
+  background: rgba(0, 0, 0, .42);
+  backdrop-filter: blur(10px) saturate(.9);
 }
 .cp-panel {
-  width: 640px; max-width: 92vw; max-height: 76vh;
+  width: 760px; max-width: 100%; max-height: min(78vh, 720px);
   display: flex; flex-direction: column; overflow: hidden;
-  background: $glass-bg; border: 1px solid $glass-border;
-  border-radius: $border-radius-lg; box-shadow: $elevation-3;
-  backdrop-filter: blur(20px) saturate(1.3);
+  background: $color-bg-surface; border: 1px solid $color-border;
+  border-radius: 16px; box-shadow: $elevation-3;
   animation: cp-pop 0.2s ease;
 }
 @keyframes cp-pop { from { opacity: 0; transform: translateY(-12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
-.cp-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid $color-border-light; flex-shrink: 0; }
-.cp-logo { color: $color-primary; }
-.cp-modes { display: flex; gap: 2px; background: $color-bg-input; border-radius: $border-radius-sm; padding: 2px; flex: 1; }
-.cp-mode { padding: 4px 14px; border: none; background: transparent; cursor: pointer; font-family: inherit; font-size: $font-size-xs; color: $color-text-secondary; border-radius: $border-radius-sm - 1px; transition: all $transition-fast;
-  &.active { background: $gradient-primary; color: #fff; }
+.cp-head { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid $color-border-light; flex-shrink: 0; }
+.cp-brand { display: flex; align-items: center; gap: 10px; min-width: 188px;
+  > div { display: flex; flex-direction: column; gap: 2px; }
+  strong { font-size: $font-size-sm; color: $color-text-primary; letter-spacing: .01em; }
+  span { font-size: 10px; color: $color-text-secondary; }
 }
-.cp-kbd { font-size: 10px; font-family: $font-family-mono; color: $color-text-muted; background: $color-bg-input; padding: 1px 6px; border-radius: 3px; }
+.cp-logo { color: $color-primary; padding: 8px; border-radius: 10px; background: $color-bg-active; }
+.cp-modes { display: flex; gap: 3px; background: $color-bg-input; border: 1px solid $color-border-light; border-radius: 9px; padding: 3px; margin-left: auto; }
+.cp-mode { padding: 6px 12px; border: none; background: transparent; cursor: pointer; font-family: inherit; font-size: $font-size-xs; color: $color-text-secondary; border-radius: 6px; transition: all $transition-fast;
+  &:hover { color: $color-text-primary; background: $color-bg-hover; }
+  &.active { background: $color-primary; color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .14); }
+}
+.cp-kbd { font-size: 10px; font-family: $font-family-mono; color: $color-text-muted; background: $color-bg-input; padding: 3px 7px; border-radius: 4px; }
 .cp-close { cursor: pointer; color: $color-text-secondary; &:hover { color: $color-danger; } }
 
-.cp-input-wrap { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; flex-shrink: 0; }
-.cp-input-icon { color: $color-primary; margin-top: 8px; flex-shrink: 0; }
+.cp-body { display: flex; flex-direction: column; min-height: 0; padding: 16px 18px 18px; }
+.cp-composer { display: grid; grid-template-columns: auto 1fr; column-gap: 11px; padding: 13px 14px 10px; border: 1px solid $color-border; border-radius: 12px; background: $color-bg-input; transition: border-color $transition-fast, box-shadow $transition-fast;
+  &:focus-within { border-color: $color-primary; box-shadow: 0 0 0 3px rgba(64, 158, 255, .14); }
+  &.running { opacity: .8; }
+}
+.cp-input-icon { color: $color-primary; margin-top: 4px; flex-shrink: 0; }
 .cp-input {
-  flex: 1; border: none; outline: none; resize: none; background: transparent;
-  color: $color-text-primary; font-size: $font-size-lg; font-family: inherit; line-height: 1.5;
+  width: 100%; min-height: 64px; border: none; outline: none; resize: none; background: transparent;
+  color: $color-text-primary; font-size: $font-size-md; font-family: inherit; line-height: 1.55;
   &::placeholder { color: $color-text-placeholder; }
 }
-.cp-submit { flex-shrink: 0; margin-top: 4px; }
-
-.cp-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 16px 14px;
-  .cp-ex-label { font-size: $font-size-xs; color: $color-text-placeholder; }
+.cp-composer-foot { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; color: $color-text-placeholder; font-size: 10px;
+  kbd { font-family: $font-family-mono; font-size: 10px; color: $color-text-secondary; background: $color-bg-hover; border: 1px solid $color-border-light; border-radius: 3px; padding: 1px 4px; }
 }
-.cp-ex { padding: 3px 10px; border: 1px solid $color-border; border-radius: 12px; background: $color-bg-input; cursor: pointer; font-family: inherit; font-size: $font-size-xs; color: $color-text-secondary; transition: all $transition-fast;
-  &:hover { border-color: $color-primary; color: $color-primary; }
+.cp-submit { flex-shrink: 0; min-width: 72px; }
+
+.cp-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 13px 2px 2px;
+  .cp-ex-label { width: 100%; font-size: 10px; color: $color-text-placeholder; letter-spacing: .04em; text-transform: uppercase; }
+}
+.cp-ex { padding: 5px 10px; border: 1px solid $color-border; border-radius: 8px; background: transparent; cursor: pointer; font-family: inherit; font-size: $font-size-xs; color: $color-text-regular; transition: all $transition-fast;
+  &:hover { border-color: $color-primary; color: $color-primary; background: $color-bg-active; }
 }
 
-.cp-result { flex: 1; overflow-y: auto; padding: 0 16px 16px; min-height: 0;
+.cp-result { flex: 1; overflow-y: auto; padding: 16px 0 0; min-height: 0;
   &::-webkit-scrollbar { width: 6px; } &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 3px; }
 }
 
-.cp-cmd-card { border-radius: $border-radius-md; background: $color-bg-app; border: 1px solid $color-border; overflow: hidden; margin-bottom: 12px; }
+.cp-cmd-card { border-radius: 12px; background: $color-bg-app; border: 1px solid $color-border; overflow: hidden; margin-bottom: 14px; }
 .cp-cmd-top { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid $color-border-light;
   .cp-cmd-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: $color-text-secondary; }
 }
@@ -266,4 +289,13 @@ async function runOnServer() {
 
 .cp-fade-enter-active, .cp-fade-leave-active { transition: opacity 0.2s ease; }
 .cp-fade-enter-from, .cp-fade-leave-to { opacity: 0; }
+
+@media (max-width: 640px) {
+  .cp-overlay { padding: 24px 12px; }
+  .cp-head { flex-wrap: wrap; }
+  .cp-brand { min-width: 0; flex: 1; }
+  .cp-modes { order: 3; width: 100%; margin-left: 0; }
+  .cp-mode { flex: 1; }
+  .cp-composer-foot > span { display: none; }
+}
 </style>
