@@ -457,34 +457,30 @@ onUnmounted(() => {
 
 // === 顶部品牌导航栏 ===
 .app-topbar {
-  height: 56px;
+  height: 52px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 18px;
-  background:
-    linear-gradient(90deg, $color-bg-active, transparent 42%, $color-bg-hover),
-    $shell-topbar-bg;
-  backdrop-filter: blur(18px) saturate(1.35);
+  background: linear-gradient(90deg, $color-bg-active, transparent 38%), $shell-topbar-bg;
+  backdrop-filter: blur(16px) saturate(1.15);
   border-bottom: 1px solid $color-border;
   box-shadow: none;
   z-index: 10;
 }
-.tb-brand { display: flex; align-items: center; gap: 8px; }
-.tb-logo { width: 28px; height: 28px; border-radius: 9px; box-shadow: $glow-cyan; }
-.tb-name { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; color: $color-text-primary; font-family: 'Inter', sans-serif; text-shadow: 0 0 18px rgba(34,247,255,0.22); }
+.tb-brand { display: flex; align-items: center; gap: 9px; }
+.tb-logo { width: 30px; height: 30px; border-radius: 9px; box-shadow: $glow-soft; }
+.tb-name { font-size: 16px; font-weight: 760; letter-spacing: -0.25px; color: $color-text-primary; font-family: 'Inter', sans-serif; }
 .tb-badge {
   font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
   color: $color-primary; background: $color-bg-active; padding: 3px 7px; border-radius: 999px;
-  border: 1px solid $color-border-focus; box-shadow: inset 0 0 12px $color-bg-hover;
+  border: 1px solid $color-border-focus;
 }
 .tb-status-strip {
-  display: flex; align-items: center; gap: 8px; margin-left: 14px;
-  padding: 5px 9px; border: 1px solid $color-border; border-radius: 999px;
-  background: $surface-contrast-soft; color: $color-text-regular; font-size: 10px;
-  text-shadow: $text-shadow-strong;
-  box-shadow: inset 0 0 18px $color-bg-hover;
+  display: flex; align-items: center; gap: 7px; margin-left: 12px;
+  padding: 5px 10px; border: 1px solid $color-border-light; border-radius: 999px;
+  background: $color-bg-input; color: $color-text-secondary; font-size: 10px;
 }
 .tb-status-strip span:not(.tb-status-dot) { padding: 0 2px; }
 .tb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; box-shadow: 0 0 10px $color-success; }
@@ -492,9 +488,8 @@ onUnmounted(() => {
 .tb-cmd {
   display: flex; align-items: center; gap: 8px;
   height: 34px; min-width: 240px; padding: 0 10px; border: 1px solid $color-border;
-  border-radius: 999px; background: $surface-contrast-soft; cursor: pointer;
+  border-radius: 999px; background: $color-bg-input; cursor: pointer;
   color: $color-text-regular; font-family: inherit; font-size: $font-size-xs;
-  text-shadow: $text-shadow-strong;
   transition: all $transition-fast;
   &:hover { border-color: $color-primary; color: $color-text-primary; box-shadow: $glow-primary; }
   .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $color-primary; background: $color-bg-active; padding: 2px 6px; border-radius: 999px; border: 1px solid $color-border; }
@@ -660,7 +655,7 @@ onUnmounted(() => {
 
 .ai-top-bar {
 
-  height: 34px;
+  height: 40px;
 
   display: flex;
 
@@ -669,11 +664,11 @@ onUnmounted(() => {
   flex-shrink: 0;
 
   border-bottom: 1px solid $color-border;
-  background: transparent;
+  background: $color-bg-surface;
 
-  padding: 0 $spacing-sm;
+  padding: 0 10px;
 
-  gap: $spacing-xs;
+  gap: 6px;
 
 }
 
@@ -683,9 +678,9 @@ onUnmounted(() => {
 
 .ai-toggle-btn {
 
-  width: 22px;
+  width: 26px;
 
-  height: 22px;
+  height: 26px;
 
   display: flex;
 
@@ -697,9 +692,9 @@ onUnmounted(() => {
 
   color: $color-text-regular;
 
-  border-radius: $border-radius-sm;
+  border-radius: 7px;
 
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
 
   flex-shrink: 0;
 
@@ -708,6 +703,7 @@ onUnmounted(() => {
   &:hover {
 
     color: $color-primary;
+    background: $color-bg-hover;
 
   }
 
@@ -721,7 +717,7 @@ onUnmounted(() => {
 
   display: flex;
 
-  gap: 2px;
+  gap: 4px;
 
   flex: 1;
 
@@ -733,11 +729,11 @@ onUnmounted(() => {
 
 .right-tab {
 
-  padding: 0 10px;
+  padding: 5px 10px;
 
-  border: none;
+  border: 1px solid transparent;
 
-  border-radius: 0;
+  border-radius: 7px;
 
   cursor: pointer;
 
@@ -759,7 +755,7 @@ onUnmounted(() => {
 
   &:hover {
 
-    color: $color-text-regular;
+    color: $color-text-primary;
 
     background-color: $color-bg-hover;
 
@@ -771,8 +767,8 @@ onUnmounted(() => {
 
     color: $color-primary;
 
-    background: transparent;
-    box-shadow: inset 0 -2px 0 $color-primary;
+    background: $color-bg-active;
+    border-color: $color-border-light;
 
   }
 

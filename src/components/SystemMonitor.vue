@@ -78,7 +78,7 @@
           </div>
           <div class="cpu-ring-wrap">
             <svg viewBox="0 0 120 120" class="cpu-ring">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--ring-bg)" stroke-width="7" />
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--color-border)" stroke-width="7" />
               <circle cx="60" cy="60" r="50" fill="none"
                 :stroke="cpuGradient" stroke-width="7" stroke-linecap="round"
                 :stroke-dasharray="cpuDasharray" :stroke-dashoffset="0"
@@ -154,7 +154,7 @@
               </div>
             </div>
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polygon :points="diskReadSparkFill" fill="#5b9bd5" opacity="0.12" />
+              <polygon :points="diskReadSparkFill" fill="var(--chart-cpu-normal)" opacity="0.14" />
               <polyline :points="diskReadSparkPoints" fill="none" stroke="var(--chart-cpu-normal)" stroke-width="1.5" />
               <polyline :points="diskWriteSparkPoints" fill="none" stroke="var(--chart-cpu-warning)" stroke-width="1.5" />
             </svg>
@@ -184,7 +184,7 @@
               </div>
             </div>
             <svg viewBox="0 0 200 36" class="mini-sparkline">
-              <polygon :points="netRxSparkFill" fill="#5b9bd5" opacity="0.12" />
+              <polygon :points="netRxSparkFill" fill="var(--chart-cpu-normal)" opacity="0.14" />
               <polyline :points="netRxSparkPoints" fill="none" stroke="var(--chart-cpu-normal)" stroke-width="1.5" />
               <polyline :points="netTxSparkPoints" fill="none" stroke="var(--chart-net-tx)" stroke-width="1.5" />
             </svg>
@@ -558,10 +558,10 @@ onUnmounted(() => stopRefresh())
 
 // ═══════ Metric Panel ═══════
 .metric-panel {
-  background: $glass-bg;
-  border: 1px solid $glass-border;
-  border-radius: 8px;
-  padding: 10px;
+  background: $color-bg-surface;
+  border: 1px solid $color-border;
+  border-radius: 10px;
+  padding: 12px;
   box-shadow: $elevation-1;
   transition: box-shadow 0.22s ease, transform 0.22s ease;
   animation: fade-in-up 0.3s ease backwards;
@@ -620,7 +620,6 @@ onUnmounted(() => stopRefresh())
 
 .cpu-ring-fill {
   transition: stroke-dasharray 0.6s ease;
-  filter: drop-shadow(0 0 3px rgba(91,157,213,0.3));
 }
 
 .ring-pct {
@@ -668,7 +667,7 @@ onUnmounted(() => stopRefresh())
 }
 .mem-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #5b9bd5, #4888c2);
+  background: linear-gradient(90deg, var(--chart-cpu-normal, #5b9bd5), $color-primary-light);
   border-radius: 5px;
   transition: width 0.6s ease;
   position: relative;
@@ -719,6 +718,12 @@ onUnmounted(() => stopRefresh())
   width: 100%;
   height: 36px;
   display: block;
+  box-sizing: border-box;
+  padding: 3px 0;
+  border-top: 1px solid $color-border-light;
+  border-bottom: 1px solid $color-border-light;
+  background-image: linear-gradient(to bottom, transparent 48%, $color-border-light 50%, transparent 52%);
+  background-size: 100% 12px;
 }
 
 .spark-legend {
