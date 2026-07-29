@@ -16,6 +16,7 @@ const batchPanel = readFileSync(resolve(root, 'src/views/ops/BatchPanel.vue'), '
 const workspace = readFileSync(resolve(root, 'src/views/WorkspaceView.vue'), 'utf8')
 const terminalPanel = readFileSync(resolve(root, 'src/components/TerminalPanel.vue'), 'utf8')
 const aiChat = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
+const opsPermission = readFileSync(resolve(root, 'src/components/OpsPermissionControl.vue'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -73,6 +74,9 @@ assertIncludes(mainLayout, 'cmd-fab-ring', 'AI 悬浮按钮必须有灯管环形
 assertIncludes(mainLayout, '$shell-topbar-bg', '主布局顶栏必须跟随主题明暗切换')
 assertIncludes(mainLayout, '$shell-sidebar-bg', '主布局侧栏必须跟随主题明暗切换')
 assertIncludes(mainLayout, '$shell-ai-bg', '主布局 AI 面板必须跟随主题明暗切换')
+assertIncludes(mainLayout, 'FAB_SAFE_TOP', '悬浮助手必须避开顶部栏')
+assertIncludes(mainLayout, 'maxFabX', '悬浮助手必须避开右侧 AI 面板')
+assertIncludes(mainLayout, "window.addEventListener('resize', onWindowResize)", '悬浮助手必须在窗口缩放时重新计算安全区域')
 
 assertIncludes(sideNav, 'nav-icon-shell', '侧边栏图标必须有胶囊灯管容器')
 assertIncludes(sideNav, 'rail-glow', '侧边栏必须有纵向发光轨道')
@@ -86,6 +90,8 @@ assertIncludes(opsView, 'ops-hero', '智能运维页必须有驾驶舱 Hero 区'
 assertIncludes(opsView, 'ops-tab-label', '智能运维页按钮必须重排为胶囊标签')
 assertIncludes(opsView, '$shell-workspace-bg', '智能运维页背景必须跟随明暗主题，不能压暗亮色工作区')
 assertIncludes(opsView, 'box-shadow: none', '智能运维页必须移除覆盖式大阴影')
+assertIncludes(opsView, '@media (max-width: 1280px)', '智能运维头部必须在窄空间切换为分行布局')
+assertIncludes(opsView, 'ops-server-control', '智能运维服务器选择器必须能随布局缩放')
 assertIncludes(batchPanel, 'bp-runbook-chip', '批量页剧本按钮必须保留可视化胶囊')
 assertIncludes(batchPanel, 'bp-runbook-delete', '自定义剧本删除按钮必须可见')
 
@@ -101,5 +107,11 @@ assertIncludes(aiChat, 'message-body {\n      background: transparent', 'AI 回�
 assertIncludes(aiChat, 'assistant-address', 'AI 对话头部必须保留当前服务器地址信息')
 assertIncludes(sideNav, '&::before', '侧边栏选中态必须使用自适应指示条')
 assertIncludes(sideNav, 'border-radius: 8px', '侧边栏选中态必须避免大圆形按钮效果')
+
+assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
+assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')
+assertIncludes(opsPermission, 'background: $surface-contrast-soft', '权限选项卡背景必须跟随亮暗主题')
+assertIncludes(opsPermission, 'background: $color-bg-active', '权限选中态必须跟随当前主题强调色')
+assertIncludes(opsPermission, 'color: $color-text-primary', '权限选项文字必须使用主题正文色')
 
 console.log('UI refresh checks passed')

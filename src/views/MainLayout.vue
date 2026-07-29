@@ -221,6 +221,9 @@ function onGlobalKey(e: KeyboardEvent) {
 
 // 悬浮按钮拖拽 —— 拖动移位（记忆位置），轻点打开助手
 const FAB_SIZE = 46
+const FAB_SAFE_TOP = 96
+const FAB_SAFE_GUTTER = 14
+const fabViewport = ref({ width: window.innerWidth, height: window.innerHeight })
 const fabPos = ref<{ x: number; y: number } | null>(null)
 try { const s = localStorage.getItem('cmd-fab-pos'); if (s) fabPos.value = JSON.parse(s) } catch {}
 const fabDragging = ref(false)
@@ -228,9 +231,22 @@ let fabMoved = false
 let fabStartX = 0, fabStartY = 0, fabOrigX = 0, fabOrigY = 0
 
 const fabStyle = computed(() => {
-  if (!fabPos.value) return { right: 'calc(var(--ai-panel-width) + 18px)' }
-  return { left: fabPos.value.x + 'px', top: fabPos.value.y + 'px', right: 'auto', bottom: 'auto' }
+  const panelWidth = aiPanelCollapsed.value ? aiPanelCollapsedWidth : aiPanelWidth.value
+  if (!fabPos.value) return { right: `${panelWidth + FAB_SAFE_GUTTER}px`, bottom: `${FAB_SAFE_GUTTER}px` }
+  const { x, y } = clampFabPosition(fabPos.value.x, fabPos.value.y)
+  return { left: x + 'px', top: y + 'px', right: 'auto', bottom: 'auto' }
 })
+
+function clampFabPosition(x: number, y: number) {
+  const minFabX = sidebarWidth.value + FAB_SAFE_GUTTER
+  const panelWidth = aiPanelCollapsed.value ? aiPanelCollapsedWidth : aiPanelWidth.value
+  const maxFabX = Math.max(minFabX, fabViewport.value.width - panelWidth - FAB_SIZE - FAB_SAFE_GUTTER)
+  const maxFabY = Math.max(FAB_SAFE_TOP, fabViewport.value.height - FAB_SIZE - FAB_SAFE_GUTTER)
+  return {
+    x: Math.min(Math.max(x, minFabX), maxFabX),
+    y: Math.min(Math.max(y, FAB_SAFE_TOP), maxFabY),
+  }
+}
 
 function fabMouseDown(e: MouseEvent) {
   fabMoved = false
@@ -245,9 +261,7 @@ function fabMouseMove(e: MouseEvent) {
   const dx = e.clientX - fabStartX, dy = e.clientY - fabStartY
   if (!fabMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) fabDragging.value = fabMoved = true
   if (!fabMoved) return
-  const x = Math.max(4, Math.min(window.innerWidth - FAB_SIZE - 4, fabOrigX + dx))
-  const y = Math.max(4, Math.min(window.innerHeight - FAB_SIZE - 4, fabOrigY + dy))
-  fabPos.value = { x, y }
+  fabPos.value = clampFabPosition(fabOrigX + dx, fabOrigY + dy)
 }
 function fabMouseUp() {
   document.removeEventListener('mousemove', fabMouseMove)
@@ -260,8 +274,9 @@ function fabMouseUp() {
   fabDragging.value = false
 }
 
-onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey) })
-onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey) })
+function onWindowResize() { fabViewport.value = { width: window.innerWidth, height: window.innerHeight } }
+onMounted(() => { register(hideCtx); document.addEventListener('click', hideCtx); document.addEventListener('keydown', onGlobalKey); window.addEventListener('resize', onWindowResize) })
+onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', hideCtx); document.removeEventListener('keydown', onGlobalKey); window.removeEventListener('resize', onWindowResize) })
 
 const rightPanelTab = ref<'ai' | 'monitor'>('ai')
 

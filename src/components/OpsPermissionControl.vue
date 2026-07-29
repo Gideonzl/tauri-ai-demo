@@ -1,10 +1,10 @@
 <template>
-  <el-button class="permission-button" size="small" text @click="visible = true">
+  <el-button class="ops-permission-control permission-button" size="small" text @click="visible = true">
     <el-icon :size="14"><Lock /></el-icon>
     <span>{{ currentLabel }}</span>
   </el-button>
 
-  <el-dialog v-model="visible" :title="t('ai.permissionTitle')" width="420px" append-to-body>
+  <el-dialog v-model="visible" class="permission-dialog" :title="t('ai.permissionTitle')" width="420px" append-to-body>
     <p class="permission-intro">{{ t('ai.permissionHint') }}</p>
     <el-radio-group :model-value="level" class="permission-levels" @update:model-value="selectLevel">
       <el-radio-button v-for="item in levels" :key="item.value" :label="item.value">
@@ -43,12 +43,24 @@ function selectLevel(level: string | number | boolean | undefined) {
 }
 </script>
 
-<style scoped lang="scss">
-.permission-button { color: $color-text-secondary; gap: 4px; &:hover { color: $color-primary; } }
-.permission-intro { margin: 0 0 14px; color: $color-text-secondary; font-size: $font-size-sm; line-height: 1.55; }
-.permission-levels { display: grid; grid-template-columns: 1fr; gap: 8px; width: 100%; }
-.permission-levels :deep(.el-radio-button) { width: 100%; }
-.permission-levels :deep(.el-radio-button__inner) { width: 100%; height: auto; padding: 10px 12px; text-align: left; white-space: normal; border-left: 1px solid var(--el-border-color) !important; border-radius: 5px !important; box-shadow: none !important; }
-.level-name { display: block; font-weight: 600; }
-.level-desc { display: block; margin-top: 3px; color: $color-text-secondary; font-size: $font-size-xs; }
+<style lang="scss">
+.ops-permission-control.permission-button { color: $color-text-secondary; gap: 4px; &:hover { color: $color-primary; } }
+.permission-dialog .permission-intro { margin: 0 0 14px; color: $color-text-secondary; font-size: $font-size-sm; line-height: 1.55; }
+.permission-dialog .permission-levels { display: grid; grid-template-columns: 1fr; gap: 8px; width: 100%; }
+.permission-dialog .permission-levels .el-radio-button { width: 100%; }
+.permission-dialog .permission-levels .el-radio-button__inner {
+  width: 100%; height: auto; padding: 11px 13px; text-align: left; white-space: normal;
+  color: $color-text-primary !important; background: $surface-contrast-soft !important;
+  border: 1px solid $color-border !important; border-radius: $border-radius-md !important;
+  box-shadow: none !important; transition: background $transition-fast, border-color $transition-fast, color $transition-fast;
+}
+.permission-dialog .permission-levels .el-radio-button:hover .el-radio-button__inner {
+  background: $color-bg-hover !important; border-color: $color-border-focus !important;
+}
+.permission-dialog .permission-levels .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  color: $color-text-primary !important; background: $color-bg-active !important;
+  border-color: $color-primary !important; box-shadow: inset 3px 0 0 $color-primary !important;
+}
+.permission-dialog .level-name { display: block; font-weight: 650; }
+.permission-dialog .level-desc { display: block; margin-top: 3px; color: $color-text-secondary; font-size: $font-size-xs; }
 </style>

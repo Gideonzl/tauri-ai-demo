@@ -22,7 +22,7 @@
         </div>
         <!-- 服务器选择器（巡检/告警/日志用）— 显示全部服务器，选中后按需连接 -->
         <div v-if="needsSelector" class="ops-server-select">
-          <el-select v-model="selectedServerId" size="small" :placeholder="t('ops.selectServer')" :popper-append-to-body="false" style="width: 220px">
+          <el-select v-model="selectedServerId" class="ops-server-control" size="small" :placeholder="t('ops.selectServer')" :popper-append-to-body="false">
             <el-option v-for="s in sshStore.servers" :key="s.id" :label="s.name" :value="s.id">
               <span class="opt-dot" :class="serverConn(s.id)"></span>{{ s.name }}
             </el-option>
@@ -139,7 +139,7 @@ onUnmounted(async () => {
 
 .ops-header {
   display: flex; align-items: center; justify-content: space-between; gap: $spacing-lg;
-  min-height: 82px; padding: 14px 18px; flex-shrink: 0;
+  min-height: 82px; padding: 14px 18px; flex-shrink: 0; flex-wrap: wrap;
   border-bottom: 1px solid $color-border;
   background:
     linear-gradient(90deg, $color-bg-active, transparent 48%, $color-bg-hover),
@@ -173,13 +173,15 @@ onUnmounted(async () => {
 }
 
 .ops-header-right {
-  display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; justify-content: flex-end;
+  display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 500px; justify-content: flex-end;
 }
 
 .ops-tabs {
-  display: flex; gap: 7px; min-width: 0; overflow-x: auto;
+  display: flex; gap: 7px; min-width: 0; flex: 1 1 290px; overflow-x: auto;
   padding: 5px; border: 1px solid $color-border; border-radius: 999px;
   background: $surface-contrast-soft;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .ops-tab {
@@ -211,11 +213,12 @@ onUnmounted(async () => {
 }
 
 .ops-server-select {
-  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  flex: 0 1 220px; min-width: 180px; display: flex; align-items: center; gap: 6px;
   padding: 5px; border-radius: 999px; background: $surface-contrast-soft;
   border: 1px solid $color-border;
   box-shadow: none;
 }
+.ops-server-control { width: 100%; min-width: 0; }
 .opt-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: $color-text-muted;
   &.connected { background: $color-success; } &.disconnected { background: $color-text-muted; }
 }
@@ -226,6 +229,18 @@ onUnmounted(async () => {
 .ops-body {
   flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0;
   padding: 12px;
+}
+
+@media (max-width: 1280px) {
+  .ops-header { align-items: flex-start; }
+  .ops-header-right { flex-basis: 100%; width: 100%; justify-content: space-between; }
+  .ops-tabs { flex-basis: 0; }
+}
+
+@media (max-width: 980px) {
+  .ops-header-right { flex-wrap: wrap; }
+  .ops-tabs { flex-basis: 100%; width: 100%; }
+  .ops-server-select { margin-left: auto; }
 }
 
 .ops-empty {
