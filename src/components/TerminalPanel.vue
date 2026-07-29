@@ -339,13 +339,13 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .tp { height: 100%; width: 100%; background: $color-bg-app; display: flex; flex-direction: column }
-.tbar { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; background: $color-bg-sidebar; border-bottom: 1px solid $color-border-light; font-size: 12px; color: $color-text-primary; flex-shrink: 0 }
+.tbar { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; background: linear-gradient(90deg, $color-bg-active, transparent 34%), $surface-contrast; border-bottom: 1px solid $color-border; font-size: 12px; color: $color-text-primary; flex-shrink: 0 }
 .tdot { width: 7px; height: 7px; border-radius: 50%; background: $color-text-placeholder; flex-shrink: 0 }
 .tdot.connected { background: $color-success }
 .tdot.connecting { background: $color-warning }
 .tdot.error { background: $color-danger }
 .tdot.disconnected { background: $color-text-placeholder }
-.tb { flex: 1; overflow: hidden; padding: 4px 8px }
+.tb { flex: 1; overflow: hidden; padding: 6px 10px }
 .tbadge { font-weight: bold; margin-left: 8px; font-size: 12px }
 .tbadge.real { color: $color-success }
 .tbadge.demo { color: $color-warning }

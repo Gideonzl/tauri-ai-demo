@@ -488,9 +488,7 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background:
-    linear-gradient(90deg, rgba(0,0,0,0.34), transparent 28%, transparent 70%, rgba(0,0,0,0.26)),
-    linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.30));
+  background: $shell-scrim;
 }
 
 .shell-aurora-a {
@@ -498,7 +496,7 @@ onUnmounted(() => {
   height: 360px;
   top: -160px;
   left: 18%;
-  background: rgba(34, 247, 255, 0.24);
+  background: $shell-aurora-primary;
 }
 
 .shell-aurora-b {
@@ -506,7 +504,7 @@ onUnmounted(() => {
   height: 420px;
   right: -140px;
   top: 8%;
-  background: rgba(168, 85, 255, 0.22);
+  background: $shell-aurora-secondary;
 }
 
 // === 顶部品牌导航栏 ===
@@ -518,10 +516,10 @@ onUnmounted(() => {
   gap: 10px;
   padding: 0 18px;
   background:
-    linear-gradient(90deg, rgba(34, 247, 255, 0.07), transparent 42%, rgba(168, 85, 255, 0.08)),
-    rgba(5, 8, 18, 0.88);
+    linear-gradient(90deg, $color-bg-active, transparent 42%, $color-bg-hover),
+    $shell-topbar-bg;
   backdrop-filter: blur(18px) saturate(1.35);
-  border-bottom: 1px solid rgba(34, 247, 255, 0.16);
+  border-bottom: 1px solid $color-border;
   box-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 16px 46px rgba(0,0,0,0.26);
   z-index: 10;
 }
@@ -530,34 +528,34 @@ onUnmounted(() => {
 .tb-name { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; color: $color-text-primary; font-family: 'Inter', sans-serif; text-shadow: 0 0 18px rgba(34,247,255,0.22); }
 .tb-badge {
   font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
-  color: $neon-cyan; background: rgba(34,247,255,0.09); padding: 3px 7px; border-radius: 999px;
-  border: 1px solid rgba(34,247,255,0.22); box-shadow: inset 0 0 12px rgba(34,247,255,0.08);
+  color: $color-primary; background: $color-bg-active; padding: 3px 7px; border-radius: 999px;
+  border: 1px solid $color-border-focus; box-shadow: inset 0 0 12px $color-bg-hover;
 }
 .tb-status-strip {
   display: flex; align-items: center; gap: 8px; margin-left: 14px;
-  padding: 5px 9px; border: 1px solid rgba(255,255,255,0.08); border-radius: 999px;
-  background: rgba(3, 7, 16, 0.72); color: $color-text-regular; font-size: 10px;
+  padding: 5px 9px; border: 1px solid $color-border; border-radius: 999px;
+  background: $surface-contrast-soft; color: $color-text-regular; font-size: 10px;
   text-shadow: $text-shadow-strong;
-  box-shadow: inset 0 0 18px rgba(255,255,255,0.025);
+  box-shadow: inset 0 0 18px $color-bg-hover;
 }
 .tb-status-strip span:not(.tb-status-dot) { padding: 0 2px; }
 .tb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; box-shadow: 0 0 10px $color-success; }
 .tb-spacer { flex: 1; }
 .tb-cmd {
   display: flex; align-items: center; gap: 8px;
-  height: 34px; min-width: 240px; padding: 0 10px; border: 1px solid rgba(34,247,255,0.2);
+  height: 34px; min-width: 240px; padding: 0 10px; border: 1px solid $color-border;
   border-radius: 999px; background: $surface-contrast-soft; cursor: pointer;
   color: $color-text-regular; font-family: inherit; font-size: $font-size-xs;
   text-shadow: $text-shadow-strong;
   transition: all $transition-fast;
-  &:hover { border-color: $neon-cyan; color: $color-text-primary; box-shadow: $glow-cyan; }
-  .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $neon-cyan; background: rgba(34,247,255,0.08); padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(34,247,255,0.16); }
+  &:hover { border-color: $color-primary; color: $color-text-primary; box-shadow: $glow-primary; }
+  .tb-kbd { font-family: $font-family-mono; font-size: 10px; color: $color-primary; background: $color-bg-active; padding: 2px 6px; border-radius: 999px; border: 1px solid $color-border; }
 }
 .tb-icon-btn {
   width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
   border: none; border-radius: $border-radius-md; background: transparent; cursor: pointer;
   color: $color-text-secondary; transition: all $transition-fast;
-  &:hover { background: $color-bg-hover; color: $neon-cyan; box-shadow: $glow-soft; }
+  &:hover { background: $color-bg-hover; color: $color-primary; box-shadow: $glow-soft; }
 }
 
 .main-layout {
@@ -584,13 +582,13 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background: linear-gradient(180deg, rgba(9, 14, 30, 0.94), rgba(4, 7, 16, 0.96));
+  background: $shell-sidebar-bg;
 
   backdrop-filter: blur(10px) saturate(1.1);
 
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 
-  border-right: 1px solid rgba(34, 247, 255, 0.14);
+  border-right: 1px solid $color-border;
   box-shadow: 18px 0 54px rgba(0, 0, 0, 0.22);
 
   flex-shrink: 0;
@@ -674,8 +672,8 @@ onUnmounted(() => {
   flex-direction: column;
 
   background:
-    radial-gradient(circle at 50% 0%, rgba(34,247,255,0.055), transparent 36%),
-    rgba(5, 8, 18, 0.42);
+    radial-gradient(circle at 50% 0%, $shell-aurora-primary, transparent 36%),
+    $shell-workspace-bg;
 
 }
 
@@ -687,13 +685,13 @@ onUnmounted(() => {
 
   height: 100%;
 
-  background: linear-gradient(180deg, rgba(10, 15, 32, 0.94), rgba(4, 7, 16, 0.96));
+  background: $shell-ai-bg;
 
   backdrop-filter: blur(10px) saturate(1.1);
 
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
 
-  border-left: 1px solid rgba(168, 85, 255, 0.18);
+  border-left: 1px solid $color-border;
   box-shadow: -18px 0 60px rgba(0, 0, 0, 0.28), -1px 0 0 rgba(255,255,255,0.04);
 
   flex-shrink: 0;
@@ -720,8 +718,8 @@ onUnmounted(() => {
 
   flex-shrink: 0;
 
-  border-bottom: 1px solid rgba(168, 85, 255, 0.16);
-  background: rgba(255,255,255,0.035);
+  border-bottom: 1px solid $color-border;
+  background: $surface-contrast-soft;
 
   padding: 0 $spacing-sm;
 
@@ -821,10 +819,10 @@ onUnmounted(() => {
 
   &.active {
 
-    color: $neon-cyan;
+    color: $color-primary;
 
-    background: rgba(34,247,255,0.09);
-    box-shadow: inset 0 0 16px rgba(34,247,255,0.08), 0 0 16px rgba(34,247,255,0.08);
+    background: $color-bg-active;
+    box-shadow: inset 0 0 16px $color-bg-hover, $glow-soft;
 
   }
 
@@ -858,7 +856,7 @@ onUnmounted(() => {
   z-index: 15000;
   width: 46px;
   height: 46px;
-  border: 1px solid rgba(34,247,255,0.38);
+  border: 1px solid $color-border-focus;
   border-radius: 50%;
   cursor: grab;
   color: #fff;
@@ -890,8 +888,8 @@ onUnmounted(() => {
   position: absolute;
   inset: -7px;
   border-radius: 50%;
-  border: 1px solid rgba(34,247,255,0.28);
-  box-shadow: inset 0 0 12px rgba(34,247,255,0.12), 0 0 20px rgba(168,85,255,0.20);
+  border: 1px solid $color-border-focus;
+  box-shadow: inset 0 0 12px $color-bg-active, $glow-violet;
   animation: pulse-neon-ring 2.2s ease-in-out infinite;
 }
 

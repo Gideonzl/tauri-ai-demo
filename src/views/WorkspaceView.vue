@@ -788,7 +788,7 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 .workspace-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
-.tab-bar { height: 40px; display: flex; align-items: center; padding: 0 $spacing-xs; background-color: $color-bg-surface; border-bottom: 1px solid $color-border-light; flex-shrink: 0; gap: 2px; overflow-x: auto; }
+.tab-bar { height: 40px; display: flex; align-items: center; padding: 0 $spacing-xs; background: linear-gradient(90deg, $color-bg-active, transparent 32%), $surface-contrast; border-bottom: 1px solid $color-border; flex-shrink: 0; gap: 2px; overflow-x: auto; }
 
 .tab-item { display: flex; align-items: center; gap: 5px; padding: 0 12px; height: 32px; border-radius: $border-radius-sm; cursor: pointer; color: $color-text-secondary; font-size: $font-size-sm; white-space: nowrap; transition: all $transition-fast; position: relative;
   &:hover { background-color: $color-bg-hover; color: $color-text-regular; }
@@ -810,7 +810,7 @@ onUnmounted(() => {
 
 .workspace-content { flex: 1; overflow: hidden; display: flex; }
 
-.host-list-panel { border-right: 1px solid $color-border-light; display: flex; flex-direction: column; flex-shrink: 0; background-color: $color-bg-primary; overflow: hidden; }
+.host-list-panel { border-right: 1px solid $color-border; display: flex; flex-direction: column; flex-shrink: 0; background: linear-gradient(180deg, $surface-contrast-soft, $color-bg-primary); overflow: hidden; }
 
 .host-list-top { flex-shrink: 0; padding: $spacing-sm $spacing-sm 0 $spacing-sm; border-bottom: 1px solid $color-border-light; }
 
@@ -906,13 +906,13 @@ onUnmounted(() => {
   .sftp-title { font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; }
 }
 
-.terminal-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; background-color: $color-bg-app; }
+.terminal-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: radial-gradient(circle at 50% 42%, $color-bg-active, transparent 38%), $shell-workspace-bg; }
 
 .terminal-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: $spacing-sm; color: $color-text-secondary;
-  .empty-icon { color: $color-text-muted; opacity: 0.3; } p { font-size: $font-size-md; } .sub { font-size: $font-size-sm; color: $color-text-placeholder; }
+  .empty-icon { color: $color-primary; opacity: 0.68; filter: drop-shadow($glow-soft); } p { font-size: $font-size-md; color: $color-text-primary; } .sub { font-size: $font-size-sm; color: $color-text-secondary; }
 }
 
-.status-bar { height: $status-bar-height; background-color: $color-bg-surface; border-top: 1px solid $color-border-light; display: flex; align-items: center; padding: 0 $spacing-md; gap: $spacing-sm; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; font-family: $font-family-mono;
+.status-bar { height: $status-bar-height; background: $surface-contrast; border-top: 1px solid $color-border; display: flex; align-items: center; padding: 0 $spacing-md; gap: $spacing-sm; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; font-family: $font-family-mono;
   .status-item { display: flex; align-items: center; gap: 4px; }
   .status-server-name { color: $color-primary-light; font-weight: 600; }
   .status-sep { color: $color-text-muted; }

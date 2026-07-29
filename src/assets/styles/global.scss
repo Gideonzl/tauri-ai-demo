@@ -89,9 +89,9 @@ body {
 
   background-color: $color-bg-app;
   background-image:
-    radial-gradient(circle at 18% 4%, rgba(34, 247, 255, 0.13), transparent 26%),
-    radial-gradient(circle at 84% 10%, rgba(168, 85, 255, 0.16), transparent 30%),
-    radial-gradient(circle at 52% 100%, rgba(255, 79, 216, 0.08), transparent 28%);
+    radial-gradient(circle at 18% 4%, $shell-aurora-primary, transparent 26%),
+    radial-gradient(circle at 84% 10%, $shell-aurora-secondary, transparent 30%),
+    radial-gradient(circle at 52% 100%, $color-bg-active, transparent 28%);
   background-attachment: fixed;
 
 
@@ -129,9 +129,7 @@ body::after {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.20), rgba(0, 0, 0, 0.38)),
-    radial-gradient(circle at 50% 30%, transparent 0%, rgba(0, 0, 0, 0.24) 72%);
+  background: $shell-scrim;
 }
 
 .contrast-scrim {
@@ -222,7 +220,7 @@ body::after {
 
 
 
-  background: rgba(255, 255, 255, 0.1);
+  background: $color-border;
 
 
 
@@ -238,7 +236,7 @@ body::after {
 
 
 
-    background: rgba(255, 255, 255, 0.18);
+    background: $color-border-focus;
 
 
 

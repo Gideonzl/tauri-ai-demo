@@ -55,6 +55,16 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${c.r},${c.g},${c.b},${alpha})`
 }
 
+/** Treat custom palettes with a bright base background as light UI shells. */
+function isLightBackground(hex: string): boolean {
+  const c = hexToRgb(hex)
+  if (!c) return false
+  const [r, g, b] = [c.r, c.g, c.b].map(value => value / 255)
+  const linear = [r, g, b].map(value => (value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)))
+  const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+  return luminance > 0.34
+}
+
 // ============================================================
 // Semantic colors (consistent across themes)
 // ============================================================
@@ -384,6 +394,14 @@ function buildPalette(def: ThemeDef): Record<string, string> {
   const elev1 = isLight ? '0 1px 3px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.45)'
   const elev2 = isLight ? '0 4px 14px rgba(0,0,0,0.10)' : '0 4px 16px rgba(0,0,0,0.5)'
   const elev3 = isLight ? '0 10px 30px rgba(0,0,0,0.14)' : '0 12px 34px rgba(0,0,0,0.6)'
+  const shellTopbar = isLight ? rgba('#ffffff', 0.9) : rgba(bg, 0.9)
+  const shellSidebar = isLight ? rgba('#ffffff', 0.88) : rgba(bg, 0.94)
+  const shellAi = isLight ? rgba(surface, 0.92) : rgba(bg, 0.96)
+  const shellWorkspace = isLight ? rgba(bg, 0.76) : rgba(bg, 0.58)
+  const shellScrim = isLight
+    ? 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.12))'
+    : 'linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.30))'
+  const shellRail = `linear-gradient(180deg, transparent, ${rgba(primary, isLight ? 0.52 : 0.7)}, ${rgba(neonViolet, isLight ? 0.38 : 0.6)}, transparent)`
 
   return {
     '--color-primary': primary,
@@ -426,6 +444,14 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--surface-contrast': isLight ? 'rgba(255,255,255,0.92)' : 'rgba(5,8,18,0.88)',
     '--surface-contrast-soft': isLight ? 'rgba(255,255,255,0.82)' : 'rgba(9,14,30,0.76)',
     '--text-shadow-strong': isLight ? 'none' : '0 1px 2px rgba(0,0,0,0.86)',
+    '--shell-topbar-bg': shellTopbar,
+    '--shell-sidebar-bg': shellSidebar,
+    '--shell-ai-bg': shellAi,
+    '--shell-workspace-bg': shellWorkspace,
+    '--shell-scrim': shellScrim,
+    '--shell-aurora-primary': rgba(primary, isLight ? 0.10 : 0.24),
+    '--shell-aurora-secondary': rgba(neonViolet, isLight ? 0.08 : 0.22),
+    '--shell-nav-rail': shellRail,
     '--glow-cyan': `0 0 22px ${rgba(neonCyan, isLight ? 0.2 : 0.42)}`,
     '--glow-violet': `0 0 26px ${rgba(neonViolet, isLight ? 0.18 : 0.36)}`,
     '--glow-danger': `0 0 22px ${rgba(def.syntax.error, isLight ? 0.18 : 0.34)}`,
@@ -503,24 +529,38 @@ export function applyTheme(scheme: ColorScheme, customColors?: ThemeColors): voi
   let tokens: Record<string, string>
 
   if (scheme === 'custom' && customColors) {
-    // Custom: start from termius-dark base, overlay user overrides
-    tokens = { ...PALETTES['termius-dark'] }
-    // Map ThemeColors (syntax-highlight oriented keys) to CSS custom properties
-    const overrides: Record<string, string> = {
-      '--color-bg-app': customColors.bg,
-      '--color-bg-primary': customColors.bg,
-      '--color-bg-surface': customColors.surface,
-      '--color-bg-sidebar': customColors.surface,
-      '--color-bg-toolbar': lighten(customColors.surface, 0.03),
-      '--color-bg-panel': customColors.bg,
-      '--color-bg-input': lighten(customColors.surface, 0.03),
-      '--color-text-primary': customColors.text,
-      '--color-text-regular': lerpColor(customColors.text, customColors.bg, 0.15),
-      '--color-text-secondary': customColors.textSecondary,
-      '--color-text-placeholder': lerpColor(customColors.textSecondary, customColors.bg, 0.3),
-      '--color-text-muted': lerpColor(customColors.textSecondary, customColors.bg, 0.5),
+    // Build custom palettes through the same pipeline as presets. This keeps a
+    // user-selected light palette light across the whole shell, instead of
+    // leaking the previous dark fallback into the navigation or AI panel.
+    const customDef: ThemeDef = {
+      primary: customColors.key || customColors.info,
+      bg: customColors.bg,
+      surface: customColors.surface,
+      text: customColors.text,
+      textSecondary: customColors.textSecondary,
+      isLight: isLightBackground(customColors.bg),
+      syntax: {
+        keyword: customColors.keyword,
+        string_: customColors.string,
+        number: customColors.number,
+        comment: customColors.comment,
+        key: customColors.key,
+        section: customColors.section,
+        error: customColors.error,
+        warning: customColors.warning,
+        info: customColors.info,
+        variable: customColors.variable,
+      },
     }
-    Object.assign(tokens, overrides)
+    tokens = {
+      ...buildPalette(customDef),
+      ...SEMANTIC,
+      ...CHART,
+      ...BASE_TOKENS,
+      '--terminal-bg': customColors.terminalBg || customColors.bg,
+      '--terminal-fg': customColors.terminalFg || customColors.text,
+      '--terminal-cursor': customColors.terminalCursor || customColors.key,
+    }
   } else {
     tokens = PALETTES[scheme] || PALETTES['termius-dark']
   }

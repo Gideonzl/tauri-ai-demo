@@ -99,7 +99,7 @@ function navigate(item: NavItem) {
   top: 18px;
   bottom: 18px;
   width: 1px;
-  background: linear-gradient(180deg, transparent, rgba(34,247,255,0.7), rgba(168,85,255,0.6), transparent);
+  background: $shell-nav-rail;
   box-shadow: $glow-cyan;
   opacity: 0.55;
 }
@@ -142,23 +142,23 @@ function navigate(item: NavItem) {
   background: transparent;
 
   &:hover {
-    background: rgba(255,255,255,0.04);
+    background: $color-bg-hover;
     color: $color-text-primary;
-    border-color: rgba(34,247,255,0.13);
-    .nav-icon-shell { transform: translateY(-1px) scale(1.04); border-color: rgba(34,247,255,0.36); box-shadow: $glow-soft; }
+    border-color: $color-border;
+    .nav-icon-shell { transform: translateY(-1px) scale(1.04); border-color: $color-border-focus; box-shadow: $glow-soft; }
   }
 
   &.active {
-    color: $neon-cyan;
+    color: $color-primary;
     background:
-      linear-gradient(90deg, rgba(34,247,255,0.16), rgba(168,85,255,0.08)),
-      rgba(255,255,255,0.035);
-    border-color: rgba(34,247,255,0.28);
-    box-shadow: inset 0 0 18px rgba(34,247,255,0.08), 0 0 22px rgba(34,247,255,0.08);
+      linear-gradient(90deg, $color-bg-active, $color-bg-hover),
+      $surface-contrast-soft;
+    border-color: $color-border-focus;
+    box-shadow: inset 0 0 18px $color-bg-hover, $glow-soft;
     .nav-icon-shell {
-      color: #061018;
+      color: $color-bg-app;
       background: linear-gradient(135deg, $neon-cyan, $neon-violet);
-      border-color: rgba(255,255,255,0.4);
+      border-color: $color-border;
       box-shadow: $glow-cyan;
     }
   }
@@ -171,8 +171,8 @@ function navigate(item: NavItem) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.035);
+  border: 1px solid $color-border;
+  background: $color-bg-hover;
   color: inherit;
   text-shadow: $text-shadow-strong;
   flex-shrink: 0;
