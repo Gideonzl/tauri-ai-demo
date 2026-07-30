@@ -341,10 +341,11 @@ provide('sendTerminalToAI', (text: string, serverInfo?: string) => {
   aiChatRef.value?.injectTerminalText(text, serverInfo)
 
 })
-provide('sendScriptToAI', (scriptName: string, content: string, prompt: string) => {
+provide('sendScriptToAI', async (scriptName: string, content: string, prompt: string): Promise<boolean> => {
   rightPanelTab.value = 'ai'
   if (aiPanelCollapsed.value) toggleAiPanel()
-  nextTick(() => aiChatRef.value?.injectScriptContext(scriptName, content, prompt))
+  await nextTick()
+  return await aiChatRef.value?.injectScriptContext(scriptName, content, prompt) || false
 })
 
 

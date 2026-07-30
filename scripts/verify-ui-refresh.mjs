@@ -183,6 +183,7 @@ assertIncludes(scriptAutomationStore, 'nextCronTime', '计划任务未计算下�
 assertIncludes(scriptCron, 'export function matchesCron', 'Cron 匹配工具缺失')
 assertIncludes(mainLayout, 'sendScriptToAI', '主布局缺少脚本到 AI 的桥接')
 assertIncludes(aiChat, 'injectScriptContext', 'AI 对话缺少脚本上下文注入')
+assertIncludes(aiChat, 'await handleSend({ bypassRemediation: true })', '脚本上下文必须在右侧 AI 中自动发起生成')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

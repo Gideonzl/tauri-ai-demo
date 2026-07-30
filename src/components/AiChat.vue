@@ -451,14 +451,21 @@ function injectTerminalText(text: string, serverInfo?: string) {
   scrollToBottom()
 }
 
-/** Inject a managed script into the shared operations conversation. */
-function injectScriptContext(scriptName: string, content: string, prompt: string) {
+/** Send a managed script to the shared operations conversation and start generation immediately. */
+async function injectScriptContext(scriptName: string, content: string, prompt: string): Promise<boolean> {
   agentStore.switchAgent('ops')
-  chatStore.addUserMessage(
-    agentStore.activeAgentId,
-    `【脚本管理】${scriptName}\n\n\`\`\`sh\n${content || '# 待编写脚本'}\n\`\`\`\n\n${prompt}`,
-  )
-  scrollToBottom()
+  if (!modelStore.defaultConfig) {
+    ElMessage.warning(t('ai.pleaseConfig'))
+    return false
+  }
+  if (chatStore.isGenerating) {
+    ElMessage.warning(t('ai.generating'))
+    return false
+  }
+  inputText.value = `【脚本管理】${scriptName}\n\n\`\`\`sh\n${content || '# 待编写脚本'}\n\`\`\`\n\n${prompt}`
+  userScrolledUp.value = false
+  await handleSend({ bypassRemediation: true })
+  return true
 }
 
 defineExpose({ injectFilePath, injectFileContent, injectTerminalText, injectScriptContext })
@@ -490,7 +497,7 @@ function onScroll() {
   userScrolledUp.value = el.scrollTop + el.clientHeight < el.scrollHeight - 60
 }
 
-async function handleSend() {
+async function handleSend(options: { bypassRemediation?: boolean } = {}) {
   const text = inputText.value.trim()
   if (!text) return
   if (!modelStore.defaultConfig) {
@@ -499,7 +506,8 @@ async function handleSend() {
   }
   if (chatStore.isGenerating) return
 
-  const wantsRemediation = agentStore.activeAgentId === 'ops'
+  const wantsRemediation = !options.bypassRemediation
+    && agentStore.activeAgentId === 'ops'
     && agentStore.activeMode === 'agent'
     && /(自愈|修复|帮我修|故障|异常|起不来|磁盘满|端口|服务)/.test(text)
 

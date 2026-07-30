@@ -169,7 +169,7 @@ import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 type Tab = 'editor' | 'schedules' | 'history'
 type ScriptDraft = { id?: string; name: string; description: string; content: string; tags: string }
-type SendScriptToAi = (name: string, content: string, prompt: string) => void
+type SendScriptToAi = (name: string, content: string, prompt: string) => boolean | Promise<boolean>
 
 const { t, locale } = useLocale()
 const sshStore = useSshStore()
@@ -276,14 +276,13 @@ async function runNow() {
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : String(error)) }
 }
 
-function askAi(mode: 'draft' | 'review') {
+async function askAi(mode: 'draft' | 'review') {
   const name = draft.name.trim() || t('scripts.untitled')
   const prompt = mode === 'draft'
     ? t('scripts.aiDraftPrompt')
     : t('scripts.aiReviewPrompt')
   if (!sendScriptToAI) { ElMessage.warning(t('scripts.aiUnavailable')); return }
-  sendScriptToAI(name, draft.content, prompt)
-  ElMessage.success(t('scripts.aiSent'))
+  if (await sendScriptToAI(name, draft.content, prompt)) ElMessage.success(t('scripts.aiSent'))
 }
 
 function createSchedule() {
