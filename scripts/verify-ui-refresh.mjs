@@ -22,6 +22,7 @@ const opsPermission = readFileSync(resolve(root, 'src/components/OpsPermissionCo
 const opsEmptyState = readFileSync(resolve(root, 'src/components/OpsEmptyState.vue'), 'utf8')
 const systemMonitor = readFileSync(resolve(root, 'src/components/SystemMonitor.vue'), 'utf8')
 const overviewPanel = readFileSync(resolve(root, 'src/views/ops/OverviewPanel.vue'), 'utf8')
+const alertsPanel = readFileSync(resolve(root, 'src/views/ops/AlertsPanel.vue'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -182,5 +183,11 @@ assertIncludes(overviewPanel, 'function metricState', '运维总览必须使用�
 assertIncludes(overviewPanel, 'ov-threshold-legend', '运维总览必须明确展示资源阈值说明')
 assertIncludes(overviewPanel, 'ring-state', '运维总览环形图必须提供文字状态')
 assertIncludes(overviewPanel, 'var(--chart-cpu-normal)', '运维总览图表颜色必须跟随当前主题')
+assertIncludes(alertsPanel, 'ap-watch-state', '告警页必须明确展示监控是否运行')
+assertIncludes(alertsPanel, 'ap-unread-count', '告警页必须清楚展示未读告警数量')
+assertIncludes(alertsPanel, 'store.markAllRead()', '告警页必须支持一键标记全部已读')
+assertIncludes(alertsPanel, 'ap-ev-severity', '告警条目必须提供文字严重级别，不能只依赖颜色')
+assertIncludes(alertsPanel, 'ap-ev-icon', '告警条目必须用语义图标增强可扫读性')
+assertIncludes(alertsPanel, '@media (max-width: 860px)', '告警页必须在窄空间切换为纵向布局')
 
 console.log('UI refresh checks passed')
