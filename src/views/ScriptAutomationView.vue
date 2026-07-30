@@ -44,7 +44,6 @@
         <div class="script-tabs" role="tablist">
           <button type="button" :class="{ active: activeTab === 'editor' }" @click="activeTab = 'editor'">{{ t('scripts.tabScripts') }}</button>
           <button type="button" :class="{ active: activeTab === 'schedules' }" @click="activeTab = 'schedules'">{{ t('scripts.tabSchedules') }}<i v-if="scriptStore.schedules.length">{{ scriptStore.schedules.length }}</i></button>
-          <button type="button" :class="{ active: activeTab === 'approvals' }" @click="activeTab = 'approvals'">{{ t('scripts.tabApprovals') }}<i v-if="pendingApprovalCount">{{ pendingApprovalCount }}</i></button>
           <button type="button" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">{{ t('scripts.tabHistory') }}<i v-if="scriptStore.runLogs.length">{{ scriptStore.runLogs.length }}</i></button>
         </div>
         <div class="script-head-status"><span></span>{{ t('scripts.schedulerOnline') }}</div>
@@ -60,7 +59,6 @@
             <div class="script-form-actions">
               <el-button class="script-focus-button" type="primary" size="small" @click="openFocusEditor"><el-icon :size="14"><FullScreen /></el-icon>{{ t('scripts.focusEdit') }}</el-button>
               <el-button size="small" :disabled="!draft.id" @click="versionHistoryOpen = true"><el-icon :size="13"><Clock /></el-icon>{{ t('scripts.versionHistory') }}</el-button>
-              <el-button size="small" :disabled="!draft.content.trim()" @click="submitApproval"><el-icon :size="13"><Document /></el-icon>{{ currentApproval?.status === 'pending' ? t('scripts.approvalPending') : t('scripts.submitApproval') }}</el-button>
               <el-button size="small" @click="askAi('draft')"><el-icon :size="13"><MagicStick /></el-icon>{{ t('scripts.aiDraft') }}</el-button>
               <el-button size="small" @click="askAi('review')"><el-icon :size="13"><ChatDotRound /></el-icon>{{ t('scripts.aiReview') }}</el-button>
               <el-button type="primary" size="small" @click="saveScript">{{ t('common.save') }}</el-button>
@@ -132,14 +130,6 @@
             <el-button size="small" text class="schedule-delete" @click="removeSchedule(schedule.id)"><el-icon :size="13"><Delete /></el-icon></el-button>
           </div>
           <OpsEmptyState v-if="!scriptStore.schedules.length" :icon="Timer" :title="t('scripts.emptySchedules')" :description="t('scripts.schedulerHint')" />
-        </div>
-      </section>
-
-      <section v-else-if="activeTab === 'approvals'" class="script-approvals-view">
-        <div class="approval-summary"><div><span>{{ t('scripts.approvalTitle') }}</span><small>{{ t('scripts.approvalHint') }}</small></div><b>{{ t('scripts.pendingApprovalCount', { n: pendingApprovalCount }) }}</b></div>
-        <div class="approval-list">
-          <article v-for="approval in scriptStore.approvals" :key="approval.id" class="approval-item" :class="approval.status"><div class="approval-item-head"><div><b>{{ approval.scriptName }}</b><small>{{ t(`ai.risk_${approval.risk}`) }} · {{ formatDate(approval.requestedAt) }}</small></div><span>{{ approvalStatusLabel(approval.status) }}</span></div><pre>{{ outputPreview(approval.content) }}</pre><p v-if="approval.comment">{{ t('scripts.approvalComment') }}：{{ approval.comment }}</p><div v-if="approval.status === 'pending'" class="approval-actions"><el-input v-model="approvalNotes[approval.id]" size="small" :placeholder="t('scripts.approvalCommentPlaceholder')" /><el-button size="small" type="primary" @click="resolveApproval(approval.id, 'approved')">{{ t('scripts.approve') }}</el-button><el-button size="small" @click="resolveApproval(approval.id, 'rejected')">{{ t('scripts.reject') }}</el-button></div></article>
-          <OpsEmptyState v-if="!scriptStore.approvals.length" :icon="Document" :title="t('scripts.emptyApprovals')" :description="t('scripts.approvalHint')" />
         </div>
       </section>
 
@@ -218,7 +208,7 @@ import { isValidCron, nextCronTimes } from '@/utils/script-cron'
 import { extractScriptParameters, renderScriptParameters } from '@/utils/script-parameters'
 import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
-type Tab = 'editor' | 'schedules' | 'approvals' | 'history'
+type Tab = 'editor' | 'schedules' | 'history'
 type ScriptDraft = { id?: string; name: string; description: string; content: string; tags: string }
 type SendScriptToAi = (name: string, content: string, prompt: string, scriptId?: string, mode?: 'draft' | 'review') => boolean | Promise<boolean>
 type AiScriptSuggestion = { scriptId?: string; scriptName: string; originalContent: string; suggestedContent: string; mode: 'draft' | 'review'; risk: 'read_only' | 'change' | 'high_risk' | 'unknown'; reviewSummary: string }
@@ -250,7 +240,6 @@ const executionPreviewOpen = ref(false)
 const parameterValues = reactive<Record<string, string>>({})
 const historyStatusFilter = ref<'all' | Exclude<ScriptRunStatus, 'running'>>('all')
 const historyQuery = ref('')
-const approvalNotes = reactive<Record<string, string>>({})
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size && currentRisk.value === 'read_only'))
@@ -261,8 +250,6 @@ const renderedScriptContent = computed(() => renderScriptParameters(draft.conten
 const previewRisk = computed(() => classifyCommand(renderedScriptContent.value).risk)
 const selectedExecutionServers = computed(() => sshStore.servers.filter(server => selectedTargets.has(server.id)))
 const canConfirmExecution = computed(() => Boolean(draft.id && selectedTargets.size && parametersComplete.value && previewRisk.value === 'read_only'))
-const currentApproval = computed(() => draft.id ? scriptStore.approvalsFor(draft.id).find(approval => approval.content === draft.content) : undefined)
-const pendingApprovalCount = computed(() => scriptStore.approvals.filter(approval => approval.status === 'pending').length)
 const filteredLogs = computed(() => {
   const query = historyQuery.value.trim().toLocaleLowerCase()
   return scriptStore.runLogs.filter(log => {
@@ -318,21 +305,6 @@ function saveScript() {
   scheduleDraft.scriptId = script.id
   copyIntoDraft(script)
   ElMessage.success(t('scripts.saved'))
-}
-
-function submitApproval() {
-  if (!draft.content.trim()) { ElMessage.warning(t('scripts.contentRequired')); return }
-  saveScript()
-  if (!draft.id) return
-  const approval = scriptStore.submitApproval(draft.id)
-  activeTab.value = 'approvals'
-  ElMessage.success(approval.status === 'pending' ? t('scripts.approvalSubmitted') : t('scripts.approvalPending'))
-}
-
-function resolveApproval(approvalId: string, status: 'approved' | 'rejected') {
-  const approval = scriptStore.resolveApproval(approvalId, status, approvalNotes[approvalId])
-  if (!approval) return
-  ElMessage.success(status === 'approved' ? t('scripts.approved') : t('scripts.rejected'))
 }
 
 function openFocusEditor() {
@@ -467,7 +439,6 @@ function toggleLog(logId: string) { expandedLogs.has(logId) ? expandedLogs.delet
 function outputPreview(value: string) { return value.replace(/\s+/g, ' ').trim().slice(0, 160) || t('scripts.noOutput') }
 function formatDate(value: number) { return new Date(value).toLocaleString(locale.value === 'zh-CN' ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
 function statusLabel(status: ScriptRunStatus) { return t(`scripts.status_${status}`) }
-function approvalStatusLabel(status: 'pending' | 'approved' | 'rejected') { return t(`scripts.approvalStatus_${status}`) }
 function csvCell(value: string | number) { return `"${String(value).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"` }
 function exportHistory() {
   if (!filteredLogs.value.length) { ElMessage.warning(t('scripts.emptyFilteredHistory')); return }
@@ -536,12 +507,11 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .script-risk-card { margin-top: auto; padding: 9px; border: 1px solid $color-border-light; border-radius: 8px; background: $color-bg-hover; color: $color-success; div { display: flex; align-items: center; gap: 5px; font-size: 11px; } p { margin: 5px 0 0; color: $color-text-secondary; font-size: 10px; line-height: 1.45; } &.change, &.unknown { color: $color-warning; } &.high_risk { color: $color-danger; } }.script-run-btn { width: 100%; margin-top: 9px; }.script-scheduler-note { margin: 8px 0 0; color: $color-text-placeholder; font-size: 9px; line-height: 1.45; }
 
 .script-schedules-view, .script-history-view { flex: 1; overflow-y: auto; padding: 16px; }.schedule-create-card, .schedule-item, .history-summary, .script-log { border: 1px solid $glass-border; border-radius: 9px; background: $glass-bg; box-shadow: $elevation-1; }.schedule-create-card { padding: 14px; }.schedule-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; h3 { margin: 3px 0 0; font-size: 15px; color: $color-text-primary; } }.schedule-readonly { padding: 3px 6px; border-radius: 5px; color: $color-success; background: $color-bg-success-hover; font-size: 10px; }.schedule-form-grid { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr); gap: 10px; margin-top: 14px; label { display: grid; gap: 5px; color: $color-text-secondary; font-size: 10px; } }.schedule-preview { display: grid; gap: 6px; margin-top: 10px; padding: 8px 9px; border: 1px solid $color-border-light; border-radius: 7px; background: $color-bg-hover; color: $color-text-secondary; font-size: 10px; > div { display: flex; flex-wrap: wrap; gap: 5px; } i { padding: 3px 6px; border-radius: 4px; background: $color-bg-input; color: $color-primary; font: 9px $font-family-mono; font-style: normal; } small { color: $color-warning; font-size: 10px; } &.invalid { border-color: $color-warning; } }.schedule-target-picker { display: grid; gap: 6px; margin-top: 12px; color: $color-text-secondary; font-size: 10px; div { display: flex; flex-wrap: wrap; gap: 5px; } button { border: 1px solid $color-border-light; border-radius: 999px; padding: 3px 8px; background: $color-bg-input; color: $color-text-secondary; cursor: pointer; font: inherit; font-size: 10px; &.active { color: $color-primary; border-color: $color-primary; background: $color-bg-active; } } }.schedule-card-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 13px; color: $color-text-placeholder; font-size: 10px; }.schedule-list { display: grid; gap: 8px; margin-top: 14px; }.schedule-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; &.disabled { opacity: .62; } &.failed { border-color: $color-danger; } }.schedule-icon { width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: $color-primary; background: $color-bg-active; }.schedule-copy { min-width: 0; flex: 1; display: grid; gap: 2px; b { color: $color-text-primary; font-size: 12px; } span, small { color: $color-text-secondary; font-size: 10px; } small { color: $color-text-placeholder; } code { padding: 1px 4px; border-radius: 3px; color: $color-primary; background: $color-bg-active; font-family: $font-family-mono; } }.schedule-state { font-weight: 650; &.success { color: $color-success; } &.failed { color: $color-danger; } &.skipped { color: $color-text-secondary; } &.running, &.retry { color: $color-warning; } }.schedule-failure-alert { color: $color-danger !important; }.schedule-delete { color: $color-danger !important; }
-.script-approvals-view { flex: 1; overflow-y: auto; padding: 16px; }.approval-summary, .approval-item { border: 1px solid $glass-border; border-radius: 9px; background: $glass-bg; box-shadow: $elevation-1; }.approval-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 13px; > div { display: grid; gap: 3px; } span { color: $color-text-primary; font-size: 13px; font-weight: 650; } small { max-width: 620px; color: $color-text-secondary; font-size: 10px; line-height: 1.5; } > b { flex-shrink: 0; padding: 3px 7px; border-radius: 999px; background: $color-bg-active; color: $color-primary; font-size: 10px; } }.approval-list { display: grid; gap: 8px; margin-top: 12px; }.approval-item { padding: 11px; border-left: 3px solid $color-warning; &.approved { border-left-color: $color-success; } &.rejected { border-left-color: $color-danger; } }.approval-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; > div { min-width: 0; display: grid; gap: 3px; } b { overflow: hidden; color: $color-text-primary; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; } small { color: $color-text-secondary; font-size: 10px; } > span { flex-shrink: 0; padding: 2px 6px; border-radius: 5px; background: $color-bg-hover; color: $color-warning; font-size: 10px; } }.approval-item.approved .approval-item-head > span { color: $color-success; }.approval-item.rejected .approval-item-head > span { color: $color-danger; }.approval-item pre { margin: 9px 0 0; padding: 8px; overflow: hidden; border: 1px solid $color-border-light; border-radius: 6px; background: $color-bg-input; color: $color-text-secondary; font: 10px/1.45 $font-family-mono; text-overflow: ellipsis; white-space: nowrap; }.approval-item p { margin: 8px 0 0; color: $color-text-secondary; font-size: 10px; }.approval-actions { display: flex; align-items: center; gap: 6px; margin-top: 10px; :deep(.el-input) { min-width: 0; flex: 1; } :deep(.el-button) { margin: 0; flex-shrink: 0; } }
 .history-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; color: $color-text-primary; font-size: 13px; font-weight: 650; > div:first-child { display: grid; gap: 2px; } small { color: $color-text-placeholder; font-size: 10px; font-weight: 400; } }.history-actions { display: flex; align-items: center; gap: 6px; min-width: 0; :deep(.el-select) { width: 104px; flex-shrink: 0; } :deep(.el-input) { width: min(190px, 20vw); min-width: 112px; } :deep(.el-button) { margin: 0; flex-shrink: 0; } }.script-log-list { display: grid; gap: 7px; margin-top: 12px; }.script-log { overflow: hidden; &.success { border-left: 3px solid $color-success; } &.failed { border-left: 3px solid $color-danger; } &.skipped { border-left: 3px solid $color-text-muted; } }.script-log-head { display: flex; align-items: center; gap: 7px; padding: 9px 11px; b { color: $color-text-primary; font-size: 12px; }.script-log-server { color: $color-text-secondary; font-size: 10px; }.script-log-badge { padding: 1px 5px; border-radius: 4px; color: $color-text-secondary; background: $color-bg-hover; font-size: 9px; }.script-log-time { margin-left: auto; color: $color-text-placeholder; font: 9px $font-family-mono; }.script-log-status { width: 7px; height: 7px; border-radius: 50%; background: $color-warning; }.success .script-log-status { background: $color-success; }.failed .script-log-status { background: $color-danger; } button { border: 0; background: transparent; color: $color-text-secondary; cursor: pointer; } }.script-log p, .script-log pre { margin: 0; padding: 8px 11px; border-top: 1px solid $color-border-light; color: $color-text-secondary; font: 10px/1.5 $font-family-mono; }.script-log p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.script-log pre { max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: $color-text-regular; }
 
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 9px 230px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
 @media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-library-resize { display: none; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
-@media (max-width: 560px) { .script-library-head { align-items: stretch; flex-direction: column; }.script-library-actions { justify-content: flex-start; }.script-page-head, .history-summary, .schedule-card-foot, .approval-summary { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.approval-actions { flex-wrap: wrap; :deep(.el-input) { flex-basis: 100%; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-approvals-view, .script-history-view { padding: 11px; } }
+@media (max-width: 560px) { .script-library-head { align-items: stretch; flex-direction: column; }.script-library-actions { justify-content: flex-start; }.script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
 @container script-workspace (max-width: 480px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; } }
 @container script-editor (max-width: 420px) { .script-form-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.script-form-actions :deep(.el-button) { width: 100%; min-width: 0; padding-inline: 6px; font-size: 10px; }.script-form-actions .script-focus-button { grid-column: 1 / -1; padding-inline: 10px; font-size: 11px; } }
 :deep(.script-focus-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
