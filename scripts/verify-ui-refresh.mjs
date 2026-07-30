@@ -198,6 +198,9 @@ assertIncludes(scriptAutomationStore, 'consecutiveFailures', '计划任务必须
 assertIncludes(scriptAutomationStore, 'runScheduleNow', '计划任务手动执行也必须更新最近状态')
 assertIncludes(scriptAutomationView, 'scheduleRetryPending', '计划任务界面必须展示待重试状态')
 assertIncludes(scriptAutomationView, 'schedule-failure-alert', '计划任务界面必须持续展示连续失败告警')
+assertIncludes(scriptAutomationView, 'filteredLogs', '脚本运行记录必须支持筛选')
+assertIncludes(scriptAutomationView, 'exportHistory', '脚本运行记录必须支持导出')
+assertIncludes(scriptAutomationView, 'text/csv;charset=utf-8', '脚本运行记录导出必须生成 UTF-8 CSV')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

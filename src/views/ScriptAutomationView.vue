@@ -126,9 +126,9 @@
       </section>
 
       <section v-else class="script-history-view">
-        <div class="history-summary"><span>{{ t('scripts.historyTitle') }}</span><small>{{ t('scripts.historyHint') }}</small></div>
+        <div class="history-summary"><div><span>{{ t('scripts.historyTitle') }}</span><small>{{ t('scripts.historyHint') }}</small></div><div class="history-actions"><el-select v-model="historyStatusFilter" size="small" :aria-label="t('scripts.filterStatus')"><el-option :label="t('scripts.filterAll')" value="all" /><el-option :label="t('scripts.status_success')" value="success" /><el-option :label="t('scripts.status_failed')" value="failed" /><el-option :label="t('scripts.status_skipped')" value="skipped" /></el-select><el-input v-model="historyQuery" size="small" clearable :placeholder="t('scripts.historySearchPlaceholder')" /><el-button size="small" @click="exportHistory"><el-icon :size="13"><Download /></el-icon>{{ t('scripts.exportHistory') }}</el-button></div></div>
         <div class="script-log-list">
-          <article v-for="log in scriptStore.runLogs" :key="log.id" class="script-log" :class="log.status">
+          <article v-for="log in filteredLogs" :key="log.id" class="script-log" :class="log.status">
             <div class="script-log-head">
               <span class="script-log-status"></span><b>{{ log.scriptName }}</b><span class="script-log-server">{{ log.serverName }}</span><span class="script-log-badge">{{ statusLabel(log.status) }}</span><span class="script-log-time">{{ formatDate(log.startedAt) }}</span>
               <button type="button" @click="toggleLog(log.id)"><el-icon :size="13"><ArrowUp v-if="expandedLogs.has(log.id)" /><ArrowDown v-else /></el-icon></button>
@@ -136,7 +136,7 @@
             <pre v-if="expandedLogs.has(log.id)">{{ log.output || t('scripts.noOutput') }}</pre>
             <p v-else>{{ outputPreview(log.output) }}</p>
           </article>
-          <OpsEmptyState v-if="!scriptStore.runLogs.length" :icon="Document" :title="t('scripts.emptyHistory')" />
+          <OpsEmptyState v-if="!filteredLogs.length" :icon="Document" :title="historyQuery || historyStatusFilter !== 'all' ? t('scripts.emptyFilteredHistory') : t('scripts.emptyHistory')" />
         </div>
       </section>
     </main>
@@ -180,7 +180,7 @@
 
 <script setup lang="ts">
 import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ArrowDown, ArrowUp, ChatDotRound, Clock, Delete, Document, FullScreen, Lock, MagicStick, Plus, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, ChatDotRound, Clock, Delete, Document, Download, FullScreen, Lock, MagicStick, Plus, Timer, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLocale } from '@/composables/useLocale'
 import { useSshStore } from '@/stores/ssh'
@@ -214,10 +214,20 @@ const libraryWidth = ref(258)
 const aiDiffOpen = ref(false)
 const aiSuggestion = ref<AiScriptSuggestion>()
 const versionHistoryOpen = ref(false)
+const historyStatusFilter = ref<'all' | Exclude<ScriptRunStatus, 'running'>>('all')
+const historyQuery = ref('')
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size && currentRisk.value === 'read_only'))
 const scriptVersions = computed(() => draft.id ? scriptStore.versionsFor(draft.id) : [])
+const filteredLogs = computed(() => {
+  const query = historyQuery.value.trim().toLocaleLowerCase()
+  return scriptStore.runLogs.filter(log => {
+    const statusMatches = historyStatusFilter.value === 'all' || log.status === historyStatusFilter.value
+    const textMatches = !query || `${log.scriptName} ${log.serverName} ${log.output}`.toLocaleLowerCase().includes(query)
+    return statusMatches && textMatches
+  })
+})
 
 function copyIntoDraft(script?: { id: string; name: string; description: string; content: string; tags: string[] }) {
   Object.assign(draft, script ? { id: script.id, name: script.name, description: script.description, content: script.content, tags: script.tags.join(', ') } : { id: undefined, name: '', description: '', content: '', tags: '' })
@@ -369,6 +379,21 @@ function toggleLog(logId: string) { expandedLogs.has(logId) ? expandedLogs.delet
 function outputPreview(value: string) { return value.replace(/\s+/g, ' ').trim().slice(0, 160) || t('scripts.noOutput') }
 function formatDate(value: number) { return new Date(value).toLocaleString(locale.value === 'zh-CN' ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
 function statusLabel(status: ScriptRunStatus) { return t(`scripts.status_${status}`) }
+function csvCell(value: string | number) { return `"${String(value).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"` }
+function exportHistory() {
+  if (!filteredLogs.value.length) { ElMessage.warning(t('scripts.emptyFilteredHistory')); return }
+  const rows = [[t('scripts.exportScript'), t('scripts.exportServer'), t('scripts.exportStatus'), t('scripts.exportStartedAt'), t('scripts.exportOutput')], ...filteredLogs.value.map(log => [log.scriptName, log.serverName, statusLabel(log.status), formatDate(log.startedAt), log.output || t('scripts.noOutput')])]
+  const blob = new Blob([`\uFEFF${rows.map(row => row.map(csvCell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `aiterminal-script-runs-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  ElMessage.success(t('scripts.historyExported', { n: filteredLogs.value.length }))
+}
 
 onMounted(() => {
   if (!sshStore.servers.length) sshStore.init()
@@ -421,11 +446,11 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .script-risk-card { margin-top: auto; padding: 9px; border: 1px solid $color-border-light; border-radius: 8px; background: $color-bg-hover; color: $color-success; div { display: flex; align-items: center; gap: 5px; font-size: 11px; } p { margin: 5px 0 0; color: $color-text-secondary; font-size: 10px; line-height: 1.45; } &.change, &.unknown { color: $color-warning; } &.high_risk { color: $color-danger; } }.script-run-btn { width: 100%; margin-top: 9px; }.script-scheduler-note { margin: 8px 0 0; color: $color-text-placeholder; font-size: 9px; line-height: 1.45; }
 
 .script-schedules-view, .script-history-view { flex: 1; overflow-y: auto; padding: 16px; }.schedule-create-card, .schedule-item, .history-summary, .script-log { border: 1px solid $glass-border; border-radius: 9px; background: $glass-bg; box-shadow: $elevation-1; }.schedule-create-card { padding: 14px; }.schedule-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; h3 { margin: 3px 0 0; font-size: 15px; color: $color-text-primary; } }.schedule-readonly { padding: 3px 6px; border-radius: 5px; color: $color-success; background: $color-bg-success-hover; font-size: 10px; }.schedule-form-grid { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr); gap: 10px; margin-top: 14px; label { display: grid; gap: 5px; color: $color-text-secondary; font-size: 10px; } }.schedule-target-picker { display: grid; gap: 6px; margin-top: 12px; color: $color-text-secondary; font-size: 10px; div { display: flex; flex-wrap: wrap; gap: 5px; } button { border: 1px solid $color-border-light; border-radius: 999px; padding: 3px 8px; background: $color-bg-input; color: $color-text-secondary; cursor: pointer; font: inherit; font-size: 10px; &.active { color: $color-primary; border-color: $color-primary; background: $color-bg-active; } } }.schedule-card-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 13px; color: $color-text-placeholder; font-size: 10px; }.schedule-list { display: grid; gap: 8px; margin-top: 14px; }.schedule-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; &.disabled { opacity: .62; } &.failed { border-color: $color-danger; } }.schedule-icon { width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: $color-primary; background: $color-bg-active; }.schedule-copy { min-width: 0; flex: 1; display: grid; gap: 2px; b { color: $color-text-primary; font-size: 12px; } span, small { color: $color-text-secondary; font-size: 10px; } small { color: $color-text-placeholder; } code { padding: 1px 4px; border-radius: 3px; color: $color-primary; background: $color-bg-active; font-family: $font-family-mono; } }.schedule-state { font-weight: 650; &.success { color: $color-success; } &.failed { color: $color-danger; } &.skipped { color: $color-text-secondary; } &.running, &.retry { color: $color-warning; } }.schedule-failure-alert { color: $color-danger !important; }.schedule-delete { color: $color-danger !important; }
-.history-summary { display: flex; justify-content: space-between; gap: 8px; padding: 11px 13px; color: $color-text-primary; font-size: 13px; font-weight: 650; small { color: $color-text-placeholder; font-size: 10px; font-weight: 400; } }.script-log-list { display: grid; gap: 7px; margin-top: 12px; }.script-log { overflow: hidden; &.success { border-left: 3px solid $color-success; } &.failed { border-left: 3px solid $color-danger; } &.skipped { border-left: 3px solid $color-text-muted; } }.script-log-head { display: flex; align-items: center; gap: 7px; padding: 9px 11px; b { color: $color-text-primary; font-size: 12px; }.script-log-server { color: $color-text-secondary; font-size: 10px; }.script-log-badge { padding: 1px 5px; border-radius: 4px; color: $color-text-secondary; background: $color-bg-hover; font-size: 9px; }.script-log-time { margin-left: auto; color: $color-text-placeholder; font: 9px $font-family-mono; }.script-log-status { width: 7px; height: 7px; border-radius: 50%; background: $color-warning; }.success .script-log-status { background: $color-success; }.failed .script-log-status { background: $color-danger; } button { border: 0; background: transparent; color: $color-text-secondary; cursor: pointer; } }.script-log p, .script-log pre { margin: 0; padding: 8px 11px; border-top: 1px solid $color-border-light; color: $color-text-secondary; font: 10px/1.5 $font-family-mono; }.script-log p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.script-log pre { max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: $color-text-regular; }
+.history-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; color: $color-text-primary; font-size: 13px; font-weight: 650; > div:first-child { display: grid; gap: 2px; } small { color: $color-text-placeholder; font-size: 10px; font-weight: 400; } }.history-actions { display: flex; align-items: center; gap: 6px; min-width: 0; :deep(.el-select) { width: 104px; flex-shrink: 0; } :deep(.el-input) { width: min(190px, 20vw); min-width: 112px; } :deep(.el-button) { margin: 0; flex-shrink: 0; } }.script-log-list { display: grid; gap: 7px; margin-top: 12px; }.script-log { overflow: hidden; &.success { border-left: 3px solid $color-success; } &.failed { border-left: 3px solid $color-danger; } &.skipped { border-left: 3px solid $color-text-muted; } }.script-log-head { display: flex; align-items: center; gap: 7px; padding: 9px 11px; b { color: $color-text-primary; font-size: 12px; }.script-log-server { color: $color-text-secondary; font-size: 10px; }.script-log-badge { padding: 1px 5px; border-radius: 4px; color: $color-text-secondary; background: $color-bg-hover; font-size: 9px; }.script-log-time { margin-left: auto; color: $color-text-placeholder; font: 9px $font-family-mono; }.script-log-status { width: 7px; height: 7px; border-radius: 50%; background: $color-warning; }.success .script-log-status { background: $color-success; }.failed .script-log-status { background: $color-danger; } button { border: 0; background: transparent; color: $color-text-secondary; cursor: pointer; } }.script-log p, .script-log pre { margin: 0; padding: 8px 11px; border-top: 1px solid $color-border-light; color: $color-text-secondary; font: 10px/1.5 $font-family-mono; }.script-log p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.script-log pre { max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: $color-text-regular; }
 
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 9px 230px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
 @media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-library-resize { display: none; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
-@media (max-width: 560px) { .script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
+@media (max-width: 560px) { .script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
 @container script-workspace (max-width: 480px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; } }
 @container script-editor (max-width: 420px) { .script-form-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.script-form-actions :deep(.el-button) { width: 100%; min-width: 0; padding-inline: 6px; font-size: 10px; }.script-form-actions .script-focus-button { grid-column: 1 / -1; padding-inline: 10px; font-size: 11px; } }
 :deep(.script-focus-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
