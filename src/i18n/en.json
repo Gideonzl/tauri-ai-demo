@@ -205,6 +205,11 @@
   "scripts": {
     "title": "Scripts & Schedules",
     "newScript": "New",
+    "importLibrary": "Import",
+    "exportLibrary": "Export",
+    "libraryExported": "Exported {n} scripts; schedules and server targets were excluded",
+    "libraryImported": "Imported {n} scripts",
+    "libraryImportFailed": "Import failed. Choose a valid script library JSON file.",
     "scriptCount": "{n} scripts",
     "runningCount": "{n} running",
     "noDescription": "No description",

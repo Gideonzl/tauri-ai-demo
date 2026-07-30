@@ -50,6 +50,7 @@ export interface ScriptRunLog {
 }
 export interface ScriptVersion { id: string; scriptId: string; name: string; description: string; content: string; tags: string[]; createdAt: number }
 export interface ScriptExecutionSummary { attempted: boolean; total: number; success: number; failed: number; skipped: number }
+export interface ScriptLibraryTransfer { version: 1; exportedAt: number; scripts: Array<Pick<ManagedScript, 'name' | 'description' | 'content' | 'tags'>> }
 export type ScriptApprovalStatus = 'pending' | 'approved' | 'rejected'
 export interface ScriptApproval {
   id: string
@@ -159,6 +160,25 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     const version = versions.value.find(item => item.id === versionId)
     if (!version) return undefined
     return upsertScript({ id: version.scriptId, name: version.name, description: version.description, content: version.content, tags: version.tags })
+  }
+
+  function exportScriptLibrary(): ScriptLibraryTransfer {
+    return { version: 1, exportedAt: Date.now(), scripts: scripts.value.map(script => ({ name: script.name, description: script.description, content: script.content, tags: [...script.tags] })) }
+  }
+
+  function importScriptLibrary(input: unknown): number {
+    const source = Array.isArray(input) ? input : (input as Partial<ScriptLibraryTransfer>)?.scripts
+    if (!Array.isArray(source)) throw new Error('Invalid script library file')
+    let imported = 0
+    for (const item of source) {
+      if (!item || typeof item !== 'object') continue
+      const candidate = item as Partial<ManagedScript>
+      if (typeof candidate.content !== 'string' || !candidate.content.trim()) continue
+      upsertScript({ name: typeof candidate.name === 'string' ? candidate.name : '未命名脚本', description: typeof candidate.description === 'string' ? candidate.description : '', content: candidate.content, tags: Array.isArray(candidate.tags) ? candidate.tags.filter((tag): tag is string => typeof tag === 'string') : [] })
+      imported += 1
+    }
+    if (!imported) throw new Error('No valid scripts found in file')
+    return imported
   }
 
   function submitApproval(scriptId: string): ScriptApproval {
@@ -376,7 +396,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
 
   return {
     scripts, schedules, runLogs: recentLogs, versions, versionsFor, approvals, approvalsFor, runningScriptIds, runningCount,
-    upsertScript, removeScript, restoreVersion, submitApproval, resolveApproval, saveSchedule, removeSchedule, setScheduleEnabled, runScheduleNow,
+    upsertScript, removeScript, restoreVersion, exportScriptLibrary, importScriptLibrary, submitApproval, resolveApproval, saveSchedule, removeSchedule, setScheduleEnabled, runScheduleNow,
     executeScript, init, stopScheduler,
   }
 })

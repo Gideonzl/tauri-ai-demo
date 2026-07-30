@@ -205,6 +205,11 @@
   "scripts": {
     "title": "脚本计划",
     "newScript": "新建",
+    "importLibrary": "导入",
+    "exportLibrary": "导出",
+    "libraryExported": "已导出 {n} 个脚本；未包含计划任务和服务器目标",
+    "libraryImported": "已导入 {n} 个脚本",
+    "libraryImportFailed": "导入失败：请选择有效的脚本库 JSON 文件",
     "scriptCount": "{n} 个脚本",
     "runningCount": "运行中 {n}",
     "noDescription": "未添加说明",

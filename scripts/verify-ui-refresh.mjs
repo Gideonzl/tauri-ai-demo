@@ -219,6 +219,10 @@ assertIncludes(scriptAutomationStore, 'reportScriptFailure', '计划任务连续
 assertIncludes(alertsStore, 'reportScriptFailure', '告警中心必须支持脚本计划连续失败事件')
 assertIncludes(alertsPanel, 'metricScript', '告警中心必须可读地展示脚本计划告警')
 assertIncludes(alertsPanel, 'scriptScheduleFailure', '告警中心必须说明计划任务连续失败原因')
+assertIncludes(scriptAutomationStore, 'exportScriptLibrary', '脚本库必须支持安全导出')
+assertIncludes(scriptAutomationStore, 'importScriptLibrary', '脚本库必须支持安全导入')
+assertIncludes(scriptAutomationView, 'scriptImportInput', '脚本管理必须提供本地 JSON 导入入口')
+assertIncludes(scriptAutomationView, 'exportLibrary', '脚本管理必须提供本地 JSON 导出入口')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

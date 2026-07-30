@@ -6,7 +6,7 @@
           <span class="script-eyebrow">AUTOMATION STUDIO</span>
           <h2>{{ t('scripts.title') }}</h2>
         </div>
-        <el-button type="primary" size="small" @click="newScript"><el-icon :size="13"><Plus /></el-icon>{{ t('scripts.newScript') }}</el-button>
+        <div class="script-library-actions"><el-button size="small" @click="triggerImport"><el-icon :size="13"><Upload /></el-icon>{{ t('scripts.importLibrary') }}</el-button><el-button size="small" @click="exportLibrary"><el-icon :size="13"><Download /></el-icon>{{ t('scripts.exportLibrary') }}</el-button><el-button type="primary" size="small" @click="newScript"><el-icon :size="13"><Plus /></el-icon>{{ t('scripts.newScript') }}</el-button></div>
       </div>
       <div class="script-library-meta">
         <span>{{ t('scripts.scriptCount', { n: scriptStore.scripts.length }) }}</span>
@@ -28,6 +28,7 @@
         <OpsEmptyState v-if="!scriptStore.scripts.length" :icon="Document" :title="t('scripts.emptyScripts')" />
       </div>
     </aside>
+    <input ref="scriptImportInput" class="script-import-input" type="file" accept="application/json,.json" @change="importLibrary" />
 
     <div
       class="script-library-resize"
@@ -200,7 +201,7 @@
 
 <script setup lang="ts">
 import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ArrowDown, ArrowUp, ChatDotRound, Clock, Delete, Document, Download, FullScreen, Lock, MagicStick, Plus, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, ChatDotRound, Clock, Delete, Document, Download, FullScreen, Lock, MagicStick, Plus, Timer, Upload, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLocale } from '@/composables/useLocale'
 import { useSshStore } from '@/stores/ssh'
@@ -229,6 +230,7 @@ const draft = reactive<ScriptDraft>({ id: undefined, name: '', description: '', 
 const focusEditorOpen = ref(false)
 const focusEditorRef = ref<HTMLTextAreaElement>()
 const editorViewRef = ref<HTMLElement>()
+const scriptImportInput = ref<HTMLInputElement>()
 const targetPanelWidth = ref(260)
 const scriptPageRef = ref<HTMLElement>()
 const libraryWidth = ref(258)
@@ -274,6 +276,26 @@ function selectScript(scriptId: string) {
 }
 
 function newScript() { activeScriptId.value = ''; copyIntoDraft(); activeTab.value = 'editor' }
+function exportLibrary() {
+  const blob = new Blob([JSON.stringify(scriptStore.exportScriptLibrary(), null, 2)], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `aiterminal-script-library-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  ElMessage.success(t('scripts.libraryExported', { n: scriptStore.scripts.length }))
+}
+function triggerImport() { scriptImportInput.value?.click() }
+async function importLibrary(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  try { ElMessage.success(t('scripts.libraryImported', { n: scriptStore.importScriptLibrary(JSON.parse(await file.text())) })) } catch { ElMessage.error(t('scripts.libraryImportFailed')) }
+}
 function toggleTarget(id: string) { selectedTargets.has(id) ? selectedTargets.delete(id) : selectedTargets.add(id) }
 function toggleScheduleTarget(id: string) { scheduleTargets.has(id) ? scheduleTargets.delete(id) : scheduleTargets.add(id) }
 function serverStatus(serverId: string) { return sshStore.sessions.some(session => session.serverId === serverId && session.status === 'connected') ? 'connected' : 'offline' }
@@ -470,6 +492,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .script-library-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 16px 14px 10px;
   h2 { margin: 3px 0 0; color: $color-text-primary; font-size: 17px; line-height: 1.2; }
 }
+.script-library-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; :deep(.el-button) { margin: 0; padding-inline: 7px; } }.script-import-input { display: none; }
 .script-eyebrow { color: $color-primary; font-size: 9px; font-weight: 750; letter-spacing: 1.25px; }
 .script-library-meta { display: flex; justify-content: space-between; padding: 0 14px 10px; color: $color-text-placeholder; font-size: 10px; border-bottom: 1px solid $color-border-light;
   span { display: inline-flex; align-items: center; gap: 4px; } i { width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
@@ -509,7 +532,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 9px 230px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
 @media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-library-resize { display: none; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
-@media (max-width: 560px) { .script-page-head, .history-summary, .schedule-card-foot, .approval-summary { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.approval-actions { flex-wrap: wrap; :deep(.el-input) { flex-basis: 100%; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-approvals-view, .script-history-view { padding: 11px; } }
+@media (max-width: 560px) { .script-library-head { align-items: stretch; flex-direction: column; }.script-library-actions { justify-content: flex-start; }.script-page-head, .history-summary, .schedule-card-foot, .approval-summary { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.approval-actions { flex-wrap: wrap; :deep(.el-input) { flex-basis: 100%; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-approvals-view, .script-history-view { padding: 11px; } }
 @container script-workspace (max-width: 480px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; } }
 @container script-editor (max-width: 420px) { .script-form-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.script-form-actions :deep(.el-button) { width: 100%; min-width: 0; padding-inline: 6px; font-size: 10px; }.script-form-actions .script-focus-button { grid-column: 1 / -1; padding-inline: 10px; font-size: 11px; } }
 :deep(.script-focus-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
