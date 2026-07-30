@@ -49,6 +49,7 @@
                   <text x="36" y="40" text-anchor="middle" class="ring-num" :style="{ fill: r.color }">{{ Math.round(r.val) }}</text>
                 </svg>
                 <span class="ring-label">{{ r.key }}</span>
+                <span class="ring-state" :class="r.state">{{ stateLabel(r.state) }}</span>
               </div>
             </div>
           </div>
@@ -63,18 +64,23 @@
             <div v-for="s in fleet" :key="s.id" class="bar-row">
               <span class="bar-name">{{ s.name }}</span>
               <div class="bar-track">
-                <div class="bar-seg cpu" :style="{ width: s.m.cpu + '%' }" :title="'CPU ' + s.m.cpu + '%'"></div>
+                <div class="bar-seg cpu" :class="metricState(s.m.cpu)" :style="{ width: s.m.cpu + '%' }" :title="'CPU ' + s.m.cpu + '% · ' + stateLabel(metricState(s.m.cpu))"></div>
               </div>
               <div class="bar-track">
-                <div class="bar-seg mem" :style="{ width: s.m.mem + '%' }" :title="'MEM ' + s.m.mem + '%'"></div>
+                <div class="bar-seg mem" :class="metricState(s.m.mem)" :style="{ width: s.m.mem + '%' }" :title="'MEM ' + s.m.mem + '% · ' + stateLabel(metricState(s.m.mem))"></div>
               </div>
               <div class="bar-track">
-                <div class="bar-seg disk" :style="{ width: s.m.disk + '%' }" :title="'DISK ' + s.m.disk + '%'"></div>
+                <div class="bar-seg disk" :class="metricState(s.m.disk)" :style="{ width: s.m.disk + '%' }" :title="'DISK ' + s.m.disk + '% · ' + stateLabel(metricState(s.m.disk))"></div>
               </div>
             </div>
           </div>
           <div class="ov-legend">
             <span><i class="lg cpu"></i>CPU</span><span><i class="lg mem"></i>MEM</span><span><i class="lg disk"></i>DISK</span>
+          </div>
+          <div class="ov-threshold-legend">
+            <span class="healthy">{{ t('monitor.healthy') }} &lt;70%</span>
+            <span class="attention">{{ t('monitor.attention') }} 70–84%</span>
+            <span class="critical">{{ t('monitor.critical') }} ≥85%</span>
           </div>
         </div>
 
@@ -130,16 +136,29 @@ const avgDisk = computed(() => avg(fleet.value.map(s => s.m.disk)))
 
 function avg(arr: number[]): number { return arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : 0 }
 
+type MetricState = 'healthy' | 'attention' | 'critical'
+
+function metricState(p: number): MetricState {
+  if (p >= 85) return 'critical'
+  if (p >= 70) return 'attention'
+  return 'healthy'
+}
+
+function stateLabel(state: MetricState): string {
+  return t(`monitor.${state}`)
+}
+
 function color(p: number): string {
-  if (p >= 85) return 'var(--color-danger, #d45454)'
-  if (p >= 60) return 'var(--chart-cpu-warning, #e69138)'
+  const state = metricState(p)
+  if (state === 'critical') return 'var(--chart-cpu-danger, #e05555)'
+  if (state === 'attention') return 'var(--chart-cpu-warning, #e69138)'
   return 'var(--color-success, #4caf7d)'
 }
 function ringsOf(m: QuickMetrics) {
   return [
-    { key: 'CPU', val: m.cpu, color: color(m.cpu) },
-    { key: 'MEM', val: m.mem, color: color(m.mem) },
-    { key: 'DISK', val: m.disk, color: color(m.disk) },
+    { key: 'CPU', val: m.cpu, color: color(m.cpu), state: metricState(m.cpu) },
+    { key: 'MEM', val: m.mem, color: color(m.mem), state: metricState(m.mem) },
+    { key: 'DISK', val: m.disk, color: color(m.disk), state: metricState(m.disk) },
   ]
 }
 
@@ -189,18 +208,19 @@ onMounted(() => {
   border-radius: $border-radius-lg; background: $glass-bg; border: 1px solid $glass-border;
   box-shadow: $elevation-1; animation: fade-in-up 0.3s ease backwards; overflow: hidden; position: relative;
   &::after { content: ''; position: absolute; right: -20px; top: -20px; width: 80px; height: 80px; border-radius: 50%; opacity: 0.08; }
-  &.c1::after { background: #5b9bd5; } &.c2::after { background: #e69138; }
-  &.c3::after { background: #4caf7d; } &.c4::after { background: #d45454; }
+  &.c1::after { background: var(--chart-cpu-normal); } &.c2::after { background: var(--chart-cpu-warning); }
+  &.c3::after { background: $color-success; } &.c4::after { background: $color-danger; }
   &:nth-child(2) { animation-delay: .05s; } &:nth-child(3) { animation-delay: .1s; } &:nth-child(4) { animation-delay: .15s; }
 }
 .stat-icon {
   width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  color: #fff;
+  background: $color-bg-active;
+  color: $color-text-primary;
 }
-.c1 .stat-icon { background: linear-gradient(135deg, #5b9bd5, #4888c2); }
-.c2 .stat-icon { background: linear-gradient(135deg, #e69138, #d17d2a); }
-.c3 .stat-icon { background: linear-gradient(135deg, #4caf7d, #3d9169); }
-.c4 .stat-icon { background: linear-gradient(135deg, #d45454, #c94040); }
+.c1 .stat-icon { color: var(--chart-cpu-normal); }
+.c2 .stat-icon { color: var(--chart-cpu-warning); }
+.c3 .stat-icon { color: $color-success; }
+.c4 .stat-icon { color: $color-danger; }
 .stat-body { display: flex; flex-direction: column; }
 .stat-num { font-size: 26px; font-weight: 800; color: $color-text-primary; font-family: $font-family-mono; line-height: 1.1;
   i { font-size: 14px; font-style: normal; color: $color-text-secondary; margin-left: 2px; }
@@ -228,6 +248,9 @@ onMounted(() => {
   .ring-fill { transition: stroke-dasharray 0.7s ease; }
   .ring-num { font-size: 18px; font-weight: 700; font-family: $font-family-mono; }
   .ring-label { font-size: 9px; color: $color-text-secondary; letter-spacing: 0.5px; }
+  .ring-state { font-size: 9px; font-weight: 650; color: $color-success;
+    &.attention { color: $color-warning; } &.critical { color: $color-danger; }
+  }
 }
 
 // ── 两列 ──
@@ -240,15 +263,22 @@ onMounted(() => {
 .bar-name { font-size: $font-size-xs; color: $color-text-primary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-track { height: 8px; background: $color-border; border-radius: 4px; overflow: hidden; }
 .bar-seg { height: 100%; border-radius: 4px; transition: width 0.7s ease;
-  &.cpu { background: linear-gradient(90deg, #5b9bd5, #4888c2); }
-  &.mem { background: linear-gradient(90deg, #4caf7d, #3d9169); }
-  &.disk { background: linear-gradient(90deg, #e69138, #d17d2a); }
+  &.cpu { background: linear-gradient(90deg, var(--chart-cpu-normal), $color-primary-light); }
+  &.mem { background: linear-gradient(90deg, $color-success, var(--color-success-light, $color-success)); }
+  &.disk { background: linear-gradient(90deg, var(--chart-cpu-warning), $color-warning); }
+  &.attention { background: linear-gradient(90deg, var(--chart-cpu-warning), $color-warning); }
+  &.critical { background: linear-gradient(90deg, var(--chart-cpu-danger), $color-danger); }
 }
 .ov-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 10px; color: $color-text-secondary;
   span { display: inline-flex; align-items: center; gap: 4px; }
   .lg { width: 10px; height: 10px; border-radius: 2px; display: inline-block;
-    &.cpu { background: #5b9bd5; } &.mem { background: #4caf7d; } &.disk { background: #e69138; }
+    &.cpu { background: var(--chart-cpu-normal); } &.mem { background: $color-success; } &.disk { background: var(--chart-cpu-warning); }
   }
+}
+.ov-threshold-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 10px; color: $color-text-secondary;
+  span { display: inline-flex; align-items: center; gap: 4px; }
+  span::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
+  .attention::before { background: $color-warning; } .critical::before { background: $color-danger; }
 }
 
 // ── 告警时间线 ──

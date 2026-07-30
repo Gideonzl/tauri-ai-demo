@@ -582,7 +582,11 @@
     "read": "读取",
     "write": "写入",
     "live": "实时",
-    "idle": "待机"
+    "idle": "待机",
+    "thresholdGuide": "资源使用阈值",
+    "healthy": "正常",
+    "attention": "注意",
+    "critical": "严重"
   },
   "common": {
     "copy": "复制",

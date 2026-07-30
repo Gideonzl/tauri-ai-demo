@@ -20,6 +20,8 @@ const terminalPanel = readFileSync(resolve(root, 'src/components/TerminalPanel.v
 const aiChat = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
 const opsPermission = readFileSync(resolve(root, 'src/components/OpsPermissionControl.vue'), 'utf8')
 const opsEmptyState = readFileSync(resolve(root, 'src/components/OpsEmptyState.vue'), 'utf8')
+const systemMonitor = readFileSync(resolve(root, 'src/components/SystemMonitor.vue'), 'utf8')
+const overviewPanel = readFileSync(resolve(root, 'src/views/ops/OverviewPanel.vue'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -170,5 +172,15 @@ assertIncludes(global, '.ops-toolbar', '运维页面必须提供统一工具栏�
 assertIncludes(logPanel, 'ops-toolbar', '日志页必须接入统一工具栏')
 assertIncludes(inspectionPanel, 'OpsEmptyState', '巡检页必须接入统一空状态')
 assertIncludes(batchPanel, 'OpsEmptyState', '批量页必须接入统一空状态')
+assertIncludes(systemMonitor, 'METRIC_WARNING_THRESHOLD = 70', '实时监控必须使用统一的注意阈值')
+assertIncludes(systemMonitor, 'METRIC_CRITICAL_THRESHOLD = 85', '实时监控必须使用统一的严重阈值')
+assertIncludes(systemMonitor, 'usageState(percent)', '实时监控必须按统一状态函数表达资源风险')
+assertIncludes(systemMonitor, 'threshold-guide', '实时监控必须明确展示资源阈值说明')
+assertIncludes(systemMonitor, 'metric-state', '实时监控不能只用颜色表达资源状态')
+assertIncludes(systemMonitor, 'var(--chart-cpu-danger', '实时监控严重状态必须使用主题化图表颜色')
+assertIncludes(overviewPanel, 'function metricState', '运维总览必须使用统一状态函数表达资源风险')
+assertIncludes(overviewPanel, 'ov-threshold-legend', '运维总览必须明确展示资源阈值说明')
+assertIncludes(overviewPanel, 'ring-state', '运维总览环形图必须提供文字状态')
+assertIncludes(overviewPanel, 'var(--chart-cpu-normal)', '运维总览图表颜色必须跟随当前主题')
 
 console.log('UI refresh checks passed')

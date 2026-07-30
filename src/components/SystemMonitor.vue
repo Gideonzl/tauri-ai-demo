@@ -69,12 +69,22 @@
           </div>
         </div>
 
+        <div class="threshold-guide" role="note">
+          <span class="threshold-label">{{ t('monitor.thresholdGuide') }}</span>
+          <span class="threshold-chip healthy"><i></i>{{ t('monitor.healthy') }} &lt;70%</span>
+          <span class="threshold-chip attention"><i></i>{{ t('monitor.attention') }} 70–84%</span>
+          <span class="threshold-chip critical"><i></i>{{ t('monitor.critical') }} ≥85%</span>
+        </div>
+
         <!-- ═══ CPU full-width ═══ -->
         <div class="metric-panel">
           <div class="panel-header">
             <span class="panel-dot" :style="{ background: cpuGradient }"></span>
             <span class="panel-title">{{ t('monitor.cpuUsage') }}</span>
-            <span class="panel-badge" :class="cpuLoadClass">{{ store.data.cpu.usagePercent }}%</span>
+            <div class="panel-meta">
+              <span class="metric-state" :class="cpuLoadClass">{{ usageLabel(store.data.cpu.usagePercent) }}</span>
+              <span class="panel-badge" :class="cpuLoadClass">{{ store.data.cpu.usagePercent }}%</span>
+            </div>
           </div>
           <div class="cpu-ring-wrap">
             <svg viewBox="0 0 120 120" class="cpu-ring">
@@ -102,9 +112,12 @@
         <!-- ═══ Memory full-width ═══ -->
         <div class="metric-panel">
           <div class="panel-header">
-            <span class="panel-dot" :style="{ background: 'var(--chart-cpu-normal)' }"></span>
+            <span class="panel-dot" :style="{ background: usageColor(store.data.memory.percent) }"></span>
             <span class="panel-title">{{ t('monitor.memoryUsage') }}</span>
-            <span class="panel-badge" :class="memLoadClass">{{ store.data.memory.percent }}%</span>
+            <div class="panel-meta">
+              <span class="metric-state" :class="memLoadClass">{{ usageLabel(store.data.memory.percent) }}</span>
+              <span class="panel-badge" :class="memLoadClass">{{ store.data.memory.percent }}%</span>
+            </div>
           </div>
           <div class="mem-main">
             <span class="mem-used">{{ store.data.memory.used }}</span>
@@ -113,7 +126,7 @@
           </div>
           <div class="mem-bar-wrap">
             <div class="mem-bar">
-              <div class="mem-bar-fill" :style="{ width: store.data.memory.percent + '%' }">
+              <div class="mem-bar-fill" :class="memLoadClass" :style="{ width: store.data.memory.percent + '%' }">
                 <div class="mem-bar-shine"></div>
               </div>
             </div>
@@ -210,11 +223,11 @@
                 <div class="disk-bar">
                   <div class="disk-bar-fill"
                     :style="{ width: d.percent + '%' }"
-                    :class="{ warn: d.percent > 80, danger: d.percent > 90 }"></div>
+                    :class="usageState(d.percent)"></div>
                 </div>
                 <div class="disk-nums">
                   <span class="disk-size">{{ d.used }} / {{ d.size }}</span>
-                  <span class="disk-pct" :class="{ warn: d.percent > 80, danger: d.percent > 90 }">{{ d.percent }}%</span>
+                  <span class="disk-pct" :class="usageState(d.percent)">{{ d.percent }}%</span>
                 </div>
               </div>
             </div>
@@ -309,26 +322,31 @@ const cpuDasharray = computed(() => {
   return `${filled} ${c - filled}`
 })
 
-const cpuGradient = computed(() => {
-  const pct = store.data?.cpu.usagePercent || 0
-  if (pct > 80) return getCssVar('--chart-cpu-danger') || '#e05555'
-  if (pct > 50) return getCssVar('--chart-cpu-warning') || '#e69138'
+const METRIC_WARNING_THRESHOLD = 70
+const METRIC_CRITICAL_THRESHOLD = 85
+
+type MetricState = 'healthy' | 'attention' | 'critical'
+
+function usageState(percent: number): MetricState {
+  if (percent >= METRIC_CRITICAL_THRESHOLD) return 'critical'
+  if (percent >= METRIC_WARNING_THRESHOLD) return 'attention'
+  return 'healthy'
+}
+
+function usageColor(percent: number): string {
+  const state = usageState(percent)
+  if (state === 'critical') return getCssVar('--chart-cpu-danger') || '#e05555'
+  if (state === 'attention') return getCssVar('--chart-cpu-warning') || '#e69138'
   return getCssVar('--chart-cpu-normal') || '#5b9bd5'
-})
+}
 
-const cpuLoadClass = computed(() => {
-  const p = store.data?.cpu.usagePercent || 0
-  if (p > 80) return 'danger'
-  if (p > 50) return 'warn'
-  return ''
-})
+function usageLabel(percent: number): string {
+  return t(`monitor.${usageState(percent)}`)
+}
 
-const memLoadClass = computed(() => {
-  const p = store.data?.memory.percent || 0
-  if (p > 90) return 'danger'
-  if (p > 70) return 'warn'
-  return ''
-})
+const cpuGradient = computed(() => usageColor(store.data?.cpu.usagePercent || 0))
+const cpuLoadClass = computed(() => usageState(store.data?.cpu.usagePercent || 0))
+const memLoadClass = computed(() => usageState(store.data?.memory.percent || 0))
 
 function getCssVar(name: string): string {
   try {
@@ -576,6 +594,19 @@ onUnmounted(() => stopRefresh())
   margin-bottom: 10px;
 }
 
+.panel-meta { display: inline-flex; align-items: center; gap: 6px; }
+
+.metric-state {
+  font-size: 9px;
+  font-weight: 650;
+  color: $color-text-secondary;
+  letter-spacing: 0.2px;
+
+  &.healthy { color: $color-success; }
+  &.attention { color: $color-warning; }
+  &.critical { color: $color-danger; }
+}
+
 .panel-dot {
   width: 7px; height: 7px;
   border-radius: 50%;
@@ -600,8 +631,28 @@ onUnmounted(() => stopRefresh())
   background: $color-bg-active;
   color: $color-text-primary;
 
-  &.warn { background: $color-bg-warning-hover; color: $color-warning; }
-  &.danger { background: $color-bg-danger-hover; color: $color-danger; }
+  &.attention { background: $color-bg-warning-hover; color: $color-warning; }
+  &.critical { background: $color-bg-danger-hover; color: $color-danger; }
+}
+
+.threshold-guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 10px;
+  margin-top: -2px;
+  border: 1px solid $color-border-light;
+  border-radius: 8px;
+  background: $color-bg-hover;
+  font-size: 10px;
+}
+
+.threshold-label { color: $color-text-secondary; font-weight: 600; }
+.threshold-chip { display: inline-flex; align-items: center; gap: 4px; color: $color-text-secondary;
+  i { width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
+  &.attention i { background: $color-warning; }
+  &.critical i { background: $color-danger; }
 }
 
 // ═══════ CPU Ring ═══════
@@ -671,6 +722,9 @@ onUnmounted(() => stopRefresh())
   border-radius: 5px;
   transition: width 0.6s ease;
   position: relative;
+
+  &.attention { background: linear-gradient(90deg, var(--chart-cpu-warning, #e69138), $color-warning); }
+  &.critical { background: linear-gradient(90deg, var(--chart-cpu-danger, #e05555), $color-danger); }
 }
 .mem-bar-shine {
   position: absolute; inset: 0;
@@ -801,11 +855,11 @@ onUnmounted(() => stopRefresh())
 
 .disk-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #5b9bd5, #5b8def);
+  background: linear-gradient(90deg, var(--chart-cpu-normal, #5b9bd5), $color-primary-light);
   border-radius: 4px;
   transition: width 0.6s ease;
-  &.warn { background: linear-gradient(90deg, #e69138, #d17d2a); }
-  &.danger { background: linear-gradient(90deg, #e05555, #c94040); }
+  &.attention { background: linear-gradient(90deg, var(--chart-cpu-warning, #e69138), $color-warning); }
+  &.critical { background: linear-gradient(90deg, var(--chart-cpu-danger, #e05555), $color-danger); }
 }
 
 .disk-nums {
@@ -816,8 +870,8 @@ onUnmounted(() => stopRefresh())
 .disk-size { color: $color-text-secondary; }
 .disk-pct {
   font-weight: 600;
-  &.warn { color: $color-chart-orange; }
-  &.danger { color: $color-chart-red; }
+  &.attention { color: $color-chart-orange; }
+  &.critical { color: $color-chart-red; }
 }
 
 // ═══════ Process Table ═══════

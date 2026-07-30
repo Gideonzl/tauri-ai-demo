@@ -582,7 +582,11 @@
     "read": "Read",
     "write": "Write",
     "live": "Live",
-    "idle": "Idle"
+    "idle": "Idle",
+    "thresholdGuide": "Usage thresholds",
+    "healthy": "Healthy",
+    "attention": "Attention",
+    "critical": "Critical"
   },
   "common": {
     "copy": "Copy",
