@@ -189,6 +189,10 @@ assertIncludes(aiChat, 'aiterminal:script-ai-response', 'AI 脚本回复必须�
 assertIncludes(scriptAutomationView, 'aiDiffOpen', '脚本管理页必须提供 AI 修改预览')
 assertIncludes(scriptAutomationView, 'applyAiSuggestion', '脚本管理页必须支持应用 AI 建议')
 assertIncludes(scriptAutomationView, 'ai-review-summary', 'AI 审查必须在脚本页展示风险摘要')
+assertIncludes(scriptAutomationStore, 'MAX_VERSIONS_PER_SCRIPT', '脚本版本历史必须限制每个脚本保留的版本数量')
+assertIncludes(scriptAutomationStore, 'restoreVersion', '脚本版本历史必须支持恢复指定版本')
+assertIncludes(scriptAutomationView, 'versionHistoryOpen', '脚本管理页必须提供版本历史弹窗')
+assertIncludes(scriptAutomationView, 'restoreVersionConfirm', '恢复历史版本前必须进行确认')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

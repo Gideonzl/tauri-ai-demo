@@ -40,11 +40,14 @@ export interface ScriptRunLog {
   startedAt: number
   finishedAt?: number
 }
+export interface ScriptVersion { id: string; scriptId: string; name: string; description: string; content: string; tags: string[]; createdAt: number }
 
 const SCRIPTS_KEY = 'script-automation-scripts'
 const SCHEDULES_KEY = 'script-automation-schedules'
 const LOGS_KEY = 'script-automation-logs'
+const VERSIONS_KEY = 'script-automation-versions'
 const MAX_LOGS = 200
+const MAX_VERSIONS_PER_SCRIPT = 30
 let schedulerTimer: ReturnType<typeof window.setInterval> | null = null
 
 function createId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
@@ -78,6 +81,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   const scripts = ref<ManagedScript[]>(readStored(SCRIPTS_KEY, defaultScripts()))
   const schedules = ref<ScriptSchedule[]>(readStored(SCHEDULES_KEY, []))
   const runLogs = ref<ScriptRunLog[]>(readStored(LOGS_KEY, []))
+  const versions = ref<ScriptVersion[]>(readStored(VERSIONS_KEY, []))
   const runningScriptIds = ref<string[]>([])
   const initialized = ref(false)
 
@@ -87,6 +91,8 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   function saveScripts() { try { localStorage.setItem(SCRIPTS_KEY, JSON.stringify(scripts.value)) } catch {} }
   function saveSchedules() { try { localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules.value)) } catch {} }
   function saveLogs() { try { localStorage.setItem(LOGS_KEY, JSON.stringify(runLogs.value.slice(0, MAX_LOGS))) } catch {} }
+  function saveVersions() { try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions.value)) } catch {} }
+  function versionsFor(scriptId: string) { return versions.value.filter(item => item.scriptId === scriptId).sort((a, b) => b.createdAt - a.createdAt) }
 
   function upsertScript(input: Omit<ManagedScript, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ManagedScript {
     const now = Date.now()
@@ -98,6 +104,12 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     }
     const existing = input.id ? scripts.value.find(script => script.id === input.id) : undefined
     if (existing) {
+      if (existing.content !== clean.content || existing.name !== clean.name || existing.description !== clean.description || existing.tags.join('|') !== clean.tags.join('|')) {
+        const previous = versions.value.filter(item => item.scriptId === existing.id)
+        const otherScripts = versions.value.filter(item => item.scriptId !== existing.id)
+        versions.value = [{ id: createId('script-version'), scriptId: existing.id, name: existing.name, description: existing.description, content: existing.content, tags: [...existing.tags], createdAt: now }, ...previous].slice(0, MAX_VERSIONS_PER_SCRIPT).concat(otherScripts)
+        saveVersions()
+      }
       Object.assign(existing, clean, { updatedAt: now })
       saveScripts()
       return existing
@@ -111,7 +123,14 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   function removeScript(scriptId: string) {
     scripts.value = scripts.value.filter(script => script.id !== scriptId)
     schedules.value = schedules.value.filter(schedule => schedule.scriptId !== scriptId)
-    saveScripts(); saveSchedules()
+    versions.value = versions.value.filter(version => version.scriptId !== scriptId)
+    saveScripts(); saveSchedules(); saveVersions()
+  }
+
+  function restoreVersion(versionId: string): ManagedScript | undefined {
+    const version = versions.value.find(item => item.id === versionId)
+    if (!version) return undefined
+    return upsertScript({ id: version.scriptId, name: version.name, description: version.description, content: version.content, tags: version.tags })
   }
 
   function saveSchedule(input: Omit<ScriptSchedule, 'id' | 'nextRunAt' | 'lastRunAt'> & { id?: string }): ScriptSchedule {
@@ -218,8 +237,8 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   function stopScheduler() { if (schedulerTimer) window.clearInterval(schedulerTimer); schedulerTimer = null; initialized.value = false }
 
   return {
-    scripts, schedules, runLogs: recentLogs, runningScriptIds, runningCount,
-    upsertScript, removeScript, saveSchedule, removeSchedule, setScheduleEnabled,
+    scripts, schedules, runLogs: recentLogs, versions, versionsFor, runningScriptIds, runningCount,
+    upsertScript, removeScript, restoreVersion, saveSchedule, removeSchedule, setScheduleEnabled,
     executeScript, init, stopScheduler,
   }
 })

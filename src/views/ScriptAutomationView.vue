@@ -57,6 +57,7 @@
             </div>
             <div class="script-form-actions">
               <el-button class="script-focus-button" type="primary" size="small" @click="openFocusEditor"><el-icon :size="14"><FullScreen /></el-icon>{{ t('scripts.focusEdit') }}</el-button>
+              <el-button size="small" :disabled="!draft.id" @click="versionHistoryOpen = true"><el-icon :size="13"><Clock /></el-icon>{{ t('scripts.versionHistory') }}</el-button>
               <el-button size="small" @click="askAi('draft')"><el-icon :size="13"><MagicStick /></el-icon>{{ t('scripts.aiDraft') }}</el-button>
               <el-button size="small" @click="askAi('review')"><el-icon :size="13"><ChatDotRound /></el-icon>{{ t('scripts.aiReview') }}</el-button>
               <el-button type="primary" size="small" @click="saveScript">{{ t('common.save') }}</el-button>
@@ -168,12 +169,18 @@
         <el-button type="primary" @click="applyAiSuggestion">{{ t('scripts.applyToEditor') }}</el-button>
       </template>
     </el-dialog>
+    <el-dialog v-model="versionHistoryOpen" class="script-version-dialog" :title="t('scripts.versionHistory')" width="min(760px, calc(100vw - 48px))">
+      <div class="script-version-list">
+        <article v-for="version in scriptVersions" :key="version.id"><div><b>{{ formatDate(version.createdAt) }}</b><small>{{ version.name }}</small><pre>{{ outputPreview(version.content) }}</pre></div><el-button size="small" @click="restoreVersion(version.id)">{{ t('scripts.restoreVersion') }}</el-button></article>
+        <OpsEmptyState v-if="!scriptVersions.length" :icon="Clock" :title="t('scripts.emptyVersions')" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ArrowDown, ArrowUp, ChatDotRound, Delete, Document, FullScreen, Lock, MagicStick, Plus, Timer, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, ChatDotRound, Clock, Delete, Document, FullScreen, Lock, MagicStick, Plus, Timer, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLocale } from '@/composables/useLocale'
 import { useSshStore } from '@/stores/ssh'
@@ -206,9 +213,11 @@ const scriptPageRef = ref<HTMLElement>()
 const libraryWidth = ref(258)
 const aiDiffOpen = ref(false)
 const aiSuggestion = ref<AiScriptSuggestion>()
+const versionHistoryOpen = ref(false)
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size && currentRisk.value === 'read_only'))
+const scriptVersions = computed(() => draft.id ? scriptStore.versionsFor(draft.id) : [])
 
 function copyIntoDraft(script?: { id: string; name: string; description: string; content: string; tags: string[] }) {
   Object.assign(draft, script ? { id: script.id, name: script.name, description: script.description, content: script.content, tags: script.tags.join(', ') } : { id: undefined, name: '', description: '', content: '', tags: '' })
@@ -327,6 +336,15 @@ function applyAiSuggestion() {
   ElMessage.success(t('scripts.aiApplied'))
 }
 
+async function restoreVersion(versionId: string) {
+  try { await ElMessageBox.confirm(t('scripts.restoreVersionConfirm'), t('common.confirm'), { type: 'warning', confirmButtonText: t('scripts.restoreVersion'), cancelButtonText: t('common.cancel') }) } catch { return }
+  const script = scriptStore.restoreVersion(versionId)
+  if (!script) return
+  selectScript(script.id)
+  versionHistoryOpen.value = false
+  ElMessage.success(t('scripts.versionRestored'))
+}
+
 function createSchedule() {
   const script = scriptStore.scripts.find(item => item.id === scheduleDraft.scriptId)
   if (!script) { ElMessage.warning(t('scripts.scheduleScriptRequired')); return }
@@ -415,6 +433,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 :deep(.script-ai-diff-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
 .ai-diff-hint { margin: 0 0 13px; color: $color-text-secondary; font-size: 12px; }.ai-diff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.ai-diff-grid section { display: grid; gap: 6px; min-width: 0; }.ai-diff-grid section > span { color: $color-text-secondary; font-size: 11px; font-weight: 650; }.ai-diff-grid section:last-child > span { color: $color-primary; }.ai-diff-grid pre { min-height: 360px; max-height: 58vh; margin: 0; overflow: auto; padding: 13px; border: 1px solid $color-border; border-radius: 9px; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; white-space: pre-wrap; word-break: break-word; }.ai-diff-grid section:last-child pre { border-color: $color-primary; background: $color-bg-active; }
 .ai-review-summary { display: grid; gap: 5px; margin-top: 13px; padding: 10px 12px; border: 1px solid $color-border-light; border-left: 3px solid $color-success; border-radius: 8px; background: $color-bg-hover; color: $color-text-secondary; font-size: 11px; line-height: 1.55; &.change, &.unknown { border-left-color: $color-warning; } &.high_risk { border-left-color: $color-danger; } b { color: $color-text-primary; font-size: 12px; } }
+.script-version-list { display: grid; gap: 8px; }.script-version-list article { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid $color-border-light; border-radius: 8px; background: $color-bg-hover; }.script-version-list article > div { min-width: 0; flex: 1; display: grid; gap: 3px; }.script-version-list b { color: $color-text-primary; font-size: 11px; }.script-version-list small { color: $color-text-secondary; font-size: 10px; }.script-version-list pre { margin: 2px 0 0; overflow: hidden; color: $color-text-placeholder; font: 10px/1.4 $font-family-mono; white-space: nowrap; text-overflow: ellipsis; }
 @media (max-width: 640px) { .focus-editor-fields { grid-template-columns: 1fr; }.focus-script-editor { min-height: 280px; } }
 @media (max-width: 760px) { .ai-diff-grid { grid-template-columns: 1fr; }.ai-diff-grid pre { min-height: 220px; max-height: 34vh; } }
 </style>
