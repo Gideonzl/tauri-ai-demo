@@ -189,5 +189,12 @@ assertIncludes(alertsPanel, 'store.markAllRead()', '告警页必须支持一键�
 assertIncludes(alertsPanel, 'ap-ev-severity', '告警条目必须提供文字严重级别，不能只依赖颜色')
 assertIncludes(alertsPanel, 'ap-ev-icon', '告警条目必须用语义图标增强可扫读性')
 assertIncludes(alertsPanel, '@media (max-width: 860px)', '告警页必须在窄空间切换为纵向布局')
+assertIncludes(batchPanel, 'bp-selection-summary', '批量页必须清楚展示已选服务器数量')
+assertIncludes(batchPanel, 'bp-command-safety', '批量命令必须在执行前展示风险提示')
+assertIncludes(batchPanel, 'bp-results-progress', '批量执行必须展示总体完成进度')
+assertIncludes(batchPanel, 'bp-result-counts', '批量执行必须聚合成功、失败和运行中的结果')
+assertIncludes(batchPanel, 'toggleOutput', '批量命令输出必须支持按服务器展开和收起')
+assertIncludes(batchPanel, 'bp-cmd-preview', '批量命令收起时必须保留输出摘要')
+assertIncludes(batchPanel, '@media (max-width: 980px)', '批量页必须在窄空间改为纵向服务器选择布局')
 
 console.log('UI refresh checks passed')

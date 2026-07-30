@@ -7,6 +7,10 @@
         <span class="bp-servers-title">{{ t('ops.batchServers') }}</span>
         <el-button size="small" text @click="toggleAll">{{ t('ops.batchSelectAll') }}</el-button>
       </div>
+      <div class="bp-selection-summary">
+        <span><i class="bp-summary-dot"></i>{{ t('ops.batchSelected', { n: selected.size }) }}</span>
+        <span>{{ t('ops.batchConnected', { n: connectedCount }) }}</span>
+      </div>
       <div class="bp-server-list">
         <label v-for="s in sshStore.servers" :key="s.id" class="bp-server-item" :class="{ checked: selected.has(s.id) }">
           <input type="checkbox" :checked="selected.has(s.id)" @change="toggle(s.id)" />
@@ -56,8 +60,26 @@
           {{ t('ops.runbookSaveCurrent') }}
         </el-button>
       </div>
+      <div v-if="taskType === 'command' && command.trim()" class="bp-command-safety">
+        <span class="bp-risk-preview" :class="commandRisk">
+          <el-icon :size="13"><Lock /></el-icon>{{ t(`ai.risk_${commandRisk}`) }}
+        </span>
+        <span>{{ commandRisk === 'read_only' ? t('ops.batchReadonlyHint') : t('ops.batchApprovalHint') }}</span>
+      </div>
 
       <div class="bp-results" v-if="results.length">
+        <div class="bp-results-head">
+          <div>
+            <span class="bp-results-title">{{ t('ops.batchResults') }}</span>
+            <span class="bp-results-progress">{{ t('ops.batchProgress', { completed: finishedCount, total: results.length }) }}</span>
+          </div>
+          <div class="bp-result-counts">
+            <span v-if="resultCounts.done" class="done">{{ resultCounts.done }} {{ t('ops.batchSuccess') }}</span>
+            <span v-if="resultCounts.failed" class="failed">{{ resultCounts.failed }} {{ t('ops.batchFailed') }}</span>
+            <span v-if="resultCounts.skipped" class="skipped">{{ resultCounts.skipped }} {{ t('ops.orchTarget_skipped') }}</span>
+            <span v-if="resultCounts.active" class="active">{{ resultCounts.active }} {{ t('ops.batchRunning') }}</span>
+          </div>
+        </div>
         <OrchestrationTaskCard
           v-if="taskType === 'command' && orchestrationStore.currentTask"
           :task="orchestrationStore.currentTask"
@@ -71,7 +93,7 @@
             <template v-if="r.status === 'done' && r.score !== undefined">
               <div class="bp-cmp-bar"><div class="bp-cmp-fill" :style="{ width: r.score + '%', background: scoreColor(r.score) }"></div></div>
               <span class="bp-cmp-score" :style="{ color: scoreColor(r.score) }">{{ r.score }}</span>
-              <span class="bp-cmp-counts"><span class="crit" v-if="r.critical">{{ r.critical }}严重</span><span class="warn" v-if="r.warning">{{ r.warning }}警告</span></span>
+              <span class="bp-cmp-counts"><span class="crit" v-if="r.critical">{{ r.critical }}{{ t('ops.sevCritical') }}</span><span class="warn" v-if="r.warning">{{ r.warning }}{{ t('ops.sevWarning') }}</span></span>
             </template>
             <span v-else class="bp-cmp-status" :class="r.status">{{ statusText(r.status) }}</span>
           </div>
@@ -83,8 +105,17 @@
               <span class="bp-conn-dot" :class="r.status === 'done' ? 'connected' : (r.status === 'failed' || r.status === 'skipped') ? 'error' : 'connecting'"></span>
               <span class="bp-cmd-server">{{ r.serverName }}</span>
               <span class="bp-cmd-badge" :class="r.status">{{ statusText(r.status) }}</span>
+              <button v-if="r.output" type="button" class="bp-cmd-copy" :title="t('common.copy')" @click="copyOutput(r)">
+                <el-icon :size="13"><DocumentCopy /></el-icon>
+              </button>
+              <button v-if="r.output" type="button" class="bp-cmd-toggle" @click="toggleOutput(r.serverId)">
+                <span>{{ isOutputExpanded(r.serverId) ? t('ops.batchCollapse') : t('ops.batchExpand') }}</span>
+                <el-icon :size="13"><ArrowUp v-if="isOutputExpanded(r.serverId)" /><ArrowDown v-else /></el-icon>
+              </button>
             </div>
-            <pre v-if="r.output" class="bp-cmd-output">{{ r.output }}</pre>
+            <pre v-if="r.output && isOutputExpanded(r.serverId)" class="bp-cmd-output">{{ r.output }}</pre>
+            <p v-else-if="r.output" class="bp-cmd-preview">{{ outputPreview(r.output) }}</p>
+            <p v-else-if="r.status === 'connecting' || r.status === 'running'" class="bp-cmd-preview pending">{{ t('ops.batchAwaitingOutput') }}</p>
           </div>
         </div>
       </div>
@@ -95,7 +126,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive } from 'vue'
-import { DocumentCopy, Files } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, DocumentCopy, Files, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { sshExecFull, type SshExecResult } from '@/api/tauri'
 import { useSshStore, type SshServer } from '@/stores/ssh'
@@ -113,6 +144,7 @@ import {
   type OrchestrationTargetInput,
 } from '@/utils/ops-orchestration'
 import { type CreateCustomRunbookInput, type OpsRunbook } from '@/utils/ops-runbooks'
+import { classifyCommand } from '@/utils/ops-permission'
 import OrchestrationTaskCard from '@/components/OrchestrationTaskCard.vue'
 
 const sshStore = useSshStore()
@@ -130,6 +162,12 @@ const concurrency = ref(2)
 const stopOnChangeFailure = ref(true)
 const orchestrationSummary = computed(() => orchestrationStore.currentTask ? summarizeOrchestration(orchestrationStore.currentTask) : '')
 const batchRunbooks = computed(() => runbookStore.batchRunbooks)
+const connectedCount = computed(() => new Set(
+  sshStore.sessions
+    .filter(session => session.status === 'connected' && session.realSessionId)
+    .map(session => session.serverId),
+).size)
+const commandRisk = computed(() => classifyCommand(command.value).risk)
 
 interface BatchResult {
   serverId: string; serverName: string
@@ -137,6 +175,15 @@ interface BatchResult {
   output?: string; score?: number; critical?: number; warning?: number
 }
 const results = ref<BatchResult[]>([])
+const expandedOutputs = reactive(new Set<string>())
+const resultCounts = computed(() => results.value.reduce((counts, result) => {
+  if (result.status === 'done') counts.done += 1
+  else if (result.status === 'failed') counts.failed += 1
+  else if (result.status === 'skipped') counts.skipped += 1
+  else counts.active += 1
+  return counts
+}, { done: 0, failed: 0, skipped: 0, active: 0 }))
+const finishedCount = computed(() => resultCounts.value.done + resultCounts.value.failed + resultCounts.value.skipped)
 
 function toggle(id: string) { selected.has(id) ? selected.delete(id) : selected.add(id) }
 function toggleAll() {
@@ -158,6 +205,15 @@ function scoreColor(s: number): string {
   if (s >= 85) return 'var(--color-success, #4caf7d)'
   if (s >= 60) return 'var(--chart-cpu-warning, #e69138)'
   return 'var(--color-danger, #d45454)'
+}
+
+function toggleOutput(serverId: string) { expandedOutputs.has(serverId) ? expandedOutputs.delete(serverId) : expandedOutputs.add(serverId) }
+function isOutputExpanded(serverId: string): boolean { return expandedOutputs.has(serverId) }
+function outputPreview(value: string): string { return value.replace(/\s+/g, ' ').trim().slice(0, 180) || t('ops.batchNoOutput') }
+function copyOutput(result: BatchResult) {
+  if (!result.output) return
+  navigator.clipboard.writeText(result.output)
+  ElMessage.success(t('sftp.copied'))
 }
 
 function applyRunbook(runbook: OpsRunbook) {
@@ -316,6 +372,7 @@ async function run() {
   running.value = true
   const targets = sshStore.servers.filter(s => selected.has(s.id))
   results.value = targets.map(s => ({ serverId: s.id, serverName: s.name, status: 'connecting' as const }))
+  expandedOutputs.clear()
   if (taskType.value === 'command') {
     const task = createCommandTask({
       mode: 'batch',
@@ -428,13 +485,17 @@ function copyAll() {
 </script>
 
 <style lang="scss" scoped>
-.batch-panel { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+.batch-panel { flex: 1; display: flex; overflow: hidden; min-height: 0; background: $shell-workspace-bg; }
 
 // 左侧服务器列表
-.bp-servers { width: 240px; flex-shrink: 0; border-right: 1px solid $color-border-light; display: flex; flex-direction: column; min-height: 0; }
-.bp-servers-head { display: flex; align-items: center; justify-content: space-between; padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light;
+.bp-servers { width: 248px; flex-shrink: 0; border-right: 1px solid $color-border-light; display: flex; flex-direction: column; min-height: 0; background: $color-bg-surface; }
+.bp-servers-head { display: flex; align-items: center; justify-content: space-between; padding: $spacing-sm $spacing-md 5px; border-bottom: 0;
   .bp-servers-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: $color-text-secondary; }
 }
+.bp-selection-summary { display: flex; justify-content: space-between; gap: 6px; padding: 0 $spacing-md $spacing-sm; border-bottom: 1px solid $color-border-light; color: $color-text-placeholder; font-size: 10px;
+  span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+}
+.bp-summary-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-primary; }
 .bp-server-list { flex: 1; overflow-y: auto; padding: $spacing-xs; }
 .bp-server-item {
   display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: $border-radius-sm;
@@ -477,8 +538,21 @@ function copyAll() {
   border-radius: 50%; font-size: 12px; line-height: 1; color: $color-text-placeholder;
   &:hover { color: $color-danger; background: $color-bg-danger-hover; }
 }
+.bp-command-safety { display: flex; align-items: center; gap: 7px; padding: 6px $spacing-md; border-bottom: 1px solid $color-border-light; background: $color-bg-hover; color: $color-text-secondary; font-size: 10px; line-height: 1.4; }
+.bp-risk-preview { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; padding: 2px 6px; border-radius: 5px; font-weight: 650; color: $color-success; background: $color-bg-success-hover;
+  &.change, &.unknown { color: $color-warning; background: $color-bg-warning-hover; }
+  &.high_risk { color: $color-danger; background: $color-bg-danger-hover; }
+}
 
 .bp-results { flex: 1; overflow-y: auto; padding: $spacing-md; min-height: 0; }
+.bp-results-head { display: flex; align-items: center; justify-content: space-between; gap: $spacing-sm; padding: 0 2px 10px; }
+.bp-results-title { font-size: $font-size-sm; font-weight: 650; color: $color-text-primary; }
+.bp-results-progress { margin-left: 7px; color: $color-text-placeholder; font-family: $font-family-mono; font-size: 10px; }
+.bp-result-counts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; font-size: 10px;
+  span { padding: 2px 6px; border-radius: 5px; background: $color-bg-hover; color: $color-text-secondary; }
+  .done { color: $color-success; background: $color-bg-success-hover; } .failed { color: $color-danger; background: $color-bg-danger-hover; }
+  .active { color: $color-warning; background: $color-bg-warning-hover; }
+}
 .bp-orch-card { margin-bottom: $spacing-md; }
 
 // 巡检对比
@@ -501,7 +575,9 @@ function copyAll() {
 
 // 命令输出
 .bp-cmd-results { display: flex; flex-direction: column; gap: $spacing-sm; }
-.bp-cmd-card { border-radius: $border-radius-md; background: $glass-bg; border: 1px solid $glass-border; box-shadow: $elevation-1; overflow: hidden; animation: fade-in-up 0.25s ease; }
+.bp-cmd-card { border-radius: $border-radius-md; background: $glass-bg; border: 1px solid $glass-border; box-shadow: $elevation-1; overflow: hidden; animation: fade-in-up 0.25s ease;
+  &.failed { border-left: 3px solid $color-danger; } &.done { border-left: 3px solid $color-success; }
+}
 .bp-cmd-head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid $color-border-light; }
 .bp-cmd-server { font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; flex: 1; }
 .bp-cmd-badge { font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 3px; text-transform: uppercase;
@@ -511,8 +587,29 @@ function copyAll() {
   &.connecting, &.running { color: $color-warning; background: $color-bg-warning-hover; }
 }
 .bp-cmd-output { margin: 0; padding: $spacing-sm $spacing-md; font-family: $font-family-mono; font-size: $font-size-xs; line-height: 1.5; color: $color-text-regular; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+.bp-cmd-preview { margin: 0; padding: 8px 12px; color: $color-text-secondary; font-family: $font-family-mono; font-size: 10px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  &.pending { color: $color-text-placeholder; font-family: $font-family; }
+}
+.bp-cmd-copy, .bp-cmd-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 5px; background: transparent; color: $color-text-secondary; cursor: pointer; min-height: 24px; padding: 2px 5px;
+  &:hover { color: $color-primary; background: $color-bg-active; }
+}
+.bp-cmd-toggle { font-size: 10px; }
 
 .bp-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: $color-text-secondary;
   .el-icon { color: $color-text-muted; opacity: 0.4; } p { margin: 0; font-size: $font-size-sm; }
+}
+
+@media (max-width: 980px) {
+  .batch-panel { flex-direction: column; }
+  .bp-servers { width: auto; max-height: 220px; border-right: 0; border-bottom: 1px solid $color-border-light; }
+  .bp-server-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 3px; }
+}
+
+@media (max-width: 620px) {
+  .bp-results-head { align-items: flex-start; flex-direction: column; }
+  .bp-result-counts { justify-content: flex-start; }
+  .bp-cmp-name { width: 72px; }
+  .bp-cmp-counts { display: none; }
+  .bp-orch-controls { width: 100%; flex-wrap: wrap; }
 }
 </style>
