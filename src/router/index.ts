@@ -38,6 +38,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/SftpView.vue'),
       },
       {
+        path: 'scripts',
+        name: 'ScriptAutomation',
+        component: () => import('@/views/ScriptAutomationView.vue'),
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingsView.vue'),

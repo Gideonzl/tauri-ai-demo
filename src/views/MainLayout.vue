@@ -199,7 +199,7 @@
 
 <script setup lang="ts">
 
-import { ref, reactive, onMounted, onUnmounted, provide, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, provide, computed, nextTick } from 'vue'
 
 import { useRouter } from 'vue-router'
 import { useConfigStore } from '@/stores/config'
@@ -340,6 +340,11 @@ provide('sendTerminalToAI', (text: string, serverInfo?: string) => {
 
   aiChatRef.value?.injectTerminalText(text, serverInfo)
 
+})
+provide('sendScriptToAI', (scriptName: string, content: string, prompt: string) => {
+  rightPanelTab.value = 'ai'
+  if (aiPanelCollapsed.value) toggleAiPanel()
+  nextTick(() => aiChatRef.value?.injectScriptContext(scriptName, content, prompt))
 })
 
 

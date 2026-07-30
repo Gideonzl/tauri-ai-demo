@@ -14,6 +14,7 @@ import App from './App.vue'
 import router from './router'
 import { useModelStore } from './stores/model'
 import { useChatStore } from './stores/chat'
+import { useScriptAutomationStore } from './stores/scriptAutomation'
 import { applyTheme } from './utils/theme'
 import { initContextMenuCoordinator } from './composables/useContextMenu'
 import './assets/styles/global.scss'
@@ -57,3 +58,5 @@ const modelStore = useModelStore()
 modelStore.init()
 const chatStore = useChatStore()
 chatStore.init()
+const scriptAutomationStore = useScriptAutomationStore()
+scriptAutomationStore.init()

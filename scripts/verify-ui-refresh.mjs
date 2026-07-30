@@ -24,6 +24,10 @@ const systemMonitor = readFileSync(resolve(root, 'src/components/SystemMonitor.v
 const overviewPanel = readFileSync(resolve(root, 'src/views/ops/OverviewPanel.vue'), 'utf8')
 const alertsPanel = readFileSync(resolve(root, 'src/views/ops/AlertsPanel.vue'), 'utf8')
 const servicePanel = readFileSync(resolve(root, 'src/views/ops/ServicePanel.vue'), 'utf8')
+const scriptAutomationView = readFileSync(resolve(root, 'src/views/ScriptAutomationView.vue'), 'utf8')
+const scriptAutomationStore = readFileSync(resolve(root, 'src/stores/scriptAutomation.ts'), 'utf8')
+const scriptCron = readFileSync(resolve(root, 'src/utils/script-cron.ts'), 'utf8')
+const router = readFileSync(resolve(root, 'src/router/index.ts'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -160,6 +164,15 @@ assertIncludes(aiChat, 'color: $color-text-regular !important', 'AI 工具栏图
 assertIncludes(aiChat, '.assistant-state { display: flex; align-items: center; gap: 4px; max-width: 170px; color: $color-text-regular', 'AI 小字号状态文字必须使用可读的主题正文色')
 assertIncludes(sideNav, '&::before', '侧边栏选中态必须使用自适应指示条')
 assertIncludes(sideNav, 'border-radius: 8px', '侧边栏选中态必须避免大圆形按钮效果')
+assertIncludes(sideNav, "path: '/scripts'", '侧边栏缺少脚本管理入口')
+assertIncludes(router, "path: 'scripts'", '路由缺少脚本管理页面')
+assertIncludes(scriptAutomationView, 'sendScriptToAI', '脚本管理页缺少右侧 AI 联动')
+assertIncludes(scriptAutomationView, 'script-scheduler-note', '脚本管理页缺少计划任务安全说明')
+assertIncludes(scriptAutomationStore, "classifyCommand(script.content).risk !== 'read_only'", '计划任务未限制为只读脚本')
+assertIncludes(scriptAutomationStore, 'nextCronTime', '计划任务未计算下次执行时间')
+assertIncludes(scriptCron, 'export function matchesCron', 'Cron 匹配工具缺失')
+assertIncludes(mainLayout, 'sendScriptToAI', '主布局缺少脚本到 AI 的桥接')
+assertIncludes(aiChat, 'injectScriptContext', 'AI 对话缺少脚本上下文注入')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

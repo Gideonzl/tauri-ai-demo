@@ -451,7 +451,17 @@ function injectTerminalText(text: string, serverInfo?: string) {
   scrollToBottom()
 }
 
-defineExpose({ injectFilePath, injectFileContent, injectTerminalText })
+/** Inject a managed script into the shared operations conversation. */
+function injectScriptContext(scriptName: string, content: string, prompt: string) {
+  agentStore.switchAgent('ops')
+  chatStore.addUserMessage(
+    agentStore.activeAgentId,
+    `【脚本管理】${scriptName}\n\n\`\`\`sh\n${content || '# 待编写脚本'}\n\`\`\`\n\n${prompt}`,
+  )
+  scrollToBottom()
+}
+
+defineExpose({ injectFilePath, injectFileContent, injectTerminalText, injectScriptContext })
 
 const messages = computed(() => chatStore.getMessages(agentStore.activeAgentId))
 

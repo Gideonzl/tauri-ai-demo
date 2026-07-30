@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Monitor, Cpu, FolderOpened, Setting, Clock, Odometer } from '@element-plus/icons-vue'
+import { Monitor, Cpu, Document, FolderOpened, Setting, Clock, Odometer } from '@element-plus/icons-vue'
 import type { Ref } from 'vue'
 import { useLocale } from '@/composables/useLocale'
 
@@ -64,6 +64,7 @@ const topItems = computed<NavItem[]>(() => [
   { id: 'hosts', path: '/', label: t('nav.hosts'), icon: Monitor },
   { id: 'history', path: '/history', label: t('nav.history'), icon: Clock },
   { id: 'ops', path: '/ops', label: t('nav.ops'), icon: Odometer },
+  { id: 'scripts', path: '/scripts', label: t('nav.scripts'), icon: Document },
   { id: 'ai', path: '/ai-config', label: t('nav.aiModels'), icon: Cpu },
   { id: 'sftp', path: '/sftp', label: t('nav.sftp'), icon: FolderOpened },
 ])
