@@ -193,6 +193,11 @@ assertIncludes(scriptAutomationStore, 'MAX_VERSIONS_PER_SCRIPT', '脚本版本�
 assertIncludes(scriptAutomationStore, 'restoreVersion', '脚本版本历史必须支持恢复指定版本')
 assertIncludes(scriptAutomationView, 'versionHistoryOpen', '脚本管理页必须提供版本历史弹窗')
 assertIncludes(scriptAutomationView, 'restoreVersionConfirm', '恢复历史版本前必须进行确认')
+assertIncludes(scriptAutomationStore, 'SCHEDULE_RETRY_DELAY', '计划任务失败后必须提供受控重试间隔')
+assertIncludes(scriptAutomationStore, 'consecutiveFailures', '计划任务必须记录连续失败次数')
+assertIncludes(scriptAutomationStore, 'runScheduleNow', '计划任务手动执行也必须更新最近状态')
+assertIncludes(scriptAutomationView, 'scheduleRetryPending', '计划任务界面必须展示待重试状态')
+assertIncludes(scriptAutomationView, 'schedule-failure-alert', '计划任务界面必须持续展示连续失败告警')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

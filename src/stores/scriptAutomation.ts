@@ -26,6 +26,12 @@ export interface ScriptSchedule {
   enabled: boolean
   nextRunAt: number | null
   lastRunAt?: number
+  lastStatus?: Exclude<ScriptRunStatus, 'running'>
+  consecutiveFailures?: number
+  retryAt?: number | null
+  retryAttempt?: number
+  isRunning?: boolean
+  lastError?: string
 }
 
 export interface ScriptRunLog {
@@ -41,6 +47,7 @@ export interface ScriptRunLog {
   finishedAt?: number
 }
 export interface ScriptVersion { id: string; scriptId: string; name: string; description: string; content: string; tags: string[]; createdAt: number }
+export interface ScriptExecutionSummary { attempted: boolean; total: number; success: number; failed: number; skipped: number }
 
 const SCRIPTS_KEY = 'script-automation-scripts'
 const SCHEDULES_KEY = 'script-automation-schedules'
@@ -48,6 +55,8 @@ const LOGS_KEY = 'script-automation-logs'
 const VERSIONS_KEY = 'script-automation-versions'
 const MAX_LOGS = 200
 const MAX_VERSIONS_PER_SCRIPT = 30
+const SCHEDULE_RETRY_DELAY = 60_000
+const MAX_SCHEDULE_RETRIES = 1
 let schedulerTimer: ReturnType<typeof window.setInterval> | null = null
 
 function createId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
@@ -140,11 +149,11 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     const nextRunAt = normalized.enabled ? nextCronTime(normalized.cron) : null
     if (normalized.enabled && !nextRunAt) throw new Error('Cron expression has no future execution time')
     if (existing) {
-      Object.assign(existing, normalized, { nextRunAt })
+      Object.assign(existing, normalized, { nextRunAt, retryAt: null, retryAttempt: 0, isRunning: false })
       saveSchedules()
       return existing
     }
-    const schedule: ScriptSchedule = { id: createId('schedule'), ...normalized, nextRunAt }
+    const schedule: ScriptSchedule = { id: createId('schedule'), ...normalized, nextRunAt, retryAt: null, retryAttempt: 0, isRunning: false }
     schedules.value.unshift(schedule)
     saveSchedules()
     return schedule
@@ -156,20 +165,24 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     if (!schedule) return
     schedule.enabled = enabled
     schedule.nextRunAt = enabled ? nextCronTime(schedule.cron) : null
+    schedule.retryAt = null
+    schedule.retryAttempt = 0
+    schedule.isRunning = false
     saveSchedules()
   }
 
   function appendLog(log: ScriptRunLog) { runLogs.value.unshift(log); runLogs.value = runLogs.value.slice(0, MAX_LOGS); saveLogs() }
 
-  async function executeScript(scriptId: string, targetIds: string[], scheduleId?: string): Promise<void> {
+  async function executeScript(scriptId: string, targetIds: string[], scheduleId?: string): Promise<ScriptExecutionSummary> {
     const script = scripts.value.find(item => item.id === scriptId)
     if (!script) throw new Error('Script not found')
     if (!script.content.trim()) throw new Error('Script is empty')
     if (classifyCommand(script.content).risk !== 'read_only') throw new Error('Only read-only scripts can run in Script Management')
-    if (runningScriptIds.value.includes(scriptId)) return
+    if (runningScriptIds.value.includes(scriptId)) return { attempted: false, total: targetIds.length, success: 0, failed: 0, skipped: 0 }
 
     const sshStore = useSshStore()
     if (!sshStore.servers.length) sshStore.init()
+    const summary: ScriptExecutionSummary = { attempted: true, total: targetIds.length, success: 0, failed: 0, skipped: 0 }
     runningScriptIds.value.push(scriptId)
     try {
       for (const targetId of targetIds) {
@@ -181,11 +194,11 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         }
         appendLog(log)
         if (!server) {
-          log.status = 'skipped'; log.output = '目标服务器已不存在'; log.finishedAt = Date.now(); saveLogs(); continue
+          log.status = 'skipped'; log.output = '目标服务器已不存在'; log.finishedAt = Date.now(); summary.skipped += 1; saveLogs(); continue
         }
         const session = await resolveSession(server)
         if (!session) {
-          log.status = 'failed'; log.output = '无法建立 SSH 连接'; log.finishedAt = Date.now(); saveLogs(); continue
+          log.status = 'failed'; log.output = '无法建立 SSH 连接'; log.finishedAt = Date.now(); summary.failed += 1; saveLogs(); continue
         }
         try {
           const result = await sshExecFull(session.id, script.content)
@@ -196,24 +209,83 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         } finally {
           log.finishedAt = Date.now()
           await releaseSession(session)
+          if (log.status === 'success') summary.success += 1
+          else if (log.status === 'failed') summary.failed += 1
+          else summary.skipped += 1
           saveLogs()
         }
       }
     } finally {
       runningScriptIds.value = runningScriptIds.value.filter(id => id !== scriptId)
     }
+    return summary
+  }
+
+  function summaryStatus(summary: ScriptExecutionSummary): Exclude<ScriptRunStatus, 'running'> {
+    if (summary.failed) return 'failed'
+    if (summary.success) return 'success'
+    return 'skipped'
+  }
+
+  function completeScheduledExecution(schedule: ScriptSchedule, summary: ScriptExecutionSummary, isRetry: boolean) {
+    schedule.isRunning = false
+    if (!summary.attempted) { saveSchedules(); return }
+    schedule.lastStatus = summaryStatus(summary)
+    if (schedule.lastStatus === 'failed') {
+      schedule.consecutiveFailures = (schedule.consecutiveFailures || 0) + 1
+      schedule.lastError = `有 ${summary.failed} 个目标执行失败`
+      const canRetry = !isRetry && (schedule.retryAttempt || 0) < MAX_SCHEDULE_RETRIES
+      schedule.retryAt = canRetry ? Date.now() + SCHEDULE_RETRY_DELAY : null
+      schedule.retryAttempt = canRetry ? (schedule.retryAttempt || 0) + 1 : 0
+    } else {
+      schedule.consecutiveFailures = 0
+      schedule.lastError = undefined
+      schedule.retryAt = null
+      schedule.retryAttempt = 0
+    }
+    saveSchedules()
+  }
+
+  async function runScheduleNow(scheduleId: string): Promise<ScriptExecutionSummary | undefined> {
+    const schedule = schedules.value.find(item => item.id === scheduleId)
+    if (!schedule || schedule.isRunning) return undefined
+    schedule.isRunning = true
+    schedule.lastRunAt = Date.now()
+    saveSchedules()
+    try {
+      const summary = await executeScript(schedule.scriptId, schedule.targetIds, schedule.id)
+      completeScheduledExecution(schedule, summary, true)
+      return summary
+    } catch (error) {
+      completeScheduledExecution(schedule, { attempted: true, total: schedule.targetIds.length, success: 0, failed: schedule.targetIds.length || 1, skipped: 0 }, true)
+      throw error
+    }
   }
 
   async function runDueSchedules() {
     const now = Date.now()
     for (const schedule of schedules.value) {
-      if (!schedule.enabled || !schedule.nextRunAt || schedule.nextRunAt > now) continue
+      if (!schedule.enabled || schedule.isRunning) continue
+      const cronDue = Boolean(schedule.nextRunAt && schedule.nextRunAt <= now)
+      const retryDue = Boolean(schedule.retryAt && schedule.retryAt <= now)
+      if (!cronDue && !retryDue) continue
       const script = scripts.value.find(item => item.id === schedule.scriptId)
-      schedule.lastRunAt = now
-      schedule.nextRunAt = nextCronTime(schedule.cron, now)
+      const isRetry = retryDue && !cronDue
+      if (cronDue) {
+        schedule.lastRunAt = now
+        schedule.nextRunAt = nextCronTime(schedule.cron, now)
+        schedule.retryAt = null
+        schedule.retryAttempt = 0
+      }
+      if (isRetry) schedule.lastRunAt = now
       if (!script || classifyCommand(script.content).risk !== 'read_only') {
         schedule.enabled = false
         schedule.nextRunAt = null
+        schedule.lastStatus = 'skipped'
+        schedule.consecutiveFailures = 0
+        schedule.retryAt = null
+        schedule.retryAttempt = 0
+        schedule.lastError = undefined
         appendLog({
           id: createId('script-run'), scriptId: schedule.scriptId, scriptName: script?.name || '已删除脚本',
           serverId: schedule.targetIds[0] || '', serverName: '计划任务', scheduleId: schedule.id,
@@ -222,14 +294,22 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         saveSchedules()
         continue
       }
+      schedule.isRunning = true
       saveSchedules()
       void executeScript(schedule.scriptId, schedule.targetIds, schedule.id)
+        .then(summary => completeScheduledExecution(schedule, summary, isRetry))
+        .catch(() => completeScheduledExecution(schedule, { attempted: true, total: schedule.targetIds.length, success: 0, failed: schedule.targetIds.length || 1, skipped: 0 }, isRetry))
     }
   }
 
   function init() {
     if (initialized.value) return
     initialized.value = true
+    const staleRunning = schedules.value.some(schedule => schedule.isRunning)
+    if (staleRunning) {
+      schedules.value.forEach(schedule => { schedule.isRunning = false })
+      saveSchedules()
+    }
     void runDueSchedules()
     schedulerTimer = window.setInterval(() => { void runDueSchedules() }, 15000)
   }
@@ -238,7 +318,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
 
   return {
     scripts, schedules, runLogs: recentLogs, versions, versionsFor, runningScriptIds, runningCount,
-    upsertScript, removeScript, restoreVersion, saveSchedule, removeSchedule, setScheduleEnabled,
+    upsertScript, removeScript, restoreVersion, saveSchedule, removeSchedule, setScheduleEnabled, runScheduleNow,
     executeScript, init, stopScheduler,
   }
 })
