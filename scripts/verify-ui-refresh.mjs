@@ -19,6 +19,7 @@ const workspace = readFileSync(resolve(root, 'src/views/WorkspaceView.vue'), 'ut
 const terminalPanel = readFileSync(resolve(root, 'src/components/TerminalPanel.vue'), 'utf8')
 const aiChat = readFileSync(resolve(root, 'src/components/AiChat.vue'), 'utf8')
 const opsPermission = readFileSync(resolve(root, 'src/components/OpsPermissionControl.vue'), 'utf8')
+const opsEmptyState = readFileSync(resolve(root, 'src/components/OpsEmptyState.vue'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -163,5 +164,11 @@ assertIncludes(opsPermission, 'color: $color-text-regular', '权限图标必须�
 assertIncludes(opsPermission, 'background: $surface-contrast-soft', '权限选项卡背景必须跟随亮暗主题')
 assertIncludes(opsPermission, 'background: $color-bg-active', '权限选中态必须跟随当前主题强调色')
 assertIncludes(opsPermission, 'color: $color-text-primary', '权限选项文字必须使用主题正文色')
+assertIncludes(opsEmptyState, 'ops-empty-state', '运维页面必须复用统一的空状态组件')
+assertIncludes(opsEmptyState, '$color-bg-active', '运维空状态图标必须跟随当前主题')
+assertIncludes(global, '.ops-toolbar', '运维页面必须提供统一工具栏样式')
+assertIncludes(logPanel, 'ops-toolbar', '日志页必须接入统一工具栏')
+assertIncludes(inspectionPanel, 'OpsEmptyState', '巡检页必须接入统一空状态')
+assertIncludes(batchPanel, 'OpsEmptyState', '批量页必须接入统一空状态')
 
 console.log('UI refresh checks passed')

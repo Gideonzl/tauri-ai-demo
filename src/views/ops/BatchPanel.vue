@@ -22,7 +22,7 @@
 
     <!-- 右：任务 + 结果 -->
     <div class="bp-main">
-      <div class="bp-taskbar">
+      <div class="bp-taskbar ops-toolbar">
         <div class="bp-task-toggle">
           <button class="bp-task-btn" :class="{ active: taskType === 'inspect' }" @click="taskType = 'inspect'">{{ t('ops.batchTaskInspect') }}</button>
           <button class="bp-task-btn" :class="{ active: taskType === 'command' }" @click="taskType = 'command'">{{ t('ops.batchTaskCommand') }}</button>
@@ -88,10 +88,7 @@
           </div>
         </div>
       </div>
-      <div v-else class="bp-placeholder">
-        <el-icon :size="36"><Files /></el-icon>
-        <p>{{ selected.size ? t('ops.batchRun') : t('ops.batchSelectFirst') }}</p>
-      </div>
+      <OpsEmptyState v-else :icon="Files" :title="selected.size ? t('ops.batchRun') : t('ops.batchSelectFirst')" />
     </div>
   </div>
 </template>
@@ -107,6 +104,7 @@ import { useOpsAgentStore } from '@/stores/opsAgent'
 import { useOrchestrationStore } from '@/stores/orchestration'
 import { useRunbookStore } from '@/stores/runbooks'
 import { useLocale } from '@/composables/useLocale'
+import OpsEmptyState from '@/components/OpsEmptyState.vue'
 import {
   createCommandTask,
   runWithConcurrency,

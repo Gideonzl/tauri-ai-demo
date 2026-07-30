@@ -1,7 +1,7 @@
 <!-- OverviewPanel — 运维总览仪表盘（图文并用） -->
 <template>
   <div class="ov-panel">
-    <div class="ov-actionbar">
+    <div class="ov-actionbar ops-toolbar">
       <el-button type="primary" size="small" :loading="sampling" @click="refresh">
         <el-icon :size="13" v-if="!sampling"><Refresh /></el-icon>
         {{ sampling ? t('ops.ovSampling') : t('ops.ovRefresh') }}
@@ -93,10 +93,7 @@
       </div>
     </div>
 
-    <div v-else class="ov-placeholder">
-      <el-icon :size="40"><Odometer /></el-icon>
-      <p>{{ connectedSessions.length === 0 ? t('ops.noConnected') : t('ops.ovNoData') }}</p>
-    </div>
+    <OpsEmptyState v-else :icon="Odometer" :title="connectedSessions.length === 0 ? t('ops.noConnected') : t('ops.ovNoData')" />
   </div>
 </template>
 
@@ -108,6 +105,7 @@ import { useAlertStore } from '@/stores/alerts'
 import { sampleMetrics } from '@/utils/metrics-sample'
 import type { QuickMetrics } from '@/utils/metrics-sample'
 import { useLocale } from '@/composables/useLocale'
+import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 const sshStore = useSshStore()
 const alertStore = useAlertStore()

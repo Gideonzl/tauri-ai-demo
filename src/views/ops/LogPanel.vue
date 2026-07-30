@@ -2,7 +2,7 @@
 <template>
   <div class="log-panel">
     <!-- 工具栏 -->
-    <div class="lp-toolbar">
+    <div class="lp-toolbar ops-toolbar">
       <el-select v-model="sourceKey" size="small" :popper-append-to-body="false" style="width: 200px" @change="onSourceChange">
         <el-option v-for="s in sources" :key="s.key" :label="s.label" :value="s.key" />
       </el-select>
@@ -27,10 +27,7 @@
     <div ref="logBodyRef" class="lp-body">
       <!-- 日志内容 -->
       <div class="lp-log" :class="{ narrow: showAiPanel }">
-        <div v-if="!logText && !fetching" class="lp-empty">
-          <el-icon :size="32"><Document /></el-icon>
-          <p>{{ t('ops.logEmpty') }}</p>
-        </div>
+        <OpsEmptyState v-if="!logText && !fetching" :icon="Document" :title="t('ops.logEmpty')" :description="t('ops.logFetch')" />
         <div v-else class="lp-lines-view">
           <div v-for="(line, i) in highlightedLines" :key="i" class="lp-line" :class="line.level" v-html="line.html"></div>
         </div>
@@ -69,6 +66,7 @@ import { streamChat } from '@/utils/ai-chat'
 import { useModelStore } from '@/stores/model'
 import { useLocale } from '@/composables/useLocale'
 import { renderMarkdown } from '@/utils/markdown'
+import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 const props = defineProps<{ sessionId: string; serverName: string }>()
 

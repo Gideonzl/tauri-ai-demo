@@ -2,7 +2,7 @@
 <template>
   <div class="inspect-panel">
     <!-- 操作栏 -->
-    <div class="ip-actionbar">
+    <div class="ip-actionbar ops-toolbar">
       <el-button type="primary" size="small" :loading="store.running" @click="doInspect">
         <el-icon :size="13" v-if="!store.running"><VideoPlay /></el-icon>
         {{ store.running ? t('ops.inspecting') : t('ops.runInspection') }}
@@ -70,10 +70,7 @@
       </div>
     </div>
 
-    <div v-else class="ip-placeholder">
-      <el-icon :size="40"><DataLine /></el-icon>
-      <p>{{ t('ops.runInspection') }}</p>
-    </div>
+    <OpsEmptyState v-else :icon="DataLine" :title="t('ops.runInspection')" :description="t('ops.noConnected')" />
   </div>
 </template>
 
@@ -87,6 +84,7 @@ import { streamChat } from '@/utils/ai-chat'
 import { useModelStore } from '@/stores/model'
 import { useLocale } from '@/composables/useLocale'
 import { renderMarkdown } from '@/utils/markdown'
+import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 const props = defineProps<{ sessionId: string; serverName: string; serverId: string }>()
 

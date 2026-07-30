@@ -1233,6 +1233,19 @@ body::after {
   transform: none;
 }
 
+// ── Ops workbench consistency ──
+// Applied by every operations panel so filters, primary actions and secondary
+// actions share the same visual rhythm across overview, logs and runbooks.
+.ops-toolbar {
+  background: $surface-contrast-soft;
+  border-bottom-color: $color-border !important;
+  min-height: 44px;
+}
+
+@media (max-width: 1080px) {
+  .ops-toolbar { align-items: flex-start !important; }
+}
+
 // ── Context menu: glass + scale-in entrance ──
 .ctx-menu {
   background: $glass-bg !important;

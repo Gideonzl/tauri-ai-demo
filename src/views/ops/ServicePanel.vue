@@ -23,7 +23,7 @@
     <!-- 右：服务选择 + 结果 -->
     <div class="svc-main">
       <!-- 服务选择工具栏 -->
-      <div class="svc-toolbar">
+      <div class="svc-toolbar ops-toolbar">
         <div class="svc-chips">
           <button v-for="def in catalog" :key="def.id" class="svc-chip" :class="{ active: services.has(def.id) }" :style="services.has(def.id) ? { borderColor: def.color, color: def.color } : {}" :title="def.hint" @click="toggleService(def.id)">
             <span class="svc-chip-dot" :style="{ background: def.color }"></span>{{ def.name }}
@@ -115,11 +115,12 @@
           <div class="svc-ai-body markdown-body" v-html="renderedAi"></div>
         </div>
       </div>
-      <div v-else class="svc-placeholder">
-        <el-icon :size="36"><Coin /></el-icon>
-        <p>{{ selected.size && services.size + customPorts.length ? t('ops.svcRun') : t('ops.svcSelectFirst') }}</p>
-        <p class="svc-tip">{{ t('ops.svcTipSelect') }}</p>
-      </div>
+      <OpsEmptyState
+        v-else
+        :icon="Coin"
+        :title="selected.size && services.size + customPorts.length ? t('ops.svcRun') : t('ops.svcSelectFirst')"
+        :description="t('ops.svcTipSelect')"
+      />
     </div>
   </div>
 </template>
@@ -136,6 +137,7 @@ import { resolveSession, releaseSession } from '@/utils/ops-connect'
 import { streamChat } from '@/utils/ai-chat'
 import { useLocale } from '@/composables/useLocale'
 import { renderMarkdown } from '@/utils/markdown'
+import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 const sshStore = useSshStore()
 const store = useServiceOpsStore()
