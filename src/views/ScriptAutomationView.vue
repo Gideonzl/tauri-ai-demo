@@ -160,6 +160,9 @@
         <section><span>{{ t('scripts.currentScript') }}</span><pre>{{ aiSuggestion.originalContent || t('scripts.noScriptContent') }}</pre></section>
         <section><span>{{ t('scripts.aiSuggestedScript') }}</span><pre>{{ aiSuggestion.suggestedContent }}</pre></section>
       </div>
+      <div v-if="aiSuggestion?.mode === 'review'" class="ai-review-summary" :class="aiSuggestion.risk">
+        <b>{{ t(`ai.risk_${aiSuggestion.risk}`) }}</b><span>{{ aiSuggestion.reviewSummary || t('scripts.aiReviewEmpty') }}</span>
+      </div>
       <template #footer>
         <el-button @click="aiDiffOpen = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" @click="applyAiSuggestion">{{ t('scripts.applyToEditor') }}</el-button>
@@ -181,8 +184,8 @@ import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 type Tab = 'editor' | 'schedules' | 'history'
 type ScriptDraft = { id?: string; name: string; description: string; content: string; tags: string }
-type SendScriptToAi = (name: string, content: string, prompt: string, scriptId?: string) => boolean | Promise<boolean>
-type AiScriptSuggestion = { scriptId?: string; scriptName: string; originalContent: string; suggestedContent: string }
+type SendScriptToAi = (name: string, content: string, prompt: string, scriptId?: string, mode?: 'draft' | 'review') => boolean | Promise<boolean>
+type AiScriptSuggestion = { scriptId?: string; scriptName: string; originalContent: string; suggestedContent: string; mode: 'draft' | 'review'; risk: 'read_only' | 'change' | 'high_risk' | 'unknown'; reviewSummary: string }
 
 const { t, locale } = useLocale()
 const sshStore = useSshStore()
@@ -297,7 +300,7 @@ async function askAi(mode: 'draft' | 'review') {
     ? t('scripts.aiDraftPrompt')
     : t('scripts.aiReviewPrompt')
   if (!sendScriptToAI) { ElMessage.warning(t('scripts.aiUnavailable')); return }
-  if (await sendScriptToAI(name, draft.content, prompt, draft.id)) ElMessage.success(t('scripts.aiSent'))
+  if (await sendScriptToAI(name, draft.content, prompt, draft.id, mode)) ElMessage.success(t('scripts.aiSent'))
 }
 
 function extractScriptFromAiResponse(response: string): string {
@@ -305,13 +308,15 @@ function extractScriptFromAiResponse(response: string): string {
   return (block?.[1] || '').trim()
 }
 
+function reviewSummary(response: string) { return response.replace(/```[\s\S]*?```/g, '').replace(/\s+/g, ' ').trim().slice(0, 260) }
 function onAiScriptResponse(event: Event) {
-  const detail = (event as CustomEvent<{ scriptId?: string; scriptName: string; originalContent: string; response: string }>).detail
+  const detail = (event as CustomEvent<{ scriptId?: string; scriptName: string; originalContent: string; response: string; mode: 'draft' | 'review' }>).detail
   if (!detail) return
   const suggestedContent = extractScriptFromAiResponse(detail.response)
   if (!suggestedContent) { ElMessage.warning(t('scripts.aiNoScriptFound')); return }
   if (detail.scriptId && detail.scriptId !== draft.id) selectScript(detail.scriptId)
-  aiSuggestion.value = { scriptId: detail.scriptId, scriptName: detail.scriptName, originalContent: detail.originalContent, suggestedContent }
+  const risk = classifyCommand(suggestedContent).risk
+  aiSuggestion.value = { scriptId: detail.scriptId, scriptName: detail.scriptName, originalContent: detail.originalContent, suggestedContent, mode: detail.mode, risk, reviewSummary: reviewSummary(detail.response) }
   aiDiffOpen.value = true
 }
 
@@ -409,6 +414,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .focus-editor-hint { margin: 0 0 13px; color: $color-text-secondary; font-size: 12px; }.focus-editor-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 10px; }.focus-editor-label { display: flex; justify-content: space-between; margin: 15px 0 6px; color: $color-text-secondary; font-size: 11px; font-weight: 650; span:last-child { color: $color-primary; font-family: $font-family-mono; } }.focus-script-editor { display: block; box-sizing: border-box; width: 100%; height: min(58vh, 620px); min-height: 360px; resize: vertical; padding: 15px; border: 1px solid $color-border; border-radius: 9px; outline: none; background: $color-bg-input; color: $color-text-primary; font: 13px/1.7 $font-family-mono; &:focus { border-color: $color-primary; box-shadow: 0 0 0 2px $color-bg-active; } }
 :deep(.script-ai-diff-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
 .ai-diff-hint { margin: 0 0 13px; color: $color-text-secondary; font-size: 12px; }.ai-diff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.ai-diff-grid section { display: grid; gap: 6px; min-width: 0; }.ai-diff-grid section > span { color: $color-text-secondary; font-size: 11px; font-weight: 650; }.ai-diff-grid section:last-child > span { color: $color-primary; }.ai-diff-grid pre { min-height: 360px; max-height: 58vh; margin: 0; overflow: auto; padding: 13px; border: 1px solid $color-border; border-radius: 9px; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; white-space: pre-wrap; word-break: break-word; }.ai-diff-grid section:last-child pre { border-color: $color-primary; background: $color-bg-active; }
+.ai-review-summary { display: grid; gap: 5px; margin-top: 13px; padding: 10px 12px; border: 1px solid $color-border-light; border-left: 3px solid $color-success; border-radius: 8px; background: $color-bg-hover; color: $color-text-secondary; font-size: 11px; line-height: 1.55; &.change, &.unknown { border-left-color: $color-warning; } &.high_risk { border-left-color: $color-danger; } b { color: $color-text-primary; font-size: 12px; } }
 @media (max-width: 640px) { .focus-editor-fields { grid-template-columns: 1fr; }.focus-script-editor { min-height: 280px; } }
 @media (max-width: 760px) { .ai-diff-grid { grid-template-columns: 1fr; }.ai-diff-grid pre { min-height: 220px; max-height: 34vh; } }
 </style>

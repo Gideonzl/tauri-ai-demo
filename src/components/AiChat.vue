@@ -273,7 +273,7 @@ const messageListRef = ref<HTMLElement>()
 const userScrolledUp = ref(false)
 let currentStream: StreamControl | null = null
 
-type ScriptAssistContext = { scriptId?: string; scriptName: string; originalContent: string }
+type ScriptAssistContext = { scriptId?: string; scriptName: string; originalContent: string; mode: 'draft' | 'review' }
 const scriptAssistResponses = ref<Record<string, ScriptAssistContext>>({})
 
 /** Derive current server context from active SSH session */
@@ -460,7 +460,7 @@ function injectTerminalText(text: string, serverInfo?: string) {
 }
 
 /** Send a managed script to the shared operations conversation and start generation immediately. */
-async function injectScriptContext(scriptName: string, content: string, prompt: string, scriptId?: string): Promise<boolean> {
+async function injectScriptContext(scriptName: string, content: string, prompt: string, scriptId?: string, mode: 'draft' | 'review' = 'draft'): Promise<boolean> {
   agentStore.switchAgent('ops')
   if (!modelStore.defaultConfig) {
     ElMessage.warning(t('ai.pleaseConfig'))
@@ -472,7 +472,7 @@ async function injectScriptContext(scriptName: string, content: string, prompt: 
   }
   inputText.value = `【脚本管理】${scriptName}\n\n\`\`\`sh\n${content || '# 待编写脚本'}\n\`\`\`\n\n${prompt}`
   userScrolledUp.value = false
-  await handleSend({ bypassRemediation: true, scriptAssist: { scriptId, scriptName, originalContent: content } })
+  await handleSend({ bypassRemediation: true, scriptAssist: { scriptId, scriptName, originalContent: content, mode } })
   return true
 }
 
