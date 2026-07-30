@@ -252,7 +252,7 @@ onMounted(() => {
 .script-list-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; } small { overflow: hidden; color: $color-text-placeholder; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; } }
 .script-risk-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; flex-shrink: 0; &.change, &.unknown { background: $color-warning; } &.high_risk { background: $color-danger; } }
 
-.script-workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.script-workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; container-name: script-workspace; }
 .script-page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; flex-shrink: 0; }
 .script-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid $color-border-light; border-radius: 8px; background: $color-bg-input;
   button { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 5px 10px; border-radius: 6px; background: transparent; color: $color-text-secondary; cursor: pointer; font: inherit; font-size: 11px; &.active { background: $color-bg-active; color: $color-primary; font-weight: 650; } }
@@ -262,7 +262,7 @@ onMounted(() => {
 
 .script-editor-view { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 270px; min-height: 0; overflow: hidden; }
 .script-editor-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 16px; }
-.script-form-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }.script-form-fields { flex: 1; display: grid; gap: 7px; min-width: 0; }.script-form-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.script-form-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-bottom: 12px; }.script-form-fields { flex: 1 1 360px; display: grid; gap: 7px; min-width: 0; }.script-form-actions { flex: 0 0 auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
 .script-name-input :deep(.el-input__inner) { font-size: 16px; font-weight: 700; color: $color-text-primary; }.script-description-input :deep(.el-input__inner) { color: $color-text-secondary; }
 .script-editor-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; color: $color-text-secondary; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .5px; }.script-language { color: $color-primary; font-family: $font-family-mono; }
 .script-editor { flex: 1; min-height: 250px; resize: none; padding: 13px; border: 1px solid $color-border; border-radius: 9px; outline: none; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; tab-size: 2; &:focus { border-color: $color-primary; box-shadow: 0 0 0 2px $color-bg-active; } }
@@ -276,4 +276,5 @@ onMounted(() => {
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 238px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
 @media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
 @media (max-width: 560px) { .script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
+@container script-workspace (max-width: 760px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; } }
 </style>
