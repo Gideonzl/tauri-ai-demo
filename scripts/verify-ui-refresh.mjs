@@ -23,6 +23,7 @@ const opsEmptyState = readFileSync(resolve(root, 'src/components/OpsEmptyState.v
 const systemMonitor = readFileSync(resolve(root, 'src/components/SystemMonitor.vue'), 'utf8')
 const overviewPanel = readFileSync(resolve(root, 'src/views/ops/OverviewPanel.vue'), 'utf8')
 const alertsPanel = readFileSync(resolve(root, 'src/views/ops/AlertsPanel.vue'), 'utf8')
+const alertsStore = readFileSync(resolve(root, 'src/stores/alerts.ts'), 'utf8')
 const servicePanel = readFileSync(resolve(root, 'src/views/ops/ServicePanel.vue'), 'utf8')
 const scriptAutomationView = readFileSync(resolve(root, 'src/views/ScriptAutomationView.vue'), 'utf8')
 const scriptAutomationStore = readFileSync(resolve(root, 'src/stores/scriptAutomation.ts'), 'utf8')
@@ -214,6 +215,10 @@ assertIncludes(scriptAutomationStore, 'resolveApproval', '脚本管理必须支�
 assertIncludes(scriptAutomationView, 'script-approvals-view', '脚本管理必须提供审批队列页面')
 assertIncludes(scriptAutomationView, 'approval-actions', '待审批脚本必须提供通过和驳回操作')
 assertIncludes(scriptAutomationView, 'approvalHint', '审批页面必须明确审批不绕过命令安全边界')
+assertIncludes(scriptAutomationStore, 'reportScriptFailure', '计划任务连续失败必须接入告警中心')
+assertIncludes(alertsStore, 'reportScriptFailure', '告警中心必须支持脚本计划连续失败事件')
+assertIncludes(alertsPanel, 'metricScript', '告警中心必须可读地展示脚本计划告警')
+assertIncludes(alertsPanel, 'scriptScheduleFailure', '告警中心必须说明计划任务连续失败原因')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

@@ -7,7 +7,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { sshExec } from '@/api/tauri'
 
-export type AlertMetric = 'cpu' | 'mem' | 'disk' | 'load'
+export type AlertMetric = 'cpu' | 'mem' | 'disk' | 'load' | 'script'
 export type Severity = 'critical' | 'warning'
 
 export interface AlertRule {
@@ -106,6 +106,18 @@ export const useAlertStore = defineStore('alerts', () => {
     }
   }
 
+  /** Adds a persistent-in-session alert for a schedule that keeps failing. */
+  function reportScriptFailure(scheduleId: string, scriptName: string, failures: number) {
+    if (failures < 2) return
+    const recent = events.value.find(event => event.serverId === scheduleId && event.metric === 'script' && Date.now() - event.ts < 60_000)
+    if (recent) return
+    events.value.unshift({
+      id: `a-${Date.now()}-${_seq++}`, ts: Date.now(), serverId: scheduleId, serverName: scriptName,
+      metric: 'script', value: failures, threshold: 2, severity: 'critical', read: false,
+    })
+    if (events.value.length > 100) events.value = events.value.slice(0, 100)
+  }
+
   async function tick(sessionId: string, serverId: string, serverName: string) {
     if (!sessionId) return
     const m = await sampleMetrics(sessionId)
@@ -126,5 +138,5 @@ export const useAlertStore = defineStore('alerts', () => {
   function clearEvents() { events.value = [] }
   function resetRules() { rules.value = JSON.parse(JSON.stringify(DEFAULT_RULES)); saveRules() }
 
-  return { rules, events, watching, currentSample, unreadCount, saveRules, startWatch, stopWatch, markAllRead, clearEvents, resetRules }
+  return { rules, events, watching, currentSample, unreadCount, saveRules, startWatch, stopWatch, reportScriptFailure, markAllRead, clearEvents, resetRules }
 })

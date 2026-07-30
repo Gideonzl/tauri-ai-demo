@@ -77,7 +77,7 @@
               <span v-if="!ev.read" class="ap-ev-unread" :title="t('ops.unreadAlerts')"></span>
             </div>
             <div class="ap-ev-msg">
-              {{ t('ops.alertTriggered', { metric: metricLabel(ev.metric), value: valueLabel(ev), threshold: thresholdLabel(ev) }) }}
+              {{ eventMessage(ev) }}
             </div>
             <div class="ap-ev-footer">
               <span class="ap-ev-time">{{ formatTime(ev.ts) }}</span>
@@ -105,15 +105,19 @@ const { t } = useLocale()
 const liveSample = computed(() => store.currentSample)
 
 function metricLabel(m: AlertMetric): string {
-  return { cpu: t('ops.metricCpu'), mem: t('ops.metricMem'), disk: t('ops.metricDisk'), load: t('ops.metricLoad') }[m]
+  return { cpu: t('ops.metricCpu'), mem: t('ops.metricMem'), disk: t('ops.metricDisk'), load: t('ops.metricLoad'), script: t('ops.metricScript') }[m]
 }
 
 function severityLabel(severity: Severity): string {
   return severity === 'critical' ? t('ops.sevCritical') : t('ops.sevWarning')
 }
 
-function valueLabel(ev: AlertEvent): string { return `${ev.value}${ev.metric === 'load' ? '' : '%'}` }
-function thresholdLabel(ev: AlertEvent): string { return `${ev.threshold}${ev.metric === 'load' ? '' : '%'}` }
+function valueLabel(ev: AlertEvent): string { return ev.metric === 'script' ? t('ops.failureCount', { n: ev.value }) : `${ev.value}${ev.metric === 'load' ? '' : '%'}` }
+function thresholdLabel(ev: AlertEvent): string { return ev.metric === 'script' ? t('ops.failureCount', { n: ev.threshold }) : `${ev.threshold}${ev.metric === 'load' ? '' : '%'}` }
+function eventMessage(ev: AlertEvent): string {
+  if (ev.metric === 'script') return t('ops.scriptScheduleFailure', { n: ev.value })
+  return t('ops.alertTriggered', { metric: metricLabel(ev.metric), value: valueLabel(ev), threshold: thresholdLabel(ev) })
+}
 
 function toggleWatch() {
   if (store.watching) store.stopWatch()

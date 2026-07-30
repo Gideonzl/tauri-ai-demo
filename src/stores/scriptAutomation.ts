@@ -6,6 +6,7 @@ import { resolveSession, releaseSession } from '@/utils/ops-connect'
 import { classifyCommand } from '@/utils/ops-permission'
 import { isValidCron, nextCronTime } from '@/utils/script-cron'
 import { extractScriptParameters } from '@/utils/script-parameters'
+import { useAlertStore } from '@/stores/alerts'
 
 export type ScriptRunStatus = 'running' | 'success' | 'failed' | 'skipped'
 
@@ -280,6 +281,8 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     if (schedule.lastStatus === 'failed') {
       schedule.consecutiveFailures = (schedule.consecutiveFailures || 0) + 1
       schedule.lastError = `有 ${summary.failed} 个目标执行失败`
+      const scriptName = scripts.value.find(script => script.id === schedule.scriptId)?.name || '已删除脚本'
+      useAlertStore().reportScriptFailure(schedule.id, scriptName, schedule.consecutiveFailures)
       const canRetry = !isRetry && (schedule.retryAttempt || 0) < MAX_SCHEDULE_RETRIES
       schedule.retryAt = canRetry ? Date.now() + SCHEDULE_RETRY_DELAY : null
       schedule.retryAttempt = canRetry ? (schedule.retryAttempt || 0) + 1 : 0
