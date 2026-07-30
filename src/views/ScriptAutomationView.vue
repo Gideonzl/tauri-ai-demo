@@ -1,6 +1,6 @@
 <template>
-  <div class="script-page">
-    <aside class="script-library">
+  <div ref="scriptPageRef" class="script-page">
+    <aside class="script-library" :style="{ '--script-library-width': `${libraryWidth}px` }">
       <div class="script-library-head">
         <div>
           <span class="script-eyebrow">AUTOMATION STUDIO</span>
@@ -28,6 +28,15 @@
         <OpsEmptyState v-if="!scriptStore.scripts.length" :icon="Document" :title="t('scripts.emptyScripts')" />
       </div>
     </aside>
+
+    <div
+      class="script-library-resize"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-label="t('scripts.resizeLibrary')"
+      @pointerdown="onLibraryResizeStart"
+      @dblclick="resetLibraryWidth"
+    ><span></span></div>
 
     <main class="script-workspace">
       <header class="script-page-head ops-toolbar">
@@ -177,6 +186,8 @@ const focusEditorOpen = ref(false)
 const focusEditorRef = ref<HTMLTextAreaElement>()
 const editorViewRef = ref<HTMLElement>()
 const targetPanelWidth = ref(260)
+const scriptPageRef = ref<HTMLElement>()
+const libraryWidth = ref(258)
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size && currentRisk.value === 'read_only'))
@@ -228,6 +239,24 @@ function onTargetResizeStart(event: PointerEvent) {
   const maxWidth = Math.max(210, editorWidth - 270)
   const onMove = (moveEvent: PointerEvent) => {
     targetPanelWidth.value = Math.min(maxWidth, Math.max(210, startWidth - (moveEvent.clientX - startX)))
+  }
+  const onEnd = () => {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onEnd)
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onEnd, { once: true })
+}
+
+function resetLibraryWidth() { libraryWidth.value = 258 }
+function onLibraryResizeStart(event: PointerEvent) {
+  const pageWidth = scriptPageRef.value?.clientWidth || 0
+  if (pageWidth < 620 || window.matchMedia('(max-width: 820px)').matches) return
+  const startX = event.clientX
+  const startWidth = libraryWidth.value
+  const maxWidth = Math.min(440, Math.max(200, pageWidth - 400))
+  const onMove = (moveEvent: PointerEvent) => {
+    libraryWidth.value = Math.min(maxWidth, Math.max(200, startWidth + (moveEvent.clientX - startX)))
   }
   const onEnd = () => {
     window.removeEventListener('pointermove', onMove)
@@ -292,7 +321,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .script-page { display: flex; height: 100%; min-height: 0; overflow: hidden; background: $shell-workspace-bg; }
-.script-library { width: 258px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid $color-border-light; background: $color-bg-surface; }
+.script-library { width: var(--script-library-width, 258px); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid $color-border-light; background: $color-bg-surface; }
 .script-library-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 16px 14px 10px;
   h2 { margin: 3px 0 0; color: $color-text-primary; font-size: 17px; line-height: 1.2; }
 }
@@ -307,6 +336,7 @@ onMounted(() => {
 .script-file-icon { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: $color-primary; background: $color-bg-active; flex-shrink: 0; }
 .script-list-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; } small { overflow: hidden; color: $color-text-placeholder; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; } }
 .script-risk-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; flex-shrink: 0; &.change, &.unknown { background: $color-warning; } &.high_risk { background: $color-danger; } }
+.script-library-resize { flex: 0 0 9px; display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; background: $color-bg-surface; &:hover, &:active { background: $color-bg-active; } span { width: 2px; height: 44px; border-radius: 99px; background: $color-border; transition: height .16s ease, background .16s ease; } &:hover span, &:active span { height: 62px; background: $color-primary; } }
 
 .script-workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; container-name: script-workspace; }
 .script-page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; flex-shrink: 0; }
@@ -317,8 +347,8 @@ onMounted(() => {
 .script-head-status { display: inline-flex; align-items: center; gap: 5px; color: $color-success; font-size: 10px; span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px $color-bg-success-hover; } }
 
 .script-editor-view { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 9px var(--script-target-panel-width, 260px); min-height: 0; overflow: hidden; }
-.script-editor-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 16px; }
-.script-form-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-bottom: 12px; }.script-form-fields { flex: 1 1 360px; display: grid; gap: 7px; min-width: 0; }.script-form-actions { flex: 0 0 auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+.script-editor-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 16px; container-type: inline-size; container-name: script-editor; }
+.script-form-head { display: flex; flex-direction: column; gap: 12px; align-items: stretch; margin-bottom: 12px; }.script-form-fields { display: grid; gap: 7px; min-width: 0; }.script-form-actions { display: flex; width: 100%; max-width: 100%; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }.script-form-actions :deep(.el-button) { margin: 0; }
 .script-name-input :deep(.el-input__inner) { font-size: 16px; font-weight: 700; color: $color-text-primary; }.script-description-input :deep(.el-input__inner) { color: $color-text-secondary; }
 .script-editor-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; color: $color-text-secondary; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .5px; }.script-language { color: $color-primary; font-family: $font-family-mono; }
 .script-editor { flex: 1; min-height: 250px; resize: none; padding: 13px; border: 1px solid $color-border; border-radius: 9px; outline: none; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; tab-size: 2; &:focus { border-color: $color-primary; box-shadow: 0 0 0 2px $color-bg-active; } }
@@ -332,9 +362,10 @@ onMounted(() => {
 .history-summary { display: flex; justify-content: space-between; gap: 8px; padding: 11px 13px; color: $color-text-primary; font-size: 13px; font-weight: 650; small { color: $color-text-placeholder; font-size: 10px; font-weight: 400; } }.script-log-list { display: grid; gap: 7px; margin-top: 12px; }.script-log { overflow: hidden; &.success { border-left: 3px solid $color-success; } &.failed { border-left: 3px solid $color-danger; } &.skipped { border-left: 3px solid $color-text-muted; } }.script-log-head { display: flex; align-items: center; gap: 7px; padding: 9px 11px; b { color: $color-text-primary; font-size: 12px; }.script-log-server { color: $color-text-secondary; font-size: 10px; }.script-log-badge { padding: 1px 5px; border-radius: 4px; color: $color-text-secondary; background: $color-bg-hover; font-size: 9px; }.script-log-time { margin-left: auto; color: $color-text-placeholder; font: 9px $font-family-mono; }.script-log-status { width: 7px; height: 7px; border-radius: 50%; background: $color-warning; }.success .script-log-status { background: $color-success; }.failed .script-log-status { background: $color-danger; } button { border: 0; background: transparent; color: $color-text-secondary; cursor: pointer; } }.script-log p, .script-log pre { margin: 0; padding: 8px 11px; border-top: 1px solid $color-border-light; color: $color-text-secondary; font: 10px/1.5 $font-family-mono; }.script-log p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.script-log pre { max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: $color-text-regular; }
 
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 9px 230px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
-@media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
+@media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-library-resize { display: none; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
 @media (max-width: 560px) { .script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
 @container script-workspace (max-width: 480px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; } }
+@container script-editor (max-width: 420px) { .script-form-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.script-form-actions :deep(.el-button) { width: 100%; min-width: 0; padding-inline: 6px; font-size: 10px; }.script-form-actions .script-focus-button { grid-column: 1 / -1; padding-inline: 10px; font-size: 11px; } }
 :deep(.script-focus-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
 .focus-editor-hint { margin: 0 0 13px; color: $color-text-secondary; font-size: 12px; }.focus-editor-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 10px; }.focus-editor-label { display: flex; justify-content: space-between; margin: 15px 0 6px; color: $color-text-secondary; font-size: 11px; font-weight: 650; span:last-child { color: $color-primary; font-family: $font-family-mono; } }.focus-script-editor { display: block; box-sizing: border-box; width: 100%; height: min(58vh, 620px); min-height: 360px; resize: vertical; padding: 15px; border: 1px solid $color-border; border-radius: 9px; outline: none; background: $color-bg-input; color: $color-text-primary; font: 13px/1.7 $font-family-mono; &:focus { border-color: $color-primary; box-shadow: 0 0 0 2px $color-bg-active; } }
 @media (max-width: 640px) { .focus-editor-fields { grid-template-columns: 1fr; }.focus-script-editor { min-height: 280px; } }

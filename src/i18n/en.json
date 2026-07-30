@@ -223,6 +223,7 @@
       "focusEditTitle": "Focus script editor",
       "focusEditHint": "Use the larger editor to refine this script, then save it to the local library.",
       "resizeTargets": "Drag horizontally to resize the execution targets panel",
+      "resizeLibrary": "Drag horizontally to resize the script library",
       "aiDraftPrompt": "Based on this script name and description, draft a safe runnable Shell script. Include essential error handling and explain any risks.",
     "aiReviewPrompt": "Review this Shell script: explain its behavior, identify security or compatibility risks, and provide a safer improved version.",
     "aiUnavailable": "The right AI assistant is unavailable",
