@@ -49,11 +49,24 @@ export interface ScriptRunLog {
 }
 export interface ScriptVersion { id: string; scriptId: string; name: string; description: string; content: string; tags: string[]; createdAt: number }
 export interface ScriptExecutionSummary { attempted: boolean; total: number; success: number; failed: number; skipped: number }
+export type ScriptApprovalStatus = 'pending' | 'approved' | 'rejected'
+export interface ScriptApproval {
+  id: string
+  scriptId: string
+  scriptName: string
+  content: string
+  risk: ReturnType<typeof classifyCommand>['risk']
+  status: ScriptApprovalStatus
+  requestedAt: number
+  reviewedAt?: number
+  comment?: string
+}
 
 const SCRIPTS_KEY = 'script-automation-scripts'
 const SCHEDULES_KEY = 'script-automation-schedules'
 const LOGS_KEY = 'script-automation-logs'
 const VERSIONS_KEY = 'script-automation-versions'
+const APPROVALS_KEY = 'script-automation-approvals'
 const MAX_LOGS = 200
 const MAX_VERSIONS_PER_SCRIPT = 30
 const SCHEDULE_RETRY_DELAY = 60_000
@@ -92,6 +105,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   const schedules = ref<ScriptSchedule[]>(readStored(SCHEDULES_KEY, []))
   const runLogs = ref<ScriptRunLog[]>(readStored(LOGS_KEY, []))
   const versions = ref<ScriptVersion[]>(readStored(VERSIONS_KEY, []))
+  const approvals = ref<ScriptApproval[]>(readStored(APPROVALS_KEY, []))
   const runningScriptIds = ref<string[]>([])
   const initialized = ref(false)
 
@@ -102,7 +116,9 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   function saveSchedules() { try { localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules.value)) } catch {} }
   function saveLogs() { try { localStorage.setItem(LOGS_KEY, JSON.stringify(runLogs.value.slice(0, MAX_LOGS))) } catch {} }
   function saveVersions() { try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions.value)) } catch {} }
+  function saveApprovals() { try { localStorage.setItem(APPROVALS_KEY, JSON.stringify(approvals.value)) } catch {} }
   function versionsFor(scriptId: string) { return versions.value.filter(item => item.scriptId === scriptId).sort((a, b) => b.createdAt - a.createdAt) }
+  function approvalsFor(scriptId: string) { return approvals.value.filter(item => item.scriptId === scriptId).sort((a, b) => b.requestedAt - a.requestedAt) }
 
   function upsertScript(input: Omit<ManagedScript, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ManagedScript {
     const now = Date.now()
@@ -134,13 +150,38 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     scripts.value = scripts.value.filter(script => script.id !== scriptId)
     schedules.value = schedules.value.filter(schedule => schedule.scriptId !== scriptId)
     versions.value = versions.value.filter(version => version.scriptId !== scriptId)
-    saveScripts(); saveSchedules(); saveVersions()
+    approvals.value = approvals.value.filter(approval => approval.scriptId !== scriptId)
+    saveScripts(); saveSchedules(); saveVersions(); saveApprovals()
   }
 
   function restoreVersion(versionId: string): ManagedScript | undefined {
     const version = versions.value.find(item => item.id === versionId)
     if (!version) return undefined
     return upsertScript({ id: version.scriptId, name: version.name, description: version.description, content: version.content, tags: version.tags })
+  }
+
+  function submitApproval(scriptId: string): ScriptApproval {
+    const script = scripts.value.find(item => item.id === scriptId)
+    if (!script) throw new Error('Script not found')
+    const existing = approvals.value.find(item => item.scriptId === scriptId && item.content === script.content && item.status === 'pending')
+    if (existing) return existing
+    const approval: ScriptApproval = {
+      id: createId('script-approval'), scriptId, scriptName: script.name, content: script.content,
+      risk: classifyCommand(script.content).risk, status: 'pending', requestedAt: Date.now(),
+    }
+    approvals.value.unshift(approval)
+    saveApprovals()
+    return approval
+  }
+
+  function resolveApproval(approvalId: string, status: Exclude<ScriptApprovalStatus, 'pending'>, comment = ''): ScriptApproval | undefined {
+    const approval = approvals.value.find(item => item.id === approvalId && item.status === 'pending')
+    if (!approval) return undefined
+    approval.status = status
+    approval.comment = comment.trim() || undefined
+    approval.reviewedAt = Date.now()
+    saveApprovals()
+    return approval
   }
 
   function saveSchedule(input: Omit<ScriptSchedule, 'id' | 'nextRunAt' | 'lastRunAt'> & { id?: string }): ScriptSchedule {
@@ -331,8 +372,8 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   function stopScheduler() { if (schedulerTimer) window.clearInterval(schedulerTimer); schedulerTimer = null; initialized.value = false }
 
   return {
-    scripts, schedules, runLogs: recentLogs, versions, versionsFor, runningScriptIds, runningCount,
-    upsertScript, removeScript, restoreVersion, saveSchedule, removeSchedule, setScheduleEnabled, runScheduleNow,
+    scripts, schedules, runLogs: recentLogs, versions, versionsFor, approvals, approvalsFor, runningScriptIds, runningCount,
+    upsertScript, removeScript, restoreVersion, submitApproval, resolveApproval, saveSchedule, removeSchedule, setScheduleEnabled, runScheduleNow,
     executeScript, init, stopScheduler,
   }
 })

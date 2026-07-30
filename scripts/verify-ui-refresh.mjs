@@ -209,6 +209,11 @@ assertIncludes(scriptAutomationStore, 'Scripts with parameters require manual in
 assertIncludes(scriptAutomationView, 'executionPreviewOpen', '脚本执行前必须打开预览确认框')
 assertIncludes(scriptAutomationView, 'renderedScriptContent', '执行预览必须展示参数替换后的最终命令')
 assertIncludes(scriptAutomationView, 'renderedCommandBlocked', '最终命令风险升级时必须阻止执行')
+assertIncludes(scriptAutomationStore, 'submitApproval', '脚本管理必须支持提交审批')
+assertIncludes(scriptAutomationStore, 'resolveApproval', '脚本管理必须支持审批通过和驳回')
+assertIncludes(scriptAutomationView, 'script-approvals-view', '脚本管理必须提供审批队列页面')
+assertIncludes(scriptAutomationView, 'approval-actions', '待审批脚本必须提供通过和驳回操作')
+assertIncludes(scriptAutomationView, 'approvalHint', '审批页面必须明确审批不绕过命令安全边界')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')
