@@ -108,6 +108,11 @@
           ></div>
           <div v-if="msg.isStreaming" class="streaming-cursor">_</div>
           <div v-if="msg.error" class="message-error">{{ msg.error }}</div>
+          <div v-if="msg.role === 'assistant' && scriptAssistResponses[msg.id]" class="script-assist-action">
+            <el-button size="small" type="primary" plain @click="deliverScriptAssist(msg.id, msg.content)">
+              {{ t('scripts.applyAiResult') }}
+            </el-button>
+          </div>
         </div>
       </div>
 
@@ -267,6 +272,9 @@ const inputText = ref('')
 const messageListRef = ref<HTMLElement>()
 const userScrolledUp = ref(false)
 let currentStream: StreamControl | null = null
+
+type ScriptAssistContext = { scriptId?: string; scriptName: string; originalContent: string }
+const scriptAssistResponses = ref<Record<string, ScriptAssistContext>>({})
 
 /** Derive current server context from active SSH session */
 const serverContext = computed<ServerContext | null>(() => {
@@ -452,7 +460,7 @@ function injectTerminalText(text: string, serverInfo?: string) {
 }
 
 /** Send a managed script to the shared operations conversation and start generation immediately. */
-async function injectScriptContext(scriptName: string, content: string, prompt: string): Promise<boolean> {
+async function injectScriptContext(scriptName: string, content: string, prompt: string, scriptId?: string): Promise<boolean> {
   agentStore.switchAgent('ops')
   if (!modelStore.defaultConfig) {
     ElMessage.warning(t('ai.pleaseConfig'))
@@ -464,8 +472,15 @@ async function injectScriptContext(scriptName: string, content: string, prompt: 
   }
   inputText.value = `【脚本管理】${scriptName}\n\n\`\`\`sh\n${content || '# 待编写脚本'}\n\`\`\`\n\n${prompt}`
   userScrolledUp.value = false
-  await handleSend({ bypassRemediation: true })
+  await handleSend({ bypassRemediation: true, scriptAssist: { scriptId, scriptName, originalContent: content } })
   return true
+}
+
+function deliverScriptAssist(messageId: string, response: string) {
+  const context = scriptAssistResponses.value[messageId]
+  if (!context) return
+  window.dispatchEvent(new CustomEvent('aiterminal:script-ai-response', { detail: { ...context, response } }))
+  ElMessage.success(t('scripts.aiResultReady'))
 }
 
 defineExpose({ injectFilePath, injectFileContent, injectTerminalText, injectScriptContext })
@@ -497,7 +512,7 @@ function onScroll() {
   userScrolledUp.value = el.scrollTop + el.clientHeight < el.scrollHeight - 60
 }
 
-async function handleSend(options: { bypassRemediation?: boolean } = {}) {
+async function handleSend(options: { bypassRemediation?: boolean; scriptAssist?: ScriptAssistContext } = {}) {
   const text = inputText.value.trim()
   if (!text) return
   if (!modelStore.defaultConfig) {
@@ -522,6 +537,7 @@ async function handleSend(options: { bypassRemediation?: boolean } = {}) {
   userScrolledUp.value = false
   scrollToBottom()
   chatStore.startStreaming(agentStore.activeAgentId)
+  const streamingMessageId = messages.value.find(message => message.isStreaming)?.id
 
   const chatMessages = messages.value
     .filter((m: { isStreaming?: boolean; error?: string; role: string; content: string }) => !m.isStreaming && !m.error)
@@ -535,6 +551,9 @@ async function handleSend(options: { bypassRemediation?: boolean } = {}) {
       scrollToBottom()
     },
     () => {
+      if (options.scriptAssist && streamingMessageId) {
+        scriptAssistResponses.value = { ...scriptAssistResponses.value, [streamingMessageId]: options.scriptAssist }
+      }
       chatStore.finishStreaming(agentStore.activeAgentId)
       currentStream = null
     },
@@ -1152,6 +1171,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
   line-height: 1.62;
   color: $color-text-primary;
 }
+.script-assist-action { display: flex; margin-top: 10px; }
 
 .message-error {
   margin-top: $spacing-xs;
