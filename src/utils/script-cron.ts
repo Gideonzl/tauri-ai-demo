@@ -62,3 +62,18 @@ export function nextCronTime(expression: string, from = Date.now()): number | nu
   }
   return null
 }
+
+/** Returns the next scheduled occurrences, starting strictly after `from`. */
+export function nextCronTimes(expression: string, count = 5, from = Date.now()): number[] {
+  if (!Number.isInteger(count) || count < 1 || !isValidCron(expression)) return []
+
+  const times: number[] = []
+  let cursor = from
+  for (let index = 0; index < count; index += 1) {
+    const next = nextCronTime(expression, cursor)
+    if (!next) break
+    times.push(next)
+    cursor = next
+  }
+  return times
+}

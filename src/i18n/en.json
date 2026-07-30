@@ -294,6 +294,8 @@
     "scheduleScriptRequired": "Select a script to schedule",
     "cronExpression": "Cron expression",
     "cronHint": "Use five-field Cron. For example, 0 * * * * runs at the top of every hour.",
+    "schedulePreview": "Next 5 runs",
+    "schedulePreviewInvalid": "Enter a valid five-field Cron expression first.",
     "createSchedule": "Create schedule",
     "invalidCron": "Invalid Cron expression. Use five fields.",
     "scheduleReadonlyOnly": "Only read-only scripts can be scheduled",
