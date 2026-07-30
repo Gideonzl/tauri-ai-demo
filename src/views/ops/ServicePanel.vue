@@ -7,6 +7,10 @@
         <span class="svc-servers-title">{{ t('ops.svcSelectServers') }}</span>
         <el-button size="small" text @click="toggleAll">{{ t('ops.batchSelectAll') }}</el-button>
       </div>
+      <div class="svc-selection-summary">
+        <span><i></i>{{ t('ops.svcSelected', { n: selected.size }) }}</span>
+        <span>{{ t('ops.svcConnected', { n: connectedCount }) }}</span>
+      </div>
       <div class="svc-server-list">
         <label v-for="s in sshStore.servers" :key="s.id" class="svc-server-item" :class="{ checked: selected.has(s.id) }">
           <input type="checkbox" :checked="selected.has(s.id)" @change="toggle(s.id)" />
@@ -55,8 +59,17 @@
         <!-- 服务总览矩阵 -->
         <div class="svc-overview">
           <div class="svc-ov-head">
-            <span class="svc-ov-title">{{ t('ops.svcOverview') }}</span>
+            <div>
+              <span class="svc-ov-title">{{ t('ops.svcOverview') }}</span>
+              <span class="svc-ov-subtitle">{{ t('ops.svcChecked', { servers: store.reports.length, services: matrixCols.length }) }}</span>
+            </div>
             <el-icon class="svc-explain-btn" :class="{ active: showLegend }" :title="t('ops.svcExplain')" @click="showLegend = !showLegend"><QuestionFilled /></el-icon>
+          </div>
+          <div class="svc-status-summary">
+            <span class="running"><i></i>{{ serviceSummary.running }} {{ t('ops.svcStatusRunning') }}</span>
+            <span class="degraded"><i></i>{{ serviceSummary.degraded }} {{ t('ops.svcStatusDegraded') }}</span>
+            <span class="stopped"><i></i>{{ serviceSummary.stopped }} {{ t('ops.svcStatusStopped') }}</span>
+            <span class="absent"><i></i>{{ serviceSummary.absent }} {{ t('ops.svcAbsent') }}</span>
           </div>
           <!-- 隐藏式状态说明 -->
           <transition name="legend">
@@ -76,10 +89,10 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="rep in store.reports" :key="rep.serverId">
+                <tr v-for="rep in sortedReports" :key="rep.serverId">
                   <td class="mx-server">{{ rep.serverName }}</td>
                   <td v-for="col in matrixCols" :key="col.id" class="mx-cell">
-                    <span class="mx-dot" :class="cellStatus(rep, col.id)" :title="cellTitle(rep, col.id)"></span>
+                    <span class="mx-dot" :class="cellStatus(rep, col.id)" :title="cellTitle(rep, col.id)" :aria-label="cellTitle(rep, col.id)"></span>
                   </td>
                 </tr>
               </tbody>
@@ -88,12 +101,20 @@
         </div>
 
         <!-- 每台服务器详情 -->
-        <div v-for="rep in store.reports" :key="rep.serverId" class="svc-server-card">
-          <div class="svc-card-head">
+        <div v-for="rep in sortedReports" :key="rep.serverId" class="svc-server-card" :class="{ flagged: reportIssueCount(rep) > 0, failed: rep.status === 'failed' }">
+          <button type="button" class="svc-card-head" @click="toggleServer(rep.serverId)">
             <span class="svc-conn-dot" :class="rep.status === 'done' ? 'connected' : rep.status === 'failed' ? 'error' : 'connecting'"></span>
             <span class="svc-card-name">{{ rep.serverName }}</span>
-          </div>
-          <div class="svc-list">
+            <span class="svc-card-meta">{{ reportIssueCount(rep) ? t('ops.svcIssues', { n: reportIssueCount(rep) }) : t('ops.svcHealthy') }}</span>
+            <span class="svc-card-summary">
+              <i class="running">{{ reportCounts(rep).running }}</i>
+              <i class="degraded">{{ reportCounts(rep).degraded + reportCounts(rep).stopped }}</i>
+              <i class="absent">{{ reportCounts(rep).absent }}</i>
+            </span>
+            <el-icon :size="14" class="svc-card-toggle"><ArrowUp v-if="isServerExpanded(rep.serverId)" /><ArrowDown v-else /></el-icon>
+          </button>
+          <div v-if="rep.status === 'failed' && isServerExpanded(rep.serverId)" class="svc-card-error">{{ t('ops.svcCheckFailed') }}</div>
+          <div v-else-if="isServerExpanded(rep.serverId)" class="svc-list">
             <div v-for="svc in rep.services" :key="svc.serviceId" class="svc-item" :class="{ absent: !svc.present }">
               <div class="svc-item-head">
                 <span class="svc-status-dot" :class="svc.present ? svc.status : 'absent'"></span>
@@ -111,7 +132,7 @@
 
         <!-- AI 分析 -->
         <div v-if="aiText || aiRunning" class="svc-ai">
-          <div class="svc-ai-head">{{ t('ops.aiReport') }}</div>
+          <div class="svc-ai-head"><span>{{ t('ops.aiReport') }}</span><button type="button" class="svc-ai-close" :title="t('common.close')" @click="dismissAi"><el-icon :size="15"><Close /></el-icon></button></div>
           <div class="svc-ai-body markdown-body" v-html="renderedAi"></div>
         </div>
       </div>
@@ -126,8 +147,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { Close, ChatDotRound, DocumentCopy, Coin, Plus, QuestionFilled } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ArrowDown, ArrowUp, Close, ChatDotRound, DocumentCopy, Coin, Plus, QuestionFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useSshStore } from '@/stores/ssh'
 import { useServiceOpsStore, SERVICE_CATALOG } from '@/stores/serviceOps'
@@ -189,12 +210,48 @@ const aiRunning = ref(false)
 const aiText = ref('')
 const showLegend = ref(false)
 const renderedAi = computed(() => renderMarkdown(aiText.value))
+const expandedServers = reactive(new Set<string>())
+const connectedCount = computed(() => new Set(
+  sshStore.sessions.filter(session => session.status === 'connected' && session.realSessionId).map(session => session.serverId),
+).size)
 
 // 矩阵列 = 选中服务 + 自定义端口
 const matrixCols = computed(() => [
   ...catalog.filter(c => services.has(c.id)),
   ...customPorts.value.map(p => ({ id: `port-${p}`, name: `:${p}`, color: '#7a8a9e' })),
 ])
+
+type ServiceSummary = { running: number; degraded: number; stopped: number; absent: number }
+
+function reportCounts(rep: ServerServiceReport): ServiceSummary {
+  return rep.services.reduce<ServiceSummary>((counts, service) => {
+    if (!service.present) counts.absent += 1
+    else if (service.status === 'running') counts.running += 1
+    else if (service.status === 'degraded') counts.degraded += 1
+    else counts.stopped += 1
+    return counts
+  }, { running: 0, degraded: 0, stopped: 0, absent: 0 })
+}
+
+function reportIssueCount(rep: ServerServiceReport): number {
+  const counts = reportCounts(rep)
+  return counts.degraded + counts.stopped + (rep.status === 'failed' ? 1 : 0)
+}
+
+const serviceSummary = computed(() => store.reports.reduce<ServiceSummary>((summary, rep) => {
+  const counts = reportCounts(rep)
+  summary.running += counts.running
+  summary.degraded += counts.degraded
+  summary.stopped += counts.stopped
+  summary.absent += counts.absent
+  return summary
+}, { running: 0, degraded: 0, stopped: 0, absent: 0 }))
+
+const sortedReports = computed(() => [...store.reports].sort((left, right) => {
+  const leftRank = left.status === 'failed' ? 0 : reportIssueCount(left) > 0 ? 1 : 2
+  const rightRank = right.status === 'failed' ? 0 : reportIssueCount(right) > 0 ? 1 : 2
+  return leftRank - rightRank || left.serverName.localeCompare(right.serverName)
+}))
 
 function toggle(id: string) { selected.has(id) ? selected.delete(id) : selected.add(id) }
 function toggleAll() { if (selected.size === sshStore.servers.length) selected.clear(); else sshStore.servers.forEach((s: any) => selected.add(s.id)) }
@@ -230,6 +287,12 @@ function cellTitle(rep: ServerServiceReport, svcId: string): string {
   if (!svc || !svc.present) return t('ops.svcAbsent')
   return statusText(svc.status)
 }
+function toggleServer(serverId: string) { expandedServers.has(serverId) ? expandedServers.delete(serverId) : expandedServers.add(serverId) }
+function isServerExpanded(serverId: string): boolean { return expandedServers.has(serverId) }
+function revealIssues() {
+  expandedServers.clear()
+  store.reports.forEach(rep => { if (reportIssueCount(rep) > 0) expandedServers.add(rep.serverId) })
+}
 
 async function run() {
   if (selected.size === 0 || (services.size === 0 && customPorts.value.length === 0)) {
@@ -237,6 +300,7 @@ async function run() {
   }
   store.running = true
   aiText.value = ''
+  expandedServers.clear()
   const targets = sshStore.servers.filter((s: any) => selected.has(s.id))
   const svcIds = Array.from(services)
   store.reports = targets.map((s: any) => ({ serverId: s.id, serverName: s.name, status: 'running' as const, services: [] }))
@@ -253,6 +317,7 @@ async function run() {
   }))
   store.running = false
   store.saveReports()
+  revealIssues()
 }
 
 async function analyze() {
@@ -276,15 +341,23 @@ function copyAll() {
   navigator.clipboard.writeText(store.buildAiPrompt())
   ElMessage.success(t('sftp.copied'))
 }
+
+function dismissAi() { aiText.value = ''; aiRunning.value = false }
+
+onMounted(() => revealIssues())
 </script>
 
 <style lang="scss" scoped>
-.svc-panel { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+.svc-panel { flex: 1; display: flex; overflow: hidden; min-height: 0; background: $shell-workspace-bg; }
 
 // 左侧服务器
-.svc-servers { width: 220px; flex-shrink: 0; border-right: 1px solid $color-border-light; display: flex; flex-direction: column; min-height: 0; }
-.svc-servers-head { display: flex; align-items: center; justify-content: space-between; padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light;
+.svc-servers { width: 230px; flex-shrink: 0; border-right: 1px solid $color-border-light; display: flex; flex-direction: column; min-height: 0; background: $color-bg-surface; }
+.svc-servers-head { display: flex; align-items: center; justify-content: space-between; padding: $spacing-sm $spacing-md 5px; border-bottom: 0;
   .svc-servers-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: $color-text-secondary; }
+}
+.svc-selection-summary { display: flex; justify-content: space-between; gap: 6px; padding: 0 $spacing-md $spacing-sm; border-bottom: 1px solid $color-border-light; color: $color-text-placeholder; font-size: 10px;
+  span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  i { width: 6px; height: 6px; border-radius: 50%; background: $color-primary; }
 }
 .svc-server-list { flex: 1; overflow-y: auto; padding: $spacing-xs; }
 .svc-server-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: $border-radius-sm; cursor: pointer; transition: background $transition-fast;
@@ -329,10 +402,15 @@ function copyAll() {
 
 // 总览矩阵
 .svc-overview { border-radius: $border-radius-md; background: $glass-bg; border: 1px solid $glass-border; box-shadow: $elevation-1; padding: $spacing-sm $spacing-md; }
-.svc-ov-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.svc-ov-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
 .svc-ov-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: $color-text-secondary; }
+.svc-ov-subtitle { display: block; margin-top: 3px; color: $color-text-placeholder; font-size: 10px; }
 .svc-explain-btn { cursor: pointer; color: $color-text-muted; transition: color $transition-fast;
   &:hover, &.active { color: $color-primary; }
+}
+.svc-status-summary { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 7px 0 10px; font-size: 10px; color: $color-text-secondary;
+  span { display: inline-flex; align-items: center; gap: 4px; } i { width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
+  .degraded i { background: $color-warning; } .stopped i { background: $color-danger; } .absent i { background: $color-border; }
 }
 .svc-legend { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; margin-bottom: 10px; border-radius: $border-radius-sm; background: $color-bg-hover; border: 1px solid $color-border-light; }
 .lg-item { display: flex; align-items: flex-start; gap: 8px; }
@@ -358,10 +436,20 @@ function copyAll() {
 }
 
 // 服务器详情卡
-.svc-server-card { border-radius: $border-radius-md; background: $glass-bg; border: 1px solid $glass-border; box-shadow: $elevation-1; overflow: hidden; animation: fade-in-up 0.25s ease; }
-.svc-card-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid $color-border-light;
-  .svc-card-name { font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; }
+.svc-server-card { border-radius: $border-radius-md; background: $glass-bg; border: 1px solid $glass-border; box-shadow: $elevation-1; overflow: hidden; animation: fade-in-up 0.25s ease;
+  &.flagged { border-left: 3px solid $color-warning; } &.failed { border-left-color: $color-danger; }
 }
+.svc-card-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 0; border-bottom: 1px solid $color-border-light; background: transparent; text-align: left; cursor: pointer; font: inherit;
+  &:hover { background: $color-bg-hover; }
+  .svc-card-name { font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+.svc-card-meta { margin-left: auto; color: $color-text-secondary; font-size: 10px; white-space: nowrap; }
+.svc-card-summary { display: inline-flex; align-items: center; gap: 4px;
+  i { min-width: 16px; padding: 1px 4px; border-radius: 4px; color: $color-success; background: $color-bg-success-hover; font-style: normal; text-align: center; font-family: $font-family-mono; font-size: 9px; }
+  .degraded { color: $color-warning; background: $color-bg-warning-hover; } .absent { color: $color-text-muted; background: $color-bg-input; }
+}
+.svc-card-toggle { color: $color-text-secondary; flex-shrink: 0; }
+.svc-card-error { padding: 12px; color: $color-danger; background: $color-bg-danger-hover; font-size: $font-size-xs; }
 .svc-list { display: flex; flex-direction: column; }
 .svc-item { padding: 8px 12px; border-bottom: 1px solid $color-border-light;
   &:last-child { border-bottom: none; } &.absent { opacity: 0.5; }
@@ -386,7 +474,10 @@ function copyAll() {
 }
 
 .svc-ai { border-radius: $border-radius-md; background: $glass-bg; border: 1px solid $glass-border; box-shadow: $elevation-1; overflow: hidden; }
-.svc-ai-head { padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light; font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; flex-shrink: 0; }
+.svc-ai-head { display: flex; align-items: center; justify-content: space-between; padding: $spacing-sm $spacing-md; border-bottom: 1px solid $color-border-light; font-size: $font-size-sm; font-weight: 600; color: $color-text-primary; flex-shrink: 0; }
+.svc-ai-close { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: $color-text-secondary; cursor: pointer;
+  &:hover { color: $color-danger; background: $color-bg-danger-hover; }
+}
 .svc-ai-body { padding: $spacing-md; font-size: $font-size-sm; line-height: 1.62; color: $color-text-primary; max-height: 46vh; overflow-y: auto;
   &::-webkit-scrollbar { width: 6px; } &::-webkit-scrollbar-thumb { background: $color-border; border-radius: 3px; }
 }
@@ -394,5 +485,19 @@ function copyAll() {
 .svc-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: $color-text-secondary;
   .el-icon { color: $color-text-muted; opacity: 0.4; } p { margin: 0; font-size: $font-size-sm; }
   .svc-tip { font-size: $font-size-xs; color: $color-text-placeholder; }
+}
+
+@media (max-width: 980px) {
+  .svc-panel { flex-direction: column; }
+  .svc-servers { width: auto; max-height: 215px; border-right: 0; border-bottom: 1px solid $color-border-light; }
+  .svc-server-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 3px; }
+}
+
+@media (max-width: 620px) {
+  .svc-toolbar { align-items: stretch; }
+  .svc-actions { justify-content: flex-end; }
+  .svc-card-meta { display: none; }
+  .svc-card-summary { margin-left: auto; }
+  .svc-status-summary { gap: 5px 9px; }
 }
 </style>

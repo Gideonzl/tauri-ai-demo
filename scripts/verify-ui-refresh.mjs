@@ -23,6 +23,7 @@ const opsEmptyState = readFileSync(resolve(root, 'src/components/OpsEmptyState.v
 const systemMonitor = readFileSync(resolve(root, 'src/components/SystemMonitor.vue'), 'utf8')
 const overviewPanel = readFileSync(resolve(root, 'src/views/ops/OverviewPanel.vue'), 'utf8')
 const alertsPanel = readFileSync(resolve(root, 'src/views/ops/AlertsPanel.vue'), 'utf8')
+const servicePanel = readFileSync(resolve(root, 'src/views/ops/ServicePanel.vue'), 'utf8')
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message)
@@ -196,5 +197,12 @@ assertIncludes(batchPanel, 'bp-result-counts', '批量执行必须聚合成功�
 assertIncludes(batchPanel, 'toggleOutput', '批量命令输出必须支持按服务器展开和收起')
 assertIncludes(batchPanel, 'bp-cmd-preview', '批量命令收起时必须保留输出摘要')
 assertIncludes(batchPanel, '@media (max-width: 980px)', '批量页必须在窄空间改为纵向服务器选择布局')
+assertIncludes(servicePanel, 'svc-selection-summary', '服务巡检页必须清楚展示已选服务器数量')
+assertIncludes(servicePanel, 'svc-status-summary', '服务巡检页必须汇总每种服务状态数量')
+assertIncludes(servicePanel, 'sortedReports', '服务巡检结果必须将异常服务器优先展示')
+assertIncludes(servicePanel, 'toggleServer', '服务巡检服务器详情必须支持展开和收起')
+assertIncludes(servicePanel, 'svc-card-error', '服务巡检失败必须提供可理解的错误状态')
+assertIncludes(servicePanel, 'svc-ai-close', '服务巡检 AI 报告必须提供关闭按钮')
+assertIncludes(servicePanel, '@media (max-width: 980px)', '服务巡检页必须在窄空间切换为纵向布局')
 
 console.log('UI refresh checks passed')
