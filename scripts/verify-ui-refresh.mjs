@@ -27,6 +27,7 @@ const servicePanel = readFileSync(resolve(root, 'src/views/ops/ServicePanel.vue'
 const scriptAutomationView = readFileSync(resolve(root, 'src/views/ScriptAutomationView.vue'), 'utf8')
 const scriptAutomationStore = readFileSync(resolve(root, 'src/stores/scriptAutomation.ts'), 'utf8')
 const scriptCron = readFileSync(resolve(root, 'src/utils/script-cron.ts'), 'utf8')
+const scriptParameters = readFileSync(resolve(root, 'src/utils/script-parameters.ts'), 'utf8')
 const router = readFileSync(resolve(root, 'src/router/index.ts'), 'utf8')
 
 function assertIncludes(source, needle, message) {
@@ -201,6 +202,13 @@ assertIncludes(scriptAutomationView, 'schedule-failure-alert', '计划任务界�
 assertIncludes(scriptAutomationView, 'filteredLogs', '脚本运行记录必须支持筛选')
 assertIncludes(scriptAutomationView, 'exportHistory', '脚本运行记录必须支持导出')
 assertIncludes(scriptAutomationView, 'text/csv;charset=utf-8', '脚本运行记录导出必须生成 UTF-8 CSV')
+assertIncludes(scriptParameters, 'extractScriptParameters', '脚本参数模块必须提取参数占位符')
+assertIncludes(scriptParameters, 'shellQuote', '脚本参数值必须进行 Shell 安全引用')
+assertIncludes(scriptAutomationStore, 'contentOverride', '脚本执行必须使用已渲染的参数命令重新校验')
+assertIncludes(scriptAutomationStore, 'Scripts with parameters require manual input', '含参数脚本不得创建无人值守计划任务')
+assertIncludes(scriptAutomationView, 'executionPreviewOpen', '脚本执行前必须打开预览确认框')
+assertIncludes(scriptAutomationView, 'renderedScriptContent', '执行预览必须展示参数替换后的最终命令')
+assertIncludes(scriptAutomationView, 'renderedCommandBlocked', '最终命令风险升级时必须阻止执行')
 
 assertIncludes(opsPermission, 'permission-dialog', '权限弹窗必须有独立主题样式钩子')
 assertIncludes(opsPermission, 'ops-permission-control', '权限控制样式必须限制在自身组件范围内')

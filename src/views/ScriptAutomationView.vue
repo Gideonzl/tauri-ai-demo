@@ -175,6 +175,16 @@
         <OpsEmptyState v-if="!scriptVersions.length" :icon="Clock" :title="t('scripts.emptyVersions')" />
       </div>
     </el-dialog>
+    <el-dialog v-model="executionPreviewOpen" class="script-execution-dialog" :title="t('scripts.executionPreviewTitle')" width="min(760px, calc(100vw - 48px))" :close-on-click-modal="false">
+      <p class="execution-preview-hint">{{ t('scripts.executionPreviewHint') }}</p>
+      <div v-if="scriptParameters.length" class="script-parameter-grid"><label v-for="name in scriptParameters" :key="name"><span>${{ '{' }}{{ name }}{{ '}' }}</span><el-input v-model="parameterValues[name]" :placeholder="t('scripts.parameterPlaceholder', { name })" /></label></div>
+      <div class="execution-preview-command"><div><span>{{ t('scripts.finalCommand') }}</span><b :class="previewRisk">{{ t(`ai.risk_${previewRisk}`) }}</b></div><pre>{{ renderedScriptContent }}</pre></div>
+      <div class="execution-preview-targets"><span>{{ t('scripts.executionTargets') }}</span><div><i v-for="server in selectedExecutionServers" :key="server.id">{{ server.name }}</i></div></div>
+      <template #footer>
+        <el-button @click="executionPreviewOpen = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :disabled="!canConfirmExecution" @click="confirmRunNow"><el-icon :size="13"><VideoPlay /></el-icon>{{ t('scripts.confirmAndRun') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -187,6 +197,7 @@ import { useSshStore } from '@/stores/ssh'
 import { useScriptAutomationStore, type ScriptRunStatus } from '@/stores/scriptAutomation'
 import { classifyCommand } from '@/utils/ops-permission'
 import { isValidCron } from '@/utils/script-cron'
+import { extractScriptParameters, renderScriptParameters } from '@/utils/script-parameters'
 import OpsEmptyState from '@/components/OpsEmptyState.vue'
 
 type Tab = 'editor' | 'schedules' | 'history'
@@ -214,12 +225,20 @@ const libraryWidth = ref(258)
 const aiDiffOpen = ref(false)
 const aiSuggestion = ref<AiScriptSuggestion>()
 const versionHistoryOpen = ref(false)
+const executionPreviewOpen = ref(false)
+const parameterValues = reactive<Record<string, string>>({})
 const historyStatusFilter = ref<'all' | Exclude<ScriptRunStatus, 'running'>>('all')
 const historyQuery = ref('')
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size && currentRisk.value === 'read_only'))
 const scriptVersions = computed(() => draft.id ? scriptStore.versionsFor(draft.id) : [])
+const scriptParameters = computed(() => extractScriptParameters(draft.content))
+const parametersComplete = computed(() => scriptParameters.value.every(name => parameterValues[name]?.trim()))
+const renderedScriptContent = computed(() => renderScriptParameters(draft.content, parameterValues))
+const previewRisk = computed(() => classifyCommand(renderedScriptContent.value).risk)
+const selectedExecutionServers = computed(() => sshStore.servers.filter(server => selectedTargets.has(server.id)))
+const canConfirmExecution = computed(() => Boolean(draft.id && selectedTargets.size && parametersComplete.value && previewRisk.value === 'read_only'))
 const filteredLogs = computed(() => {
   const query = historyQuery.value.trim().toLocaleLowerCase()
   return scriptStore.runLogs.filter(log => {
@@ -303,12 +322,21 @@ function onLibraryResizeStart(event: PointerEvent) {
   window.addEventListener('pointerup', onEnd, { once: true })
 }
 
-async function runNow() {
+function runNow() {
   if (!draft.id) { saveScript(); if (!draft.id) return }
   if (currentRisk.value !== 'read_only') { ElMessage.warning(t('scripts.changeBlocked')); return }
   if (!selectedTargets.size) { ElMessage.warning(t('scripts.targetRequired')); return }
+  scriptParameters.value.forEach(name => { if (parameterValues[name] === undefined) parameterValues[name] = '' })
+  executionPreviewOpen.value = true
+}
+
+async function confirmRunNow() {
+  if (!draft.id) return
+  if (!parametersComplete.value) { ElMessage.warning(t('scripts.parametersRequired')); return }
+  if (previewRisk.value !== 'read_only') { ElMessage.warning(t('scripts.renderedCommandBlocked')); return }
   try {
-    await scriptStore.executeScript(draft.id, [...selectedTargets])
+    await scriptStore.executeScript(draft.id, [...selectedTargets], undefined, renderedScriptContent.value)
+    executionPreviewOpen.value = false
     activeTab.value = 'history'
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : String(error)) }
 }
@@ -359,6 +387,7 @@ function createSchedule() {
   const script = scriptStore.scripts.find(item => item.id === scheduleDraft.scriptId)
   if (!script) { ElMessage.warning(t('scripts.scheduleScriptRequired')); return }
   if (classifyCommand(script.content).risk !== 'read_only') { ElMessage.warning(t('scripts.scheduleReadonlyOnly')); return }
+  if (extractScriptParameters(script.content).length) { ElMessage.warning(t('scripts.scheduleParametersUnsupported')); return }
   if (!scheduleTargets.size) { ElMessage.warning(t('scripts.targetRequired')); return }
   if (!isValidCron(scheduleDraft.cron)) { ElMessage.warning(t('scripts.invalidCron')); return }
   scriptStore.saveSchedule({ scriptId: script.id, targetIds: [...scheduleTargets], cron: scheduleDraft.cron, enabled: true })
@@ -459,6 +488,8 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .ai-diff-hint { margin: 0 0 13px; color: $color-text-secondary; font-size: 12px; }.ai-diff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.ai-diff-grid section { display: grid; gap: 6px; min-width: 0; }.ai-diff-grid section > span { color: $color-text-secondary; font-size: 11px; font-weight: 650; }.ai-diff-grid section:last-child > span { color: $color-primary; }.ai-diff-grid pre { min-height: 360px; max-height: 58vh; margin: 0; overflow: auto; padding: 13px; border: 1px solid $color-border; border-radius: 9px; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; white-space: pre-wrap; word-break: break-word; }.ai-diff-grid section:last-child pre { border-color: $color-primary; background: $color-bg-active; }
 .ai-review-summary { display: grid; gap: 5px; margin-top: 13px; padding: 10px 12px; border: 1px solid $color-border-light; border-left: 3px solid $color-success; border-radius: 8px; background: $color-bg-hover; color: $color-text-secondary; font-size: 11px; line-height: 1.55; &.change, &.unknown { border-left-color: $color-warning; } &.high_risk { border-left-color: $color-danger; } b { color: $color-text-primary; font-size: 12px; } }
 .script-version-list { display: grid; gap: 8px; }.script-version-list article { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid $color-border-light; border-radius: 8px; background: $color-bg-hover; }.script-version-list article > div { min-width: 0; flex: 1; display: grid; gap: 3px; }.script-version-list b { color: $color-text-primary; font-size: 11px; }.script-version-list small { color: $color-text-secondary; font-size: 10px; }.script-version-list pre { margin: 2px 0 0; overflow: hidden; color: $color-text-placeholder; font: 10px/1.4 $font-family-mono; white-space: nowrap; text-overflow: ellipsis; }
+.execution-preview-hint { margin: 0 0 14px; color: $color-text-secondary; font-size: 12px; line-height: 1.55; }.script-parameter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; label { display: grid; gap: 5px; min-width: 0; span { color: $color-primary; font: 11px $font-family-mono; } } }.execution-preview-command { display: grid; gap: 6px; padding: 11px; border: 1px solid $color-border-light; border-radius: 9px; background: $color-bg-hover; > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: $color-text-secondary; font-size: 10px; } b { color: $color-success; font-size: 10px; &.change, &.unknown { color: $color-warning; } &.high_risk { color: $color-danger; } } pre { max-height: 230px; margin: 0; overflow: auto; color: $color-text-primary; font: 11px/1.6 $font-family-mono; white-space: pre-wrap; word-break: break-word; } }.execution-preview-targets { display: grid; gap: 6px; margin-top: 14px; color: $color-text-secondary; font-size: 11px; > div { display: flex; flex-wrap: wrap; gap: 5px; } i { padding: 3px 7px; border-radius: 999px; background: $color-bg-active; color: $color-primary; font-size: 10px; font-style: normal; } }
+ :deep(.script-execution-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
 @media (max-width: 640px) { .focus-editor-fields { grid-template-columns: 1fr; }.focus-script-editor { min-height: 280px; } }
 @media (max-width: 760px) { .ai-diff-grid { grid-template-columns: 1fr; }.ai-diff-grid pre { min-height: 220px; max-height: 34vh; } }
 </style>

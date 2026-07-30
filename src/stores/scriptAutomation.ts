@@ -5,6 +5,7 @@ import { useSshStore } from '@/stores/ssh'
 import { resolveSession, releaseSession } from '@/utils/ops-connect'
 import { classifyCommand } from '@/utils/ops-permission'
 import { isValidCron, nextCronTime } from '@/utils/script-cron'
+import { extractScriptParameters } from '@/utils/script-parameters'
 
 export type ScriptRunStatus = 'running' | 'success' | 'failed' | 'skipped'
 
@@ -144,6 +145,8 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
 
   function saveSchedule(input: Omit<ScriptSchedule, 'id' | 'nextRunAt' | 'lastRunAt'> & { id?: string }): ScriptSchedule {
     if (!isValidCron(input.cron)) throw new Error('Invalid Cron expression')
+    const scheduledScript = scripts.value.find(script => script.id === input.scriptId)
+    if (scheduledScript && extractScriptParameters(scheduledScript.content).length) throw new Error('Scripts with parameters require manual input')
     const normalized = { scriptId: input.scriptId, targetIds: [...new Set(input.targetIds)], cron: input.cron.trim(), enabled: input.enabled }
     const existing = input.id ? schedules.value.find(schedule => schedule.id === input.id) : undefined
     const nextRunAt = normalized.enabled ? nextCronTime(normalized.cron) : null
@@ -173,11 +176,13 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
 
   function appendLog(log: ScriptRunLog) { runLogs.value.unshift(log); runLogs.value = runLogs.value.slice(0, MAX_LOGS); saveLogs() }
 
-  async function executeScript(scriptId: string, targetIds: string[], scheduleId?: string): Promise<ScriptExecutionSummary> {
+  async function executeScript(scriptId: string, targetIds: string[], scheduleId?: string, contentOverride?: string): Promise<ScriptExecutionSummary> {
     const script = scripts.value.find(item => item.id === scriptId)
     if (!script) throw new Error('Script not found')
-    if (!script.content.trim()) throw new Error('Script is empty')
-    if (classifyCommand(script.content).risk !== 'read_only') throw new Error('Only read-only scripts can run in Script Management')
+    const content = contentOverride?.trim() || script.content
+    if (!content.trim()) throw new Error('Script is empty')
+    if (!contentOverride && extractScriptParameters(script.content).length) throw new Error('Script parameters must be filled before execution')
+    if (classifyCommand(content).risk !== 'read_only') throw new Error('Only read-only scripts can run in Script Management')
     if (runningScriptIds.value.includes(scriptId)) return { attempted: false, total: targetIds.length, success: 0, failed: 0, skipped: 0 }
 
     const sshStore = useSshStore()
@@ -201,7 +206,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
           log.status = 'failed'; log.output = '无法建立 SSH 连接'; log.finishedAt = Date.now(); summary.failed += 1; saveLogs(); continue
         }
         try {
-          const result = await sshExecFull(session.id, script.content)
+          const result = await sshExecFull(session.id, content)
           log.output = formatResult(result)
           log.status = result.timed_out || (result.exit_code !== null && result.exit_code !== 0) ? 'failed' : 'success'
         } catch (error) {
@@ -249,6 +254,15 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   async function runScheduleNow(scheduleId: string): Promise<ScriptExecutionSummary | undefined> {
     const schedule = schedules.value.find(item => item.id === scheduleId)
     if (!schedule || schedule.isRunning) return undefined
+    const script = scripts.value.find(item => item.id === schedule.scriptId)
+    if (script && extractScriptParameters(script.content).length) {
+      schedule.enabled = false
+      schedule.nextRunAt = null
+      schedule.lastStatus = 'skipped'
+      schedule.lastError = undefined
+      saveSchedules()
+      throw new Error('Scripts with parameters cannot run as schedules')
+    }
     schedule.isRunning = true
     schedule.lastRunAt = Date.now()
     saveSchedules()
@@ -278,7 +292,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         schedule.retryAttempt = 0
       }
       if (isRetry) schedule.lastRunAt = now
-      if (!script || classifyCommand(script.content).risk !== 'read_only') {
+      if (!script || classifyCommand(script.content).risk !== 'read_only' || extractScriptParameters(script.content).length) {
         schedule.enabled = false
         schedule.nextRunAt = null
         schedule.lastStatus = 'skipped'
@@ -289,7 +303,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         appendLog({
           id: createId('script-run'), scriptId: schedule.scriptId, scriptName: script?.name || '已删除脚本',
           serverId: schedule.targetIds[0] || '', serverName: '计划任务', scheduleId: schedule.id,
-          status: 'skipped', output: '脚本不再是只读脚本，计划任务已自动停用。', startedAt: now, finishedAt: now,
+          status: 'skipped', output: '脚本包含待填写参数或不再是只读脚本，计划任务已自动停用。', startedAt: now, finishedAt: now,
         })
         saveSchedules()
         continue
