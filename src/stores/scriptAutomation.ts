@@ -184,6 +184,14 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   }
 
   function removeSchedule(scheduleId: string) { schedules.value = schedules.value.filter(schedule => schedule.id !== scheduleId); saveSchedules() }
+  function clearRunLogs(logIds?: string[]) {
+    if (!logIds?.length) runLogs.value = []
+    else {
+      const ids = new Set(logIds)
+      runLogs.value = runLogs.value.filter(log => !ids.has(log.id))
+    }
+    saveLogs()
+  }
   function setScheduleEnabled(scheduleId: string, enabled: boolean) {
     const schedule = schedules.value.find(item => item.id === scheduleId)
     if (!schedule) return
@@ -355,7 +363,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
 
   return {
     scripts, schedules, runLogs: recentLogs, versions, versionsFor, runningScriptIds, runningCount,
-    upsertScript, removeScript, restoreVersion, exportScriptLibrary, importScriptLibrary, saveSchedule, removeSchedule, setScheduleEnabled, runScheduleNow,
+    upsertScript, removeScript, restoreVersion, exportScriptLibrary, importScriptLibrary, saveSchedule, removeSchedule, clearRunLogs, setScheduleEnabled, runScheduleNow,
     executeScript, init, stopScheduler,
   }
 })
