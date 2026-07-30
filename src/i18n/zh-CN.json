@@ -219,7 +219,7 @@
     "newUnsaved": "尚未保存",
       "aiDraft": "让 AI 编写",
       "aiReview": "AI 审查",
-      "focusEdit": "专注编辑",
+      "focusEdit": "进入大屏编辑",
       "focusEditTitle": "专注编辑脚本",
       "focusEditHint": "在更大的编辑空间中完善脚本，保存后将同步到本机脚本库。",
       "resizeTargets": "左右拖动以调整执行目标面板宽度",

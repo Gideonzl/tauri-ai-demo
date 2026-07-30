@@ -219,7 +219,7 @@
     "newUnsaved": "Not saved yet",
       "aiDraft": "Draft with AI",
       "aiReview": "AI review",
-      "focusEdit": "Focus edit",
+      "focusEdit": "Open large editor",
       "focusEditTitle": "Focus script editor",
       "focusEditHint": "Use the larger editor to refine this script, then save it to the local library.",
       "resizeTargets": "Drag horizontally to resize the execution targets panel",
