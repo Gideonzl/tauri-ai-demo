@@ -3,7 +3,6 @@ import { defineStore } from 'pinia'
 import { sshExecFull } from '@/api/tauri'
 import { useSshStore } from '@/stores/ssh'
 import { resolveSession, releaseSession } from '@/utils/ops-connect'
-import { classifyCommand } from '@/utils/ops-permission'
 import { isValidCron, nextCronTime } from '@/utils/script-cron'
 import { extractScriptParameters } from '@/utils/script-parameters'
 import { useAlertStore } from '@/stores/alerts'
@@ -204,7 +203,6 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
     const content = contentOverride?.trim() || script.content
     if (!content.trim()) throw new Error('Script is empty')
     if (!contentOverride && extractScriptParameters(script.content).length) throw new Error('Script parameters must be filled before execution')
-    if (classifyCommand(content).risk !== 'read_only') throw new Error('Only read-only scripts can run in Script Management')
     if (runningScriptIds.value.includes(scriptId)) return { attempted: false, total: targetIds.length, success: 0, failed: 0, skipped: 0 }
 
     const sshStore = useSshStore()
@@ -316,7 +314,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         schedule.retryAttempt = 0
       }
       if (isRetry) schedule.lastRunAt = now
-      if (!script || classifyCommand(script.content).risk !== 'read_only' || extractScriptParameters(script.content).length) {
+      if (!script || extractScriptParameters(script.content).length) {
         schedule.enabled = false
         schedule.nextRunAt = null
         schedule.lastStatus = 'skipped'
@@ -327,7 +325,7 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
         appendLog({
           id: createId('script-run'), scriptId: schedule.scriptId, scriptName: script?.name || '已删除脚本',
           serverId: schedule.targetIds[0] || '', serverName: '计划任务', scheduleId: schedule.id,
-          status: 'skipped', output: '脚本包含待填写参数或不再是只读脚本，计划任务已自动停用。', startedAt: now, finishedAt: now,
+          status: 'skipped', output: '脚本包含待填写参数，计划任务已自动停用。', startedAt: now, finishedAt: now,
         })
         saveSchedules()
         continue
