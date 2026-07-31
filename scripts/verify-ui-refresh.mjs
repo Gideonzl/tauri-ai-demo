@@ -179,6 +179,8 @@ assertIncludes(scriptAutomationView, 'onLibraryResizeStart', '脚本计划列表
 assertIncludes(scriptAutomationView, 'script-library-icon-button', '脚本库导入导出必须使用紧凑图标按钮')
 assertIncludes(scriptAutomationView, 'container-name: script-library', '缩窄脚本库时必须能够按实际宽度自适应')
 assertIncludes(scriptAutomationView, '@container script-library (max-width: 225px)', '窄脚本库必须自动收纳新建按钮文字')
+assertIncludes(scriptAutomationView, 'box-shadow: none !important', '脚本名称和说明输入框必须移除聚焦阴影')
+assertIncludes(scriptAutomationView, 'background: transparent !important', '脚本名称和说明输入框必须移除灰色背景')
 assertIncludes(scriptAutomationView, 'focusEditorOpen', '脚本编辑区必须提供专注编辑模式')
 assertIncludes(scriptAutomationView, 'focus-script-editor', '专注编辑模式必须提供大尺寸脚本编辑框')
 assertIncludes(scriptAutomationView, 'container-name: script-editor', '脚本操作区必须按编辑器实际宽度避免跨栏溢出')
