@@ -49,7 +49,7 @@
         <div class="script-head-status"><span></span>{{ t('scripts.schedulerOnline') }}</div>
       </header>
 
-      <section v-if="activeTab === 'editor'" ref="editorViewRef" class="script-editor-view" :style="{ '--script-target-panel-width': `${targetPanelWidth}px` }">
+      <section v-if="activeTab === 'editor'" class="script-editor-view">
         <div class="script-editor-main">
           <div class="script-form-head">
             <div class="script-form-fields">
@@ -67,42 +67,29 @@
             </div>
           </div>
 
+          <div class="script-target-select-row">
+            <div><span>{{ t('scripts.executionTargets') }}</span><small>{{ t('scripts.selectedServers', { n: selectedTargets.size }) }}</small></div>
+            <el-select v-model="selectedTargetIds" multiple filterable collapse-tags collapse-tags-tooltip :max-collapse-tags="2" :placeholder="t('scripts.selectExecutionTargets')" :no-data-text="t('workspace.noHosts')">
+              <el-option v-for="server in sshStore.servers" :key="server.id" :value="server.id" :label="`${server.name} · ${server.username}@${server.host}`">
+                <span class="script-target-option"><i :class="serverStatus(server.id)"></i><b>{{ server.name }}</b><small>{{ server.username }}@{{ server.host }}</small></span>
+              </el-option>
+            </el-select>
+          </div>
+
           <div class="script-editor-label"><span>{{ t('scripts.scriptContent') }}</span><span class="script-language">SHELL</span></div>
           <textarea v-model="draft.content" class="script-editor" spellcheck="false" :placeholder="t('scripts.contentPlaceholder')"></textarea>
           <div class="script-form-foot">
             <el-input v-model="draft.tags" size="small" :placeholder="t('scripts.tagsPlaceholder')" class="script-tags-input" />
             <span class="script-updated">{{ draft.id ? t('scripts.localSaved') : t('scripts.newUnsaved') }}</span>
           </div>
-        </div>
-
-        <div
-          class="script-editor-resize"
-          role="separator"
-          aria-orientation="vertical"
-          :aria-label="t('scripts.resizeTargets')"
-          @pointerdown="onTargetResizeStart"
-          @dblclick="resetTargetPanelWidth"
-        ><span></span></div>
-
-        <aside class="script-execution-panel">
-          <div class="script-panel-title"><span>{{ t('scripts.executionTargets') }}</span><small>{{ t('scripts.selectedServers', { n: selectedTargets.size }) }}</small></div>
-          <div class="script-target-list">
-            <label v-for="server in sshStore.servers" :key="server.id" class="script-target" :class="{ selected: selectedTargets.has(server.id) }">
-              <input type="checkbox" :checked="selectedTargets.has(server.id)" @change="toggleTarget(server.id)" />
-              <i :class="serverStatus(server.id)"></i>
-              <span><b>{{ server.name }}</b><small>{{ server.username }}@{{ server.host }}</small></span>
-            </label>
-            <p v-if="!sshStore.servers.length" class="script-target-empty">{{ t('workspace.noHosts') }}</p>
-          </div>
-          <div class="script-risk-card" :class="currentRisk">
+          <div class="script-execution-footer">
+            <div class="script-risk-card" :class="currentRisk">
             <div><el-icon :size="15"><Lock /></el-icon><b>{{ t(`ai.risk_${currentRisk}`) }}</b></div>
             <p>{{ currentRisk === 'read_only' ? t('scripts.readonlyHint') : t('scripts.changeHint') }}</p>
+            </div>
+            <div class="script-execution-actions"><p class="script-scheduler-note">{{ t('scripts.schedulerHint') }}</p><el-button class="script-run-btn" type="primary" :loading="scriptStore.runningScriptIds.includes(draft.id || '')" :disabled="!canRun" @click="runNow"><el-icon :size="14"><VideoPlay /></el-icon>{{ t('scripts.runNow') }}</el-button></div>
           </div>
-          <el-button class="script-run-btn" type="primary" :loading="scriptStore.runningScriptIds.includes(draft.id || '')" :disabled="!canRun" @click="runNow">
-            <el-icon :size="14"><VideoPlay /></el-icon>{{ t('scripts.runNow') }}
-          </el-button>
-          <p class="script-scheduler-note">{{ t('scripts.schedulerHint') }}</p>
-        </aside>
+        </div>
       </section>
 
       <section v-else-if="activeTab === 'schedules'" class="script-schedules-view">
@@ -243,9 +230,7 @@ const scheduleEditPreviewTimes = computed(() => scheduleEditCronIsValid.value ? 
 const draft = reactive<ScriptDraft>({ id: undefined, name: '', description: '', content: '', tags: '' })
 const focusEditorOpen = ref(false)
 const focusEditorRef = ref<HTMLTextAreaElement>()
-const editorViewRef = ref<HTMLElement>()
 const scriptImportInput = ref<HTMLInputElement>()
-const targetPanelWidth = ref(260)
 const scriptPageRef = ref<HTMLElement>()
 const libraryWidth = ref(258)
 const aiDiffOpen = ref(false)
@@ -258,6 +243,10 @@ const historyQuery = ref('')
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size))
+const selectedTargetIds = computed<string[]>({
+  get: () => [...selectedTargets],
+  set: (ids) => { selectedTargets.clear(); ids.forEach(id => selectedTargets.add(id)) },
+})
 const scriptVersions = computed(() => draft.id ? scriptStore.versionsFor(draft.id) : [])
 const scriptParameters = computed(() => extractScriptParameters(draft.content))
 const parametersComplete = computed(() => scriptParameters.value.every(name => parameterValues[name]?.trim()))
@@ -307,7 +296,6 @@ async function importLibrary(event: Event) {
   if (!file) return
   try { ElMessage.success(t('scripts.libraryImported', { n: scriptStore.importScriptLibrary(JSON.parse(await file.text())) })) } catch { ElMessage.error(t('scripts.libraryImportFailed')) }
 }
-function toggleTarget(id: string) { selectedTargets.has(id) ? selectedTargets.delete(id) : selectedTargets.add(id) }
 function toggleScheduleTarget(id: string) { scheduleTargets.has(id) ? scheduleTargets.delete(id) : scheduleTargets.add(id) }
 function serverStatus(serverId: string) { return sshStore.sessions.some(session => session.serverId === serverId && session.status === 'connected') ? 'connected' : 'offline' }
 function scriptRisk(content: string) { return classifyCommand(content).risk }
@@ -348,24 +336,6 @@ function openFocusEditor() {
 function saveAndCloseFocusEditor() {
   saveScript()
   if (draft.id) focusEditorOpen.value = false
-}
-
-function resetTargetPanelWidth() { targetPanelWidth.value = 260 }
-function onTargetResizeStart(event: PointerEvent) {
-  const editorWidth = editorViewRef.value?.clientWidth || 0
-  if (editorWidth < 500 || window.matchMedia('(max-width: 820px)').matches) return
-  const startX = event.clientX
-  const startWidth = targetPanelWidth.value
-  const maxWidth = Math.max(210, editorWidth - 270)
-  const onMove = (moveEvent: PointerEvent) => {
-    targetPanelWidth.value = Math.min(maxWidth, Math.max(210, startWidth - (moveEvent.clientX - startX)))
-  }
-  const onEnd = () => {
-    window.removeEventListener('pointermove', onMove)
-    window.removeEventListener('pointerup', onEnd)
-  }
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', onEnd, { once: true })
 }
 
 function resetLibraryWidth() { libraryWidth.value = 258 }
@@ -589,4 +559,6 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 :deep(.script-execution-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
 @media (max-width: 640px) { .focus-editor-fields { grid-template-columns: 1fr; }.focus-script-editor { min-height: 280px; } }
 @media (max-width: 760px) { .ai-diff-grid { grid-template-columns: 1fr; }.ai-diff-grid pre { min-height: 220px; max-height: 34vh; } }
+.script-editor-view { flex: 1; display: flex; min-height: 0; overflow: hidden; }.script-editor-main { flex: 1; }.script-target-select-row { display: grid; grid-template-columns: minmax(105px, auto) minmax(0, 1fr); align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px 10px; border: 1px solid $color-border-light; border-radius: 8px; background: $color-bg-hover; > div { display: grid; gap: 2px; } span { color: $color-text-primary; font-size: 11px; font-weight: 650; } small { color: $color-text-placeholder; font-size: 9px; } :deep(.el-select) { min-width: 0; } }.script-target-option { display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%; i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: $color-text-muted; &.connected { background: $color-success; } } b { overflow: hidden; color: $color-text-primary; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; } small { margin-left: auto; overflow: hidden; color: $color-text-placeholder; font: 9px $font-family-mono; text-overflow: ellipsis; white-space: nowrap; } }.script-execution-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; margin-top: 12px; }.script-execution-footer .script-risk-card { margin-top: 0; }.script-execution-actions { display: grid; justify-items: end; gap: 7px; }.script-execution-actions .script-scheduler-note { max-width: 260px; margin: 0; text-align: right; }.script-execution-actions .script-run-btn { width: auto; min-width: 146px; margin: 0; }
+@media (max-width: 640px) { .script-target-select-row, .script-execution-footer { grid-template-columns: 1fr; }.script-execution-actions { justify-items: stretch; }.script-execution-actions .script-scheduler-note { max-width: none; text-align: left; }.script-execution-actions .script-run-btn { width: 100%; }.script-target-option small { display: none; } }
 </style>
