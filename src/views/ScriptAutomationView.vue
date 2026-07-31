@@ -6,7 +6,15 @@
           <span class="script-eyebrow">AUTOMATION STUDIO</span>
           <h2>{{ t('scripts.title') }}</h2>
         </div>
-        <div class="script-library-actions"><el-button size="small" @click="triggerImport"><el-icon :size="13"><Upload /></el-icon>{{ t('scripts.importLibrary') }}</el-button><el-button size="small" @click="exportLibrary"><el-icon :size="13"><Download /></el-icon>{{ t('scripts.exportLibrary') }}</el-button><el-button type="primary" size="small" @click="newScript"><el-icon :size="13"><Plus /></el-icon>{{ t('scripts.newScript') }}</el-button></div>
+        <div class="script-library-actions">
+          <el-tooltip :content="t('scripts.importLibrary')" placement="bottom">
+            <el-button class="script-library-icon-button" size="small" circle :aria-label="t('scripts.importLibrary')" @click="triggerImport"><el-icon :size="13"><Upload /></el-icon></el-button>
+          </el-tooltip>
+          <el-tooltip :content="t('scripts.exportLibrary')" placement="bottom">
+            <el-button class="script-library-icon-button" size="small" circle :aria-label="t('scripts.exportLibrary')" @click="exportLibrary"><el-icon :size="13"><Download /></el-icon></el-button>
+          </el-tooltip>
+          <el-button class="script-library-new-button" type="primary" size="small" @click="newScript"><el-icon :size="13"><Plus /></el-icon><span>{{ t('scripts.newScript') }}</span></el-button>
+        </div>
       </div>
       <div class="script-library-meta">
         <span>{{ t('scripts.scriptCount', { n: scriptStore.scripts.length }) }}</span>
@@ -499,14 +507,15 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 </script>
 
 <style lang="scss" scoped>
-.script-page { display: flex; height: 100%; min-height: 0; overflow: hidden; background: $shell-workspace-bg; }
-.script-library { width: var(--script-library-width, 258px); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid $color-border-light; background: $color-bg-surface; }
-.script-library-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 16px 14px 10px;
-  h2 { margin: 3px 0 0; color: $color-text-primary; font-size: 17px; line-height: 1.2; }
+.script-page { display: flex; height: 100%; min-height: 0; overflow: hidden; background: $shell-workspace-bg; font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif; font-size: 12px; line-height: 1.45; letter-spacing: 0; }
+.script-library { width: var(--script-library-width, 258px); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid $color-border-light; background: $color-bg-surface; container-type: inline-size; container-name: script-library; }
+.script-library-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 10px; padding: 14px 12px 9px;
+  > div:first-child { min-width: 0; flex: 1 1 126px; }
+  h2 { margin: 2px 0 0; color: $color-text-primary; font-size: 18px; font-weight: 600; line-height: 1.35; letter-spacing: 0; }
 }
-.script-library-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; :deep(.el-button) { margin: 0; padding-inline: 7px; } }.script-import-input { display: none; }
-.script-eyebrow { color: $color-primary; font-size: 9px; font-weight: 750; letter-spacing: 1.25px; }
-.script-library-meta { display: flex; justify-content: space-between; padding: 0 14px 10px; color: $color-text-placeholder; font-size: 10px; border-bottom: 1px solid $color-border-light;
+.script-library-actions { display: flex; flex: 0 0 auto; flex-wrap: nowrap; justify-content: flex-end; gap: 4px; :deep(.el-button) { margin: 0; font-family: inherit; letter-spacing: 0; } }.script-library-icon-button { width: 28px; height: 28px; padding: 0; }.script-library-new-button { min-width: 58px; padding-inline: 8px; font-weight: 500; }.script-import-input { display: none; }
+.script-eyebrow { color: $color-primary; font-size: 10px; font-weight: 650; letter-spacing: .08em; }
+.script-library-meta { display: flex; justify-content: space-between; padding: 0 12px 10px; color: $color-text-placeholder; font-size: 11px; border-bottom: 1px solid $color-border-light;
   span { display: inline-flex; align-items: center; gap: 4px; } i { width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
 }
 .script-list { flex: 1; overflow-y: auto; padding: 8px; }
@@ -514,7 +523,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
   &:hover { background: $color-bg-hover; color: $color-text-primary; } &.active { background: $color-bg-active; border-color: $color-border-light; color: $color-text-primary; }
 }
 .script-file-icon { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: $color-primary; background: $color-bg-active; flex-shrink: 0; }
-.script-list-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; } small { overflow: hidden; color: $color-text-placeholder; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; } }
+.script-list-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; } small { overflow: hidden; color: $color-text-placeholder; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; } }
 .script-risk-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; flex-shrink: 0; &.change, &.unknown { background: $color-warning; } &.high_risk { background: $color-danger; } }
 .script-library-resize { flex: 0 0 9px; display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; background: $color-bg-surface; &:hover, &:active { background: $color-bg-active; } span { width: 2px; height: 44px; border-radius: 99px; background: $color-border; transition: height .16s ease, background .16s ease; } &:hover span, &:active span { height: 62px; background: $color-primary; } }
 
@@ -529,7 +538,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .script-editor-view { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 9px var(--script-target-panel-width, 260px); min-height: 0; overflow: hidden; }
 .script-editor-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 16px; container-type: inline-size; container-name: script-editor; }
 .script-form-head { display: flex; flex-direction: column; gap: 12px; align-items: stretch; margin-bottom: 12px; }.script-form-fields { display: grid; gap: 7px; min-width: 0; }.script-form-actions { display: flex; width: 100%; max-width: 100%; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }.script-form-actions :deep(.el-button) { margin: 0; }
-.script-name-input :deep(.el-input__inner) { font-size: 16px; font-weight: 700; color: $color-text-primary; }.script-description-input :deep(.el-input__inner) { color: $color-text-secondary; }
+.script-name-input :deep(.el-input__inner) { font-size: 17px; font-weight: 600; color: $color-text-primary; letter-spacing: 0; }.script-description-input :deep(.el-input__inner) { color: $color-text-secondary; letter-spacing: 0; }
 .script-editor-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; color: $color-text-secondary; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .5px; }.script-language { color: $color-primary; font-family: $font-family-mono; }
 .script-editor { flex: 1; min-height: 250px; resize: none; padding: 13px; border: 1px solid $color-border; border-radius: 9px; outline: none; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; tab-size: 2; &:focus { border-color: $color-primary; box-shadow: 0 0 0 2px $color-bg-active; } }
 .script-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-top: 10px; }.script-tags-input { flex: 1 1 180px; min-width: 0; max-width: 320px; }.script-updated { flex: 1 1 130px; color: $color-text-placeholder; font-size: 10px; }
@@ -544,6 +553,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 9px 230px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
 @media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-library-resize { display: none; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
 @media (max-width: 560px) { .script-library-head { align-items: stretch; flex-direction: column; }.script-library-actions { justify-content: flex-start; }.script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
+@container script-library (max-width: 225px) { .script-library-head { align-items: stretch; }.script-library-actions { width: 100%; justify-content: flex-start; }.script-library-new-button { width: 28px; min-width: 28px; padding: 0; }.script-library-new-button span { display: none; }.script-library-meta { gap: 6px; flex-wrap: wrap; } }
 @container script-workspace (max-width: 480px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; } }
 @container script-editor (max-width: 420px) { .script-form-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.script-form-actions :deep(.el-button) { width: 100%; min-width: 0; padding-inline: 6px; font-size: 10px; }.script-form-actions .script-focus-button { grid-column: 1 / -1; padding-inline: 10px; font-size: 11px; } }
 :deep(.script-focus-dialog) { --el-dialog-bg-color: #{$color-bg-surface}; border: 1px solid $color-border; border-radius: 12px; box-shadow: $elevation-3; .el-dialog__header { margin-right: 0; padding: 18px 20px 13px; border-bottom: 1px solid $color-border-light; }.el-dialog__title { color: $color-text-primary; font-size: 16px; font-weight: 700; }.el-dialog__body { padding: 16px 20px; }.el-dialog__footer { padding: 12px 20px 16px; border-top: 1px solid $color-border-light; } }
