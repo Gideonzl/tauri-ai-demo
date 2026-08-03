@@ -20,9 +20,14 @@
         <span>{{ t('scripts.scriptCount', { n: scriptStore.scripts.length }) }}</span>
         <span><i></i>{{ t('scripts.runningCount', { n: scriptStore.runningCount }) }}</span>
       </div>
+      <div v-if="scriptStore.scripts.length" class="script-library-filter">
+        <el-input v-model="scriptLibraryQuery" size="small" clearable :placeholder="t('scripts.searchScripts')">
+          <template #prefix><el-icon :size="13"><Search /></el-icon></template>
+        </el-input>
+      </div>
       <div class="script-list">
         <button
-          v-for="script in scriptStore.scripts"
+          v-for="script in filteredScripts"
           :key="script.id"
           type="button"
           class="script-list-item"
@@ -35,6 +40,9 @@
         </button>
         <OpsEmptyState v-if="!scriptStore.scripts.length" :icon="Document" :title="t('scripts.emptyScripts')" :description="t('scripts.emptyScriptsHint')">
           <template #action><div class="script-empty-actions"><el-button type="primary" size="small" @click="newScript"><el-icon :size="13"><Plus /></el-icon>{{ t('scripts.newScript') }}</el-button><el-button size="small" @click="triggerImport"><el-icon :size="13"><Upload /></el-icon>{{ t('scripts.importLibrary') }}</el-button></div></template>
+        </OpsEmptyState>
+        <OpsEmptyState v-else-if="!filteredScripts.length" :icon="Search" :title="t('scripts.emptyFilteredScripts')" :description="t('scripts.emptyFilteredScriptsHint')">
+          <template #action><el-button size="small" @click="scriptLibraryQuery = ''">{{ t('scripts.resetScriptSearch') }}</el-button></template>
         </OpsEmptyState>
       </div>
     </aside>
@@ -209,7 +217,7 @@
 
 <script setup lang="ts">
 import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ArrowDown, ArrowUp, ChatDotRound, Clock, CopyDocument, Delete, Document, Download, EditPen, FullScreen, Lock, MagicStick, Plus, Timer, Upload, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, ChatDotRound, Clock, CopyDocument, Delete, Document, Download, EditPen, FullScreen, Lock, MagicStick, Plus, Search, Timer, Upload, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLocale } from '@/composables/useLocale'
 import { useSshStore } from '@/stores/ssh'
@@ -254,6 +262,7 @@ const executionPreviewOpen = ref(false)
 const parameterValues = reactive<Record<string, string>>({})
 const historyStatusFilter = ref<'all' | Exclude<ScriptRunStatus, 'running'>>('all')
 const historyQuery = ref('')
+const scriptLibraryQuery = ref('')
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size))
@@ -275,6 +284,11 @@ const filteredLogs = computed(() => {
     const textMatches = !query || `${log.scriptName} ${log.serverName} ${log.output}`.toLocaleLowerCase().includes(query)
     return statusMatches && textMatches
   })
+})
+const filteredScripts = computed(() => {
+  const query = scriptLibraryQuery.value.trim().toLocaleLowerCase()
+  if (!query) return scriptStore.scripts
+  return scriptStore.scripts.filter(script => `${script.name} ${script.description} ${script.tags.join(' ')}`.toLocaleLowerCase().includes(query))
 })
 
 function copyIntoDraft(script?: { id: string; name: string; description: string; content: string; tags: string[] }) {
@@ -524,6 +538,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 .script-library-meta { display: flex; justify-content: space-between; padding: 0 12px 10px; color: $color-text-placeholder; font-size: 11px; border-bottom: 1px solid $color-border-light;
   span { display: inline-flex; align-items: center; gap: 4px; } i { width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
 }
+.script-library-filter { padding: 8px 12px; border-bottom: 1px solid $color-border-light; :deep(.el-input__wrapper) { min-height: 28px; padding-inline: 8px; } :deep(.el-input__prefix) { color: $color-text-placeholder; } }
 .script-list { flex: 1; overflow-y: auto; padding: 8px; }
 .script-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .script-list-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; color: $color-text-secondary; cursor: pointer; font: inherit;
