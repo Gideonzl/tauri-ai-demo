@@ -179,6 +179,8 @@ assertIncludes(scriptAutomationView, 'onLibraryResizeStart', '脚本计划列表
 assertIncludes(scriptAutomationView, 'script-library-icon-button', '脚本库导入导出必须使用紧凑图标按钮')
 assertIncludes(scriptAutomationView, 'container-name: script-library', '缩窄脚本库时必须能够按实际宽度自适应')
 assertIncludes(scriptAutomationView, '@container script-library (max-width: 225px)', '窄脚本库必须自动收纳新建按钮文字')
+assertIncludes(scriptAutomationView, 'script-empty-actions', '脚本空状态必须提供直接的新建和导入操作')
+assertIncludes(scriptAutomationView, "historyStatusFilter = 'all'; historyQuery = ''", '运行记录筛选为空时必须支持一键清除筛选')
 assertIncludes(scriptAutomationView, 'background: $color-bg-input !important', '脚本名称和说明输入框必须保留灰色背景')
 assertIncludes(scriptAutomationView, 'inset 0 0 0 2px $color-primary', '脚本名称和说明输入框聚焦时必须显示轻量蓝色边框')
 assertIncludes(global, '.el-input__wrapper :focus-visible', 'Element 输入框内部不能叠加缩进焦点环')

@@ -33,7 +33,9 @@
           <span class="script-list-copy"><b>{{ script.name }}</b><small>{{ script.description || t('scripts.noDescription') }}</small></span>
           <span class="script-risk-dot" :class="scriptRisk(script.content)"></span>
         </button>
-        <OpsEmptyState v-if="!scriptStore.scripts.length" :icon="Document" :title="t('scripts.emptyScripts')" />
+        <OpsEmptyState v-if="!scriptStore.scripts.length" :icon="Document" :title="t('scripts.emptyScripts')" :description="t('scripts.emptyScriptsHint')">
+          <template #action><div class="script-empty-actions"><el-button type="primary" size="small" @click="newScript"><el-icon :size="13"><Plus /></el-icon>{{ t('scripts.newScript') }}</el-button><el-button size="small" @click="triggerImport"><el-icon :size="13"><Upload /></el-icon>{{ t('scripts.importLibrary') }}</el-button></div></template>
+        </OpsEmptyState>
       </div>
     </aside>
     <input ref="scriptImportInput" class="script-import-input" type="file" accept="application/json,.json" @change="importLibrary" />
@@ -127,7 +129,9 @@
             <el-button size="small" text :disabled="!schedule.enabled || schedule.isRunning" @click="runScheduleNow(schedule.id)"><el-icon :size="13"><VideoPlay /></el-icon></el-button>
             <el-button size="small" text class="schedule-delete" @click="removeSchedule(schedule.id)"><el-icon :size="13"><Delete /></el-icon></el-button>
           </div>
-          <OpsEmptyState v-if="!scriptStore.schedules.length" :icon="Timer" :title="t('scripts.emptySchedules')" :description="t('scripts.schedulerHint')" />
+          <OpsEmptyState v-if="!scriptStore.schedules.length" :icon="Timer" :title="t('scripts.emptySchedules')" :description="t('scripts.emptySchedulesHint')">
+            <template #action><el-button size="small" @click="activeTab = 'editor'"><el-icon :size="13"><Document /></el-icon>{{ t('scripts.goToScripts') }}</el-button></template>
+          </OpsEmptyState>
         </div>
       </section>
 
@@ -142,7 +146,9 @@
             <pre v-if="expandedLogs.has(log.id)">{{ log.output || t('scripts.noOutput') }}</pre>
             <p v-else>{{ outputPreview(log.output) }}</p>
           </article>
-          <OpsEmptyState v-if="!filteredLogs.length" :icon="Document" :title="historyQuery || historyStatusFilter !== 'all' ? t('scripts.emptyFilteredHistory') : t('scripts.emptyHistory')" />
+          <OpsEmptyState v-if="!filteredLogs.length" :icon="Document" :title="historyQuery || historyStatusFilter !== 'all' ? t('scripts.emptyFilteredHistory') : t('scripts.emptyHistory')" :description="historyQuery || historyStatusFilter !== 'all' ? t('scripts.emptyFilteredHistoryHint') : t('scripts.emptyHistoryHint')">
+            <template #action><el-button v-if="historyQuery || historyStatusFilter !== 'all'" size="small" @click="historyStatusFilter = 'all'; historyQuery = ''">{{ t('scripts.resetFilters') }}</el-button><el-button v-else size="small" @click="activeTab = 'editor'"><el-icon :size="13"><Document /></el-icon>{{ t('scripts.goToScripts') }}</el-button></template>
+          </OpsEmptyState>
         </div>
       </section>
     </main>
@@ -519,6 +525,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
   span { display: inline-flex; align-items: center; gap: 4px; } i { width: 6px; height: 6px; border-radius: 50%; background: $color-success; }
 }
 .script-list { flex: 1; overflow-y: auto; padding: 8px; }
+.script-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .script-list-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; color: $color-text-secondary; cursor: pointer; font: inherit;
   &:hover { background: $color-bg-hover; color: $color-text-primary; } &.active { background: $color-bg-active; border-color: $color-border-light; color: $color-text-primary; }
 }
