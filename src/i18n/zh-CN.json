@@ -212,6 +212,7 @@
     "libraryImportFailed": "导入失败：请选择有效的脚本库 JSON 文件",
     "scriptCount": "{n} 个脚本",
     "runningCount": "运行中 {n}",
+    "listLastRun": "最近：{status} · {server} · {time}",
     "searchScripts": "搜索名称、说明或标签",
     "emptyFilteredScripts": "没有匹配的脚本",
     "emptyFilteredScriptsHint": "尝试更换关键词，或清除搜索查看全部脚本。",

@@ -181,6 +181,8 @@ assertIncludes(scriptAutomationView, 'container-name: script-library', '缩窄�
 assertIncludes(scriptAutomationView, '@container script-library (max-width: 225px)', '窄脚本库必须自动收纳新建按钮文字')
 assertIncludes(scriptAutomationView, 'filteredScripts', '脚本库必须支持按名称、说明和标签筛选')
 assertIncludes(scriptAutomationView, 'scriptLibraryQuery', '脚本库必须提供可清除的搜索关键词')
+assertIncludes(scriptAutomationView, 'scriptLastRun', '脚本库必须展示脚本最近执行摘要')
+assertIncludes(scriptAutomationView, 'script-last-run', '脚本库最近执行摘要必须有独立状态样式')
 assertIncludes(scriptAutomationView, 'script-empty-actions', '脚本空状态必须提供直接的新建和导入操作')
 assertIncludes(scriptAutomationView, "historyStatusFilter = 'all'; historyQuery = ''", '运行记录筛选为空时必须支持一键清除筛选')
 assertIncludes(scriptAutomationView, 'background: $color-bg-input !important', '脚本名称和说明输入框必须保留灰色背景')

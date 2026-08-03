@@ -35,7 +35,7 @@
           @click="selectScript(script.id)"
         >
           <span class="script-file-icon"><el-icon :size="16"><Document /></el-icon></span>
-          <span class="script-list-copy"><b>{{ script.name }}</b><small>{{ script.description || t('scripts.noDescription') }}</small></span>
+          <span class="script-list-copy"><b>{{ script.name }}</b><small>{{ script.description || t('scripts.noDescription') }}</small><small v-if="scriptLastRun(script.id)" class="script-last-run" :class="scriptLastRun(script.id)?.status"><i></i>{{ t('scripts.listLastRun', { status: statusLabel(scriptLastRun(script.id)!.status), server: scriptLastRun(script.id)!.serverName, time: formatDate(scriptLastRun(script.id)!.startedAt) }) }}</small></span>
           <span class="script-risk-dot" :class="scriptRisk(script.content)"></span>
         </button>
         <OpsEmptyState v-if="!scriptStore.scripts.length" :icon="Document" :title="t('scripts.emptyScripts')" :description="t('scripts.emptyScriptsHint')">
@@ -221,7 +221,7 @@ import { ArrowDown, ArrowUp, ChatDotRound, Clock, CopyDocument, Delete, Document
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLocale } from '@/composables/useLocale'
 import { useSshStore } from '@/stores/ssh'
-import { useScriptAutomationStore, type ScriptRunStatus } from '@/stores/scriptAutomation'
+import { useScriptAutomationStore, type ScriptRunLog, type ScriptRunStatus } from '@/stores/scriptAutomation'
 import { classifyCommand } from '@/utils/ops-permission'
 import { isValidCron, nextCronTimes } from '@/utils/script-cron'
 import { extractScriptParameters, renderScriptParameters } from '@/utils/script-parameters'
@@ -328,6 +328,7 @@ function toggleScheduleTarget(id: string) { scheduleTargets.has(id) ? scheduleTa
 function serverStatus(serverId: string) { return sshStore.sessions.some(session => session.serverId === serverId && session.status === 'connected') ? 'connected' : 'offline' }
 function scriptRisk(content: string) { return classifyCommand(content).risk }
 function scriptName(scriptId: string) { return scriptStore.scripts.find(script => script.id === scriptId)?.name || t('scripts.missingScript') }
+function scriptLastRun(scriptId: string): ScriptRunLog | undefined { return scriptStore.runLogs.find(log => log.scriptId === scriptId) }
 
 function saveScript() {
   if (!draft.content.trim()) { ElMessage.warning(t('scripts.contentRequired')); return }
@@ -545,7 +546,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
   &:hover { background: $color-bg-hover; color: $color-text-primary; } &.active { background: $color-bg-active; border-color: $color-border-light; color: $color-text-primary; }
 }
 .script-file-icon { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: $color-primary; background: $color-bg-active; flex-shrink: 0; }
-.script-list-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; } small { overflow: hidden; color: $color-text-placeholder; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; } }
+.script-list-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; } small { overflow: hidden; color: $color-text-placeholder; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; } .script-last-run { display: flex; align-items: center; gap: 4px; color: $color-text-secondary; font-size: 10px; i { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: $color-warning; } &.success i { background: $color-success; } &.failed { color: $color-danger; } &.failed i { background: $color-danger; } &.skipped i { background: $color-text-muted; } } }
 .script-risk-dot { width: 7px; height: 7px; border-radius: 50%; background: $color-success; flex-shrink: 0; &.change, &.unknown { background: $color-warning; } &.high_risk { background: $color-danger; } }
 .script-library-resize { flex: 0 0 9px; display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; background: $color-bg-surface; &:hover, &:active { background: $color-bg-active; } span { width: 2px; height: 44px; border-radius: 99px; background: $color-border; transition: height .16s ease, background .16s ease; } &:hover span, &:active span { height: 62px; background: $color-primary; } }
 
