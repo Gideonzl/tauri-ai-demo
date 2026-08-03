@@ -341,6 +341,12 @@ provide('sendTerminalToAI', (text: string, serverInfo?: string) => {
   aiChatRef.value?.injectTerminalText(text, serverInfo)
 
 })
+provide('sendOperationsAnalysisToAI', async (title: string, content: string, prompt: string, serverInfo?: string): Promise<boolean> => {
+  rightPanelTab.value = 'ai'
+  if (aiPanelCollapsed.value) toggleAiPanel()
+  await nextTick()
+  return await aiChatRef.value?.injectOperationsAnalysis(title, content, prompt, serverInfo) || false
+})
 provide('sendScriptToAI', async (scriptName: string, content: string, prompt: string, scriptId?: string, mode: 'draft' | 'review' = 'draft'): Promise<boolean> => {
   rightPanelTab.value = 'ai'
   if (aiPanelCollapsed.value) toggleAiPanel()

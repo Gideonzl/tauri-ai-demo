@@ -459,6 +459,24 @@ function injectTerminalText(text: string, serverInfo?: string) {
   scrollToBottom()
 }
 
+/** Send operational evidence to the shared conversation and start analysis immediately. */
+async function injectOperationsAnalysis(title: string, content: string, prompt: string, serverInfo?: string): Promise<boolean> {
+  agentStore.switchAgent('ops')
+  if (!modelStore.defaultConfig) {
+    ElMessage.warning(t('ai.pleaseConfig'))
+    return false
+  }
+  if (chatStore.isGenerating) {
+    ElMessage.warning(t('ai.generating'))
+    return false
+  }
+  const target = serverInfo ? `\n服务器：${serverInfo}` : ''
+  inputText.value = `【${title}】${target}\n\n\`\`\`text\n${content}\n\`\`\`\n\n${prompt}`
+  userScrolledUp.value = false
+  await handleSend({ bypassRemediation: true })
+  return true
+}
+
 /** Send a managed script to the shared operations conversation and start generation immediately. */
 async function injectScriptContext(scriptName: string, content: string, prompt: string, scriptId?: string, mode: 'draft' | 'review' = 'draft'): Promise<boolean> {
   agentStore.switchAgent('ops')
@@ -483,7 +501,7 @@ function deliverScriptAssist(messageId: string, response: string) {
   ElMessage.success(t('scripts.aiResultReady'))
 }
 
-defineExpose({ injectFilePath, injectFileContent, injectTerminalText, injectScriptContext })
+defineExpose({ injectFilePath, injectFileContent, injectTerminalText, injectOperationsAnalysis, injectScriptContext })
 
 const messages = computed(() => chatStore.getMessages(agentStore.activeAgentId))
 
