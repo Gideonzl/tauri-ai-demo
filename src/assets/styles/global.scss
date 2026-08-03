@@ -1167,6 +1167,14 @@ body::after {
   border-radius: $border-radius-sm;
 }
 
+// Element Plus 的输入框由外层 wrapper 统一承载聚焦边框；
+// 不要再给内部原生 input 追加焦点环，否则会出现缩进的双层蓝框。
+.el-input__inner:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
 // ============================================================
 // Theme transition — smooth color fades on theme switch
 // ============================================================
