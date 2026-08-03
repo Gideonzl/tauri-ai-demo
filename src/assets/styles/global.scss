@@ -276,6 +276,10 @@ body::after {
 
 
 
+.el-select__wrapper,
+
+
+
 .el-textarea__inner {
 
 
@@ -358,7 +362,8 @@ body::after {
 
 
 
-.el-select .el-input__wrapper {
+.el-select .el-input__wrapper,
+.el-select__wrapper {
 
 
 
@@ -1169,9 +1174,18 @@ body::after {
 
 // Element Plus 的输入框由外层 wrapper 统一承载聚焦边框；
 // 不要再给内部原生 input 追加焦点环，否则会出现缩进的双层蓝框。
-.el-input__inner:focus-visible {
+.el-input__wrapper:focus-within,
+.el-select__wrapper:focus-within,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 2px $color-border-focus inset, 0 0 0 2px $color-bg-active !important;
+}
+
+.el-input__wrapper :focus-visible,
+.el-select__wrapper :focus-visible {
+  outline: none;
+  box-shadow: none !important;
   border-radius: 0;
 }
 
