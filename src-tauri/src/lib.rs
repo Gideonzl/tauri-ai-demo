@@ -34,6 +34,8 @@ pub fn run() {
             commands::ai_chat_stream,
             commands::test_ai_connection,
             // SSH
+            commands::save_ssh_private_key,
+            commands::delete_ssh_private_key,
             commands::ssh_test_connect,
             commands::ssh_connect,
             commands::ssh_disconnect,

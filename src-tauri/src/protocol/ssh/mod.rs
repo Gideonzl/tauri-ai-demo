@@ -65,8 +65,31 @@ mod key_path_tests {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SshAuthMethod {
     Password { password: String },
-    PrivateKey { key_path: String, passphrase: Option<String> },
+    PrivateKey {
+        #[serde(default)]
+        key_path: String,
+        /// Provided for a direct test connection only, or hydrated from the
+        /// encrypted local vault before establishing a persisted connection.
+        #[serde(default)]
+        key_content: Option<String>,
+        #[serde(default)]
+        key_ref: Option<String>,
+        #[serde(default)]
+        passphrase: Option<String>,
+    },
     Agent,
+}
+
+fn load_private_key(
+    key_path: &str,
+    key_content: Option<&str>,
+    passphrase: Option<&str>,
+) -> Result<russh_keys::key::KeyPair, russh_keys::Error> {
+    if let Some(content) = key_content.filter(|value| !value.trim().is_empty()) {
+        russh_keys::decode_secret_key(content, passphrase)
+    } else {
+        russh_keys::load_secret_key(&normalize_key_path(key_path), passphrase)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -231,9 +254,8 @@ pub async fn ssh_test_connect(config: &SshConnectConfig) -> AppResult<SshTestRes
 
     let auth_ok = match &config.auth {
         SshAuthMethod::Password { password } => session.authenticate_password(&config.username, password).await.unwrap_or(false),
-        SshAuthMethod::PrivateKey { key_path, passphrase } => {
-            let key_path = normalize_key_path(key_path);
-            match russh_keys::load_secret_key(&key_path, passphrase.as_deref()) {
+        SshAuthMethod::PrivateKey { key_path, key_content, passphrase, .. } => {
+            match load_private_key(key_path, key_content.as_deref(), passphrase.as_deref()) {
                 Ok(key) => session.authenticate_publickey(&config.username, Arc::new(key)).await.unwrap_or(false),
                 Err(e) => return Ok(SshTestResult { reachable: false, error_type: Some(SshTestErrorType::InvalidKey), error_message: Some(format!("Key load error: {}", e)), latency_ms: None }),
             }
@@ -285,9 +307,8 @@ async fn establish_handle(config: &SshConnectConfig) -> AppResult<client::Handle
             handle.authenticate_password(&config.username, password).await
                 .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Auth failed", e.to_string()))?
         }
-        SshAuthMethod::PrivateKey { key_path, passphrase } => {
-            let key_path = normalize_key_path(key_path);
-            let key = russh_keys::load_secret_key(&key_path, passphrase.as_deref())
+        SshAuthMethod::PrivateKey { key_path, key_content, passphrase, .. } => {
+            let key = load_private_key(key_path, key_content.as_deref(), passphrase.as_deref())
                 .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Cannot load key", e.to_string()))?;
             handle.authenticate_publickey(&config.username, Arc::new(key)).await
                 .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Key auth failed", e.to_string()))?

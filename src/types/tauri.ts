@@ -62,7 +62,16 @@ export interface SshConnectConfig {
 /** SSH 认证方式 */
 export type SshAuthMethod =
   | { type: 'password'; password: string }
-  | { type: 'private_key'; key_path: string; passphrase?: string }
+  | {
+      type: 'private_key'
+      /** Compatibility option for a key that remains on the local filesystem. */
+      key_path?: string
+      /** Used only for the current request; never written to the host list. */
+      key_content?: string
+      /** Reference to encrypted key material in the application data directory. */
+      key_ref?: string
+      passphrase?: string
+    }
   | { type: 'agent' }
 
 /** SSH 会话信息（真实连接后返回） */

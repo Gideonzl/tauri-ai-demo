@@ -58,6 +58,15 @@ export async function sshConnect(config: SshConnectConfig): Promise<SshSessionIn
   return invoke<SshSessionInfo>('ssh_connect', { config })
 }
 
+/** Save pasted/imported private-key material in the encrypted local key vault. */
+export async function saveSshPrivateKey(keyRef: string, privateKey: string): Promise<void> {
+  return invoke<void>('save_ssh_private_key', { keyRef, privateKey })
+}
+
+export async function deleteSshPrivateKey(keyRef: string): Promise<void> {
+  return invoke<void>('delete_ssh_private_key', { keyRef })
+}
+
 /** 断开SSH连接 */
 export async function sshDisconnect(sessionId: string): Promise<void> {
   return invoke<void>('ssh_disconnect', { sessionId })

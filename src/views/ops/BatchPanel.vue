@@ -290,8 +290,8 @@ async function resolveSession(server: SshServer): Promise<{ id: string; transien
     const { sshConnect } = await import('@/api/tauri')
     const res = await sshConnect({
       host: server.host, port: server.port, username: server.username,
-      auth: server.authType === 'password' ? { type: 'password', password: server.password || '' } : { type: 'private_key', key_path: server.keyPath || '', passphrase: server.keyPassphrase || undefined },
-      timeout_ms: 10000, remark: '', pinned: false,
+      auth: server.authType === 'password' ? { type: 'password', password: server.password || '' } : { type: 'private_key', key_path: server.keyPath || undefined, key_ref: server.keyRef || undefined, passphrase: server.keyPassphrase || undefined },
+      timeout_ms: 10000, remark: server.remark || '', pinned: false,
     })
     return { id: res.session_id, transient: true }
   } catch { return null }

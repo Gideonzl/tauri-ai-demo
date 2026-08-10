@@ -80,13 +80,48 @@ pub fn load_config(app: AppHandle) -> AppResult<AppConfig> {
 
 /// SSH 预检连接（仅握手鉴权，不创建持久会话）
 /// 精准区分4类错误：端口不通 / 账号密码错误 / 密钥无效 / 防火墙拦截
+/// Resolve encrypted private-key material immediately before use.  The key is
+/// then held only by the live SSH session for reconnect support.
+fn hydrate_private_key(app: &AppHandle, config: &mut SshConnectConfig) -> AppResult<()> {
+    if let ssh::SshAuthMethod::PrivateKey { key_content, key_ref, .. } = &mut config.auth {
+        let missing_content = key_content.as_deref().map(str::trim).unwrap_or("").is_empty();
+        if missing_content {
+            if let Some(key_ref) = key_ref.as_deref() {
+                let data_dir = app.path().app_data_dir().map_err(|e| {
+                    AppError::with_source(ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+                })?;
+                *key_content = Some(storage::load_ssh_private_key(&data_dir, key_ref)?);
+            }
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
-pub async fn ssh_test_connect(config: SshConnectConfig) -> AppResult<SshTestResult> {
+pub fn save_ssh_private_key(app: AppHandle, key_ref: String, private_key: String) -> AppResult<()> {
+    let data_dir = app.path().app_data_dir().map_err(|e| {
+        AppError::with_source(ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+    })?;
+    storage::save_ssh_private_key(&data_dir, &key_ref, &private_key)
+}
+
+#[tauri::command]
+pub fn delete_ssh_private_key(app: AppHandle, key_ref: String) -> AppResult<()> {
+    let data_dir = app.path().app_data_dir().map_err(|e| {
+        AppError::with_source(ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+    })?;
+    storage::delete_ssh_private_key(&data_dir, &key_ref)
+}
+
+#[tauri::command]
+pub async fn ssh_test_connect(app: AppHandle, mut config: SshConnectConfig) -> AppResult<SshTestResult> {
+    hydrate_private_key(&app, &mut config)?;
     ssh::ssh_test_connect(&config).await
 }
 
 #[tauri::command]
-pub async fn ssh_connect(config: SshConnectConfig) -> AppResult<SshSessionInfo> {
+pub async fn ssh_connect(app: AppHandle, mut config: SshConnectConfig) -> AppResult<SshSessionInfo> {
+    hydrate_private_key(&app, &mut config)?;
     ssh::connect(config).await
 }
 

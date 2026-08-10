@@ -726,9 +726,9 @@ const { register, unregister } = useContextMenu() || !!(window as any).__TAURI_I
       username: server.username,
       auth: server.authType === 'password'
         ? { type: 'password', password: server.password || '' }
-        : { type: 'private_key', key_path: server.keyPath || '', passphrase: server.keyPassphrase || undefined },
+        : { type: 'private_key', key_path: server.keyPath || undefined, key_ref: server.keyRef || undefined, passphrase: server.keyPassphrase || undefined },
       timeout_ms: 10000,
-      remark: '',
+      remark: server.remark || '',
       pinned: false,
     })
     // CRITICAL: Must use store action to set realSessionId on the REACTIVE proxy,

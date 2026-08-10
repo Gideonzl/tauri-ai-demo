@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export interface SshServer { id: string; name: string; host: string; port: number; username: string; authType: 'password' | 'key'; password?: string; keyPath?: string; keyPassphrase?: string; group?: string; lastConnected?: number }
+export interface SshServer { id: string; name: string; host: string; port: number; username: string; authType: 'password' | 'key'; password?: string; keyPath?: string; keyRef?: string; keyPassphrase?: string; group?: string; remark?: string; lastConnected?: number }
 export interface ServerGroup { id: string; name: string; color?: string; sortOrder?: number }
 export type SshStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting'
 export interface SshSession { id: string; serverId: string; serverName: string; status: SshStatus; createdAt: number; error?: string; realSessionId?: string }

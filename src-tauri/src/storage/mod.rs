@@ -127,6 +127,19 @@ fn token_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("token.enc")
 }
 
+/// Private-key contents are deliberately separate from the host list.  The
+/// list contains only a random reference, while the material itself is AES
+/// encrypted in the application data directory.
+fn ssh_private_key_path(app_data_dir: &Path, key_ref: &str) -> AppResult<PathBuf> {
+    let valid = !key_ref.is_empty()
+        && key_ref.len() <= 96
+        && key_ref.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !valid {
+        return Err(AppError::new(ErrorCode::InvalidParam, "Invalid SSH private-key reference"));
+    }
+    Ok(app_data_dir.join("ssh-keys").join(format!("{}.enc", key_ref)))
+}
+
 /// 读取应用配置
 pub fn read_config(app_data_dir: &Path) -> AppResult<AppConfig> {
     let path = config_path(app_data_dir);
@@ -172,6 +185,30 @@ pub fn delete_token(app_data_dir: &Path) -> AppResult<()> {
     let path = token_path(app_data_dir);
     if path.exists() {
         fs::remove_file(&path)?;
+    }
+    Ok(())
+}
+
+/// Save a pasted or selected private key without exposing its plaintext in
+/// browser localStorage or the host configuration file.
+pub fn save_ssh_private_key(app_data_dir: &Path, key_ref: &str, private_key: &str) -> AppResult<()> {
+    if private_key.trim().is_empty() {
+        return Err(AppError::new(ErrorCode::InvalidKeyFormat, "Private key cannot be empty"));
+    }
+    let path = ssh_private_key_path(app_data_dir, key_ref)?;
+    let encrypted = crypto::encrypt_token(private_key)?;
+    write_file(&path, &encrypted)
+}
+
+pub fn load_ssh_private_key(app_data_dir: &Path, key_ref: &str) -> AppResult<String> {
+    let path = ssh_private_key_path(app_data_dir, key_ref)?;
+    crypto::decrypt_token(&read_file(&path)?)
+}
+
+pub fn delete_ssh_private_key(app_data_dir: &Path, key_ref: &str) -> AppResult<()> {
+    let path = ssh_private_key_path(app_data_dir, key_ref)?;
+    if path.exists() {
+        fs::remove_file(path)?;
     }
     Ok(())
 }
@@ -242,6 +279,20 @@ mod tests {
         assert!(has_token(&dir));
         delete_token(&dir).unwrap();
         assert!(!has_token(&dir));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_ssh_private_key_vault_roundtrip() {
+        let dir = env::temp_dir().join("tauri-ai-test-ssh-key-vault");
+        let _ = fs::remove_dir_all(&dir);
+        save_ssh_private_key(&dir, "key-test_123", "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----").unwrap();
+        assert_eq!(
+            load_ssh_private_key(&dir, "key-test_123").unwrap(),
+            "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
+        );
+        delete_ssh_private_key(&dir, "key-test_123").unwrap();
+        assert!(load_ssh_private_key(&dir, "key-test_123").is_err());
         let _ = fs::remove_dir_all(&dir);
     }
 }

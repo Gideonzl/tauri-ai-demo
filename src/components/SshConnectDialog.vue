@@ -7,11 +7,20 @@
   <el-dialog
     v-model="sshStore.showConnectDialog"
     :title="sshStore.editingServer ? 'Edit Host' : 'New Host'"
-    width="420px"
+    width="560px"
     :close-on-click-modal="false"
     @closed="handleClosed"
   >
     <el-form :model="formData" label-width="80px" label-position="left" size="small" @contextmenu.prevent="onInputCtx">
+      <el-form-item label="Group">
+        <el-autocomplete
+          v-model="formData.group"
+          :fetch-suggestions="queryGroupSuggestions"
+          placeholder="Select or type group name"
+          clearable
+          style="width:100%"
+        />
+      </el-form-item>
       <el-form-item label="Name">
         <el-input v-model="formData.name" placeholder="My Server" />
       </el-form-item>
@@ -33,20 +42,30 @@
       <el-form-item v-if="formData.authType === 'password'" label="Password">
         <el-input v-model="formData.password" type="password" show-password placeholder="Enter password" />
       </el-form-item>
+      <el-form-item v-if="formData.authType === 'key'" label="Private Key">
+        <div class="key-material-control" @dragover.prevent @drop.prevent="onKeyDrop">
+          <el-input
+            v-model="formData.keyContent"
+            type="textarea"
+            :rows="5"
+            placeholder="Paste PEM / OpenSSH private key, for example -----BEGIN OPENSSH PRIVATE KEY-----"
+          />
+          <div class="key-material-actions">
+            <el-button size="small" @click="triggerKeyFilePicker">Load local key</el-button>
+            <span>or drag a private-key file here</span>
+            <span v-if="formData.keyRef && !formData.keyContent" class="key-vault-hint">Saved encrypted key available</span>
+          </div>
+          <input ref="keyFileInput" class="key-file-input" type="file" accept=".pem,.key,.ppk,.rsa,.ed25519,*/*" @change="onKeyFileSelected" />
+        </div>
+      </el-form-item>
       <el-form-item v-if="formData.authType === 'key'" label="Key Path">
-        <el-input v-model="formData.keyPath" placeholder="~/.ssh/id_rsa" />
+        <el-input v-model="formData.keyPath" placeholder="Optional compatibility path, e.g. ~/.ssh/id_rsa" />
       </el-form-item>
       <el-form-item v-if="formData.authType === 'key'" label="Passphrase">
         <el-input v-model="formData.keyPassphrase" type="password" show-password placeholder="Leave blank for an unencrypted key" />
       </el-form-item>
-      <el-form-item label="Group">
-        <el-autocomplete
-          v-model="formData.group"
-          :fetch-suggestions="queryGroupSuggestions"
-          placeholder="Select or type group name"
-          clearable
-          style="width:100%"
-        />
+      <el-form-item label="Note">
+        <el-input v-model="formData.remark" type="textarea" :rows="2" placeholder="Optional host note" />
       </el-form-item>
     </el-form>
 
@@ -90,6 +109,7 @@
 import { reactive, watch, ref, onMounted, onUnmounted } from 'vue'
 import { useSshStore } from '@/stores/ssh'
 import { ElMessage } from 'element-plus'
+import { saveSshPrivateKey, sshTestConnect } from '@/api/tauri'
 import { RefreshLeft, Scissor, CopyDocument, DocumentCopy, Delete, Select } from '@element-plus/icons-vue'
 
 const ictx = reactive({ visible: false, x: 0, y: 0, target: null as HTMLInputElement | HTMLTextAreaElement | null })
@@ -128,6 +148,7 @@ function queryGroupSuggestions(queryString: string, cb: (results: { value: strin
 /** 测试连接状态 */
 const testing = ref(false)
 const testResult = ref<{ success: boolean; message: string } | null>(null)
+const keyFileInput = ref<HTMLInputElement | null>(null)
 
 const formData = reactive({
   name: '',
@@ -137,9 +158,41 @@ const formData = reactive({
   authType: 'password' as 'password' | 'key',
   password: '',
   keyPath: '',
+  keyContent: '',
+  keyRef: '',
   keyPassphrase: '',
   group: '',
+  remark: '',
 })
+
+function triggerKeyFilePicker() {
+  keyFileInput.value?.click()
+}
+
+function loadKeyFile(file?: File) {
+  if (!file) return
+  if (file.size > 1024 * 1024) {
+    ElMessage.warning('Private key file must be smaller than 1 MB')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    formData.keyContent = String(reader.result || '').replace(/\r\n/g, '\n')
+    formData.keyPath = ''
+    ElMessage.success('Private key loaded. Save the host to keep it in the encrypted key vault.')
+  }
+  reader.onerror = () => ElMessage.error('Could not read the selected private key file')
+  reader.readAsText(file)
+}
+
+function onKeyFileSelected(event: Event) {
+  loadKeyFile((event.target as HTMLInputElement).files?.[0])
+  ;(event.target as HTMLInputElement).value = ''
+}
+
+function onKeyDrop(event: DragEvent) {
+  loadKeyFile(event.dataTransfer?.files?.[0])
+}
 
 // 编辑时填充表单
 watch(() => sshStore.showConnectDialog, (visible) => {
@@ -153,28 +206,47 @@ watch(() => sshStore.showConnectDialog, (visible) => {
       authType: s.authType,
       password: s.password || '',
       keyPath: s.keyPath || '',
+      keyContent: '',
+      keyRef: s.keyRef || '',
       keyPassphrase: s.keyPassphrase || '',
       group: s.group || '',
+      remark: s.remark || '',
     })
   }
 })
 
-function handleSave() {
+function makeKeyRef() {
+  return `key-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+async function handleSave() {
   if (!formData.name || !formData.host || !formData.username) {
     ElMessage.warning('Please fill in required fields')
     return
   }
-  if (formData.authType === 'key' && !formData.keyPath.trim()) {
-    ElMessage.warning('Please provide a private key path')
+  if (formData.authType === 'key' && !formData.keyContent.trim() && !formData.keyPath.trim() && !formData.keyRef) {
+    ElMessage.warning('Paste, load, or provide a private key before saving')
     return
   }
 
-  if (sshStore.editingServer) {
-    sshStore.updateServer(sshStore.editingServer.id, { ...formData })
-    ElMessage.success('Host updated')
-  } else {
-    sshStore.addServer({ ...formData })
-    ElMessage.success('Host added')
+  try {
+    let keyRef = formData.keyRef
+    if (formData.authType === 'key' && formData.keyContent.trim()) {
+      keyRef ||= makeKeyRef()
+      await saveSshPrivateKey(keyRef, formData.keyContent.trim())
+    }
+    const { keyContent: _keyContent, ...serverData } = formData
+    const safeData = { ...serverData, keyRef }
+    if (sshStore.editingServer) {
+      sshStore.updateServer(sshStore.editingServer.id, safeData)
+      ElMessage.success('Host updated')
+    } else {
+      sshStore.addServer(safeData)
+      ElMessage.success('Host added')
+    }
+  } catch (error) {
+    ElMessage.error(`Could not save private key: ${error instanceof Error ? error.message : String(error)}`)
+    return
   }
   sshStore.showConnectDialog = false
 }
@@ -184,7 +256,7 @@ function handleClosed() {
   testResult.value = null
   Object.assign(formData, {
     name: '', host: '', port: 22, username: 'root',
-    authType: 'password', password: '', keyPath: '', keyPassphrase: '', group: '',
+    authType: 'password', password: '', keyPath: '', keyContent: '', keyRef: '', keyPassphrase: '', group: '', remark: '',
   })
 }
 
@@ -198,8 +270,8 @@ async function handleTestConnection() {
     ElMessage.warning('Please fill in Host and Username first')
     return
   }
-  if (formData.authType === 'key' && !formData.keyPath.trim()) {
-    ElMessage.warning('Please provide a private key path first')
+  if (formData.authType === 'key' && !formData.keyContent.trim() && !formData.keyPath.trim() && !formData.keyRef) {
+    ElMessage.warning('Paste, load, or provide a private key first')
     return
   }
 
@@ -207,16 +279,21 @@ async function handleTestConnection() {
   testResult.value = null
 
   try {
-    const { sshTestConnect } = await import('@/api/tauri')
     const result = await sshTestConnect({
       host: formData.host,
       port: formData.port,
       username: formData.username,
       auth: formData.authType === 'password'
         ? { type: 'password', password: formData.password }
-        : { type: 'private_key', key_path: formData.keyPath.trim(), passphrase: formData.keyPassphrase || undefined },
+        : {
+            type: 'private_key',
+            key_path: formData.keyPath.trim() || undefined,
+            key_content: formData.keyContent.trim() || undefined,
+            key_ref: formData.keyRef || undefined,
+            passphrase: formData.keyPassphrase || undefined,
+          },
       timeout_ms: 10000,
-      remark: '',
+      remark: formData.remark,
       pinned: false,
     })
     if (result.reachable) {
@@ -242,6 +319,11 @@ async function handleTestConnection() {
 }
 
 .host-dialog-footer-spacer { flex: 1 1 auto; }
+
+.key-material-control { width: 100%; }
+.key-material-actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; color: var(--el-text-color-secondary); font-size: 12px; flex-wrap: wrap; }
+.key-vault-hint { color: var(--el-color-success); }
+.key-file-input { display: none; }
 
 @media (max-width: 460px) {
   .host-dialog-footer { flex-wrap: wrap; }
