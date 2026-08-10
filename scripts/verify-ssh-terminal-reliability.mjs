@@ -13,6 +13,8 @@ const store = read('src/stores/ssh.ts')
 const api = read('src/api/tauri.ts')
 const storage = read('src-tauri/src/storage/mod.rs')
 const commands = read('src-tauri/src/commands/mod.rs')
+const zhLocale = read('src/i18n/zh-CN.json')
+const enLocale = read('src/i18n/en.json')
 
 assert.ok(
   colorizer.includes('type ColorResolver = string | ((match: string) => string)'),
@@ -64,5 +66,12 @@ assert.ok(storage.includes('save_ssh_private_key'), '后端必须加密保存私
 assert.ok(commands.includes('hydrate_private_key'), 'SSH 命令必须在后端解析加密私钥引用')
 assert.ok(ssh.includes('key_content: Option<String>'), 'SSH 认证结构必须支持内存私钥正文')
 assert.ok(ssh.includes('decode_secret_key'), 'SSH 后端必须直接解析粘贴的私钥内容')
+assert.ok(dialog.includes("const { t } = useLocale()"), '新建主机弹窗必须使用全局语言切换')
+assert.ok(!dialog.includes('label="Name"'), '新建主机字段不得硬编码英文标签')
+assert.ok(!dialog.includes("'Test Connection'"), '新建主机操作不得硬编码英文按钮文案')
+for (const key of ['keyContent', 'keyPassphrase', 'loadLocalKey', 'dragKeyHere', 'remark']) {
+  assert.ok(zhLocale.includes(`\"${key}\"`), `中文语言包缺少 SSH ${key} 文案`)
+  assert.ok(enLocale.includes(`\"${key}\"`), `英文语言包缺少 SSH ${key} 文案`)
+}
 
 console.log('SSH and terminal reliability checks passed')
