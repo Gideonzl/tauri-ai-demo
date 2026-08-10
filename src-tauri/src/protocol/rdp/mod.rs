@@ -28,8 +28,12 @@ pub struct RdpConnectConfig {
     pub timeout_ms: u64,
 }
 
-fn default_rdp_port() -> u16 { 3389 }
-fn default_timeout() -> u64 { 15000 }
+fn default_rdp_port() -> u16 {
+    3389
+}
+fn default_timeout() -> u64 {
+    15000
+}
 
 /// RDP 分辨率配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +44,10 @@ pub struct RdpResolution {
 
 impl Default for RdpResolution {
     fn default() -> Self {
-        Self { width: 1920, height: 1080 }
+        Self {
+            width: 1920,
+            height: 1080,
+        }
     }
 }
 
@@ -73,7 +80,12 @@ pub enum InputEvent {
     /// 鼠标移动
     MouseMove { x: i32, y: i32 },
     /// 鼠标点击
-    MouseClick { x: i32, y: i32, button: u8, down: bool },
+    MouseClick {
+        x: i32,
+        y: i32,
+        button: u8,
+        down: bool,
+    },
     /// 键盘按键
     KeyPress { keycode: u32, down: bool },
     /// 滚轮
@@ -86,20 +98,32 @@ pub enum InputEvent {
 
 /// 建立 RDP 连接
 pub async fn connect(_config: RdpConnectConfig) -> AppResult<RdpSessionInfo> {
-    Err(AppError::new(ErrorCode::RdpConnectFailed, "RDP连接功能尚未实现，请等待后续版本".to_string()))
+    Err(AppError::new(
+        ErrorCode::RdpConnectFailed,
+        "RDP连接功能尚未实现，请等待后续版本".to_string(),
+    ))
 }
 
 /// 断开 RDP 连接
 pub async fn disconnect(_session_id: &str) -> AppResult<()> {
-    Err(AppError::new(ErrorCode::RdpConnectFailed, "RDP断连功能尚未实现"))
+    Err(AppError::new(
+        ErrorCode::RdpConnectFailed,
+        "RDP断连功能尚未实现",
+    ))
 }
 
 /// 发送键鼠输入事件
 pub async fn send_input(_session_id: &str, _event: InputEvent) -> AppResult<()> {
-    Err(AppError::new(ErrorCode::RdpConnectFailed, "RDP输入转发功能尚未实现"))
+    Err(AppError::new(
+        ErrorCode::RdpConnectFailed,
+        "RDP输入转发功能尚未实现",
+    ))
 }
 
 /// 获取桌面画面帧（预留）
 pub async fn get_frame(_session_id: &str) -> AppResult<Vec<u8>> {
-    Err(AppError::new(ErrorCode::RdpDecodeFailed, "RDP画面获取功能尚未实现"))
+    Err(AppError::new(
+        ErrorCode::RdpDecodeFailed,
+        "RDP画面获取功能尚未实现",
+    ))
 }

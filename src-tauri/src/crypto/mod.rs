@@ -43,8 +43,9 @@ fn derive_key() -> [u8; 32] {
 /// - `EncryptedData`: 包含密文和Nonce的结构体
 pub fn encrypt(plaintext: &str) -> AppResult<EncryptedData> {
     let key = derive_key();
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| AppError::with_source(ErrorCode::EncryptFailed, "密钥初始化失败", e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| {
+        AppError::with_source(ErrorCode::EncryptFailed, "密钥初始化失败", e.to_string())
+    })?;
 
     // 生成随机12字节Nonce
     let mut nonce_bytes = [0u8; 12];
@@ -52,9 +53,9 @@ pub fn encrypt(plaintext: &str) -> AppResult<EncryptedData> {
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // 加密
-    let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
-        .map_err(|e| AppError::with_source(ErrorCode::EncryptFailed, "AES加密失败", e.to_string()))?;
+    let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes()).map_err(|e| {
+        AppError::with_source(ErrorCode::EncryptFailed, "AES加密失败", e.to_string())
+    })?;
 
     Ok(EncryptedData {
         ciphertext: B64.encode(&ciphertext),
@@ -71,39 +72,56 @@ pub fn encrypt(plaintext: &str) -> AppResult<EncryptedData> {
 /// - `String`: 解密后的明文
 pub fn decrypt(data: &EncryptedData) -> AppResult<String> {
     let key = derive_key();
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| AppError::with_source(ErrorCode::DecryptFailed, "密钥初始化失败", e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| {
+        AppError::with_source(ErrorCode::DecryptFailed, "密钥初始化失败", e.to_string())
+    })?;
 
     // 解码Nonce
-    let nonce_bytes = B64
-        .decode(&data.nonce)
-        .map_err(|e| AppError::with_source(ErrorCode::DecryptFailed, "Nonce解码失败", e.to_string()))?;
+    let nonce_bytes = B64.decode(&data.nonce).map_err(|e| {
+        AppError::with_source(ErrorCode::DecryptFailed, "Nonce解码失败", e.to_string())
+    })?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // 解码密文
-    let ciphertext = B64
-        .decode(&data.ciphertext)
-        .map_err(|e| AppError::with_source(ErrorCode::DecryptFailed, "密文解码失败", e.to_string()))?;
+    let ciphertext = B64.decode(&data.ciphertext).map_err(|e| {
+        AppError::with_source(ErrorCode::DecryptFailed, "密文解码失败", e.to_string())
+    })?;
 
     // 解密
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|e| AppError::with_source(ErrorCode::DecryptFailed, "AES解密失败", e.to_string()))?;
+    let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|e| {
+        AppError::with_source(ErrorCode::DecryptFailed, "AES解密失败", e.to_string())
+    })?;
 
-    String::from_utf8(plaintext)
-        .map_err(|e| AppError::with_source(ErrorCode::DecryptFailed, "解密结果UTF8解码失败", e.to_string()))
+    String::from_utf8(plaintext).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::DecryptFailed,
+            "解密结果UTF8解码失败",
+            e.to_string(),
+        )
+    })
 }
 
 /// 简易Token加密（直接返回JSON字符串，方便存储）
 pub fn encrypt_token(token: &str) -> AppResult<String> {
     let data = encrypt(token)?;
-    serde_json::to_string(&data).map_err(|e| AppError::with_source(ErrorCode::EncryptFailed, "加密结果序列化失败", e.to_string()))
+    serde_json::to_string(&data).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::EncryptFailed,
+            "加密结果序列化失败",
+            e.to_string(),
+        )
+    })
 }
 
 /// 简易Token解密（从JSON字符串恢复）
 pub fn decrypt_token(encrypted_json: &str) -> AppResult<String> {
-    let data: EncryptedData = serde_json::from_str(encrypted_json)
-        .map_err(|e| AppError::with_source(ErrorCode::DecryptFailed, "加密数据反序列化失败", e.to_string()))?;
+    let data: EncryptedData = serde_json::from_str(encrypted_json).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::DecryptFailed,
+            "加密数据反序列化失败",
+            e.to_string(),
+        )
+    })?;
     decrypt(&data)
 }
 

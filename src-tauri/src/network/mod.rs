@@ -28,7 +28,9 @@ pub struct HttpRequestConfig {
     pub timeout_ms: u64,
 }
 
-fn default_timeout() -> u64 { 30000 }
+fn default_timeout() -> u64 {
+    30000
+}
 
 /// HTTP 响应
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,7 +90,13 @@ pub async fn send_request(config: HttpRequestConfig) -> AppResult<HttpResponse> 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(config.timeout_ms))
         .build()
-        .map_err(|e| AppError::with_source(ErrorCode::AiRequestFailed, "Failed to build HTTP client", e.to_string()))?;
+        .map_err(|e| {
+            AppError::with_source(
+                ErrorCode::AiRequestFailed,
+                "Failed to build HTTP client",
+                e.to_string(),
+            )
+        })?;
 
     let start = std::time::Instant::now();
 
@@ -106,18 +114,30 @@ pub async fn send_request(config: HttpRequestConfig) -> AppResult<HttpResponse> 
 
     // Attach body for POST/PUT
     if let Some(body) = &config.body {
-        req = req.header("Content-Type", "application/json").body(body.clone());
+        req = req
+            .header("Content-Type", "application/json")
+            .body(body.clone());
     }
 
     let response = req.send().await.map_err(|e| {
         if e.is_timeout() {
             AppError::new(ErrorCode::NetworkTimeout, "Request timed out")
         } else if e.is_connect() {
-            AppError::new(ErrorCode::ConnectionRefused, format!("Connection refused: {}", e))
+            AppError::new(
+                ErrorCode::ConnectionRefused,
+                format!("Connection refused: {}", e),
+            )
         } else if e.is_request() {
-            AppError::new(ErrorCode::DnsResolveFailed, format!("DNS/network error: {}", e))
+            AppError::new(
+                ErrorCode::DnsResolveFailed,
+                format!("DNS/network error: {}", e),
+            )
         } else {
-            AppError::with_source(ErrorCode::AiRequestFailed, "HTTP request failed", e.to_string())
+            AppError::with_source(
+                ErrorCode::AiRequestFailed,
+                "HTTP request failed",
+                e.to_string(),
+            )
         }
     })?;
 
@@ -133,10 +153,19 @@ pub async fn send_request(config: HttpRequestConfig) -> AppResult<HttpResponse> 
     }
 
     let body = response.text().await.map_err(|e| {
-        AppError::with_source(ErrorCode::AiRequestFailed, "Failed to read response body", e.to_string())
+        AppError::with_source(
+            ErrorCode::AiRequestFailed,
+            "Failed to read response body",
+            e.to_string(),
+        )
     })?;
 
-    Ok(HttpResponse { status, headers: resp_headers, body, elapsed_ms })
+    Ok(HttpResponse {
+        status,
+        headers: resp_headers,
+        body,
+        elapsed_ms,
+    })
 }
 
 // ============================================================
@@ -151,8 +180,13 @@ pub async fn ai_stream_request(
     agent_id: &str,
     messages_json: &str,
 ) -> AppResult<String> {
-    let messages: serde_json::Value = serde_json::from_str(messages_json)
-        .map_err(|e| AppError::with_source(ErrorCode::SerializeError, "Failed to parse messages JSON", e.to_string()))?;
+    let messages: serde_json::Value = serde_json::from_str(messages_json).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::SerializeError,
+            "Failed to parse messages JSON",
+            e.to_string(),
+        )
+    })?;
 
     let body = serde_json::json!({
         "model": proxy_config.model,
@@ -163,9 +197,18 @@ pub async fn ai_stream_request(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(proxy_config.timeout_ms))
         .build()
-        .map_err(|e| AppError::with_source(ErrorCode::AiRequestFailed, "Failed to build HTTP client", e.to_string()))?;
+        .map_err(|e| {
+            AppError::with_source(
+                ErrorCode::AiRequestFailed,
+                "Failed to build HTTP client",
+                e.to_string(),
+            )
+        })?;
 
-    let url = format!("{}/chat/completions", proxy_config.api_base.trim_end_matches('/'));
+    let url = format!(
+        "{}/chat/completions",
+        proxy_config.api_base.trim_end_matches('/')
+    );
 
     let response = client
         .post(&url)
@@ -178,9 +221,16 @@ pub async fn ai_stream_request(
             if e.is_timeout() {
                 AppError::new(ErrorCode::NetworkTimeout, "AI request timed out")
             } else if e.is_connect() {
-                AppError::new(ErrorCode::ConnectionRefused, format!("Cannot connect to AI API: {}", e))
+                AppError::new(
+                    ErrorCode::ConnectionRefused,
+                    format!("Cannot connect to AI API: {}", e),
+                )
             } else {
-                AppError::with_source(ErrorCode::AiRequestFailed, "AI request failed", e.to_string())
+                AppError::with_source(
+                    ErrorCode::AiRequestFailed,
+                    "AI request failed",
+                    e.to_string(),
+                )
             }
         })?;
 
@@ -190,16 +240,22 @@ pub async fn ai_stream_request(
 
         // Detect auth errors
         if status == 401 || status == 403 {
-            return Err(AppError::new(ErrorCode::AiTokenInvalid,
-                format!("API authentication failed ({}): {}", status, body_text)));
+            return Err(AppError::new(
+                ErrorCode::AiTokenInvalid,
+                format!("API authentication failed ({}): {}", status, body_text),
+            ));
         }
         if status == 404 {
-            return Err(AppError::new(ErrorCode::AiModelUnavailable,
-                format!("Model/endpoint not found ({}): {}", status, body_text)));
+            return Err(AppError::new(
+                ErrorCode::AiModelUnavailable,
+                format!("Model/endpoint not found ({}): {}", status, body_text),
+            ));
         }
 
-        return Err(AppError::new(ErrorCode::AiRequestFailed,
-            format!("API error {}: {}", status, body_text)));
+        return Err(AppError::new(
+            ErrorCode::AiRequestFailed,
+            format!("API error {}: {}", status, body_text),
+        ));
     }
 
     let mut stream = response.bytes_stream();
@@ -220,25 +276,34 @@ pub async fn ai_stream_request(
                     let line = buffer[..newline_pos].trim().to_string();
                     buffer = buffer[newline_pos + 1..].to_string();
 
-                    if line.is_empty() { continue; }
+                    if line.is_empty() {
+                        continue;
+                    }
 
                     if let Some(data) = line.strip_prefix("data: ") {
                         if data == "[DONE]" {
-                            let _ = app.emit("ai-stream-done", serde_json::json!({
-                                "agent_id": agent_id,
-                                "full_response": full_response,
-                            }));
+                            let _ = app.emit(
+                                "ai-stream-done",
+                                serde_json::json!({
+                                    "agent_id": agent_id,
+                                    "full_response": full_response,
+                                }),
+                            );
                             return Ok(full_response);
                         }
 
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                            if let Some(content) = parsed["choices"][0]["delta"]["content"].as_str() {
+                            if let Some(content) = parsed["choices"][0]["delta"]["content"].as_str()
+                            {
                                 full_response.push_str(content);
-                                let _ = app.emit("ai-stream-chunk", serde_json::json!({
-                                    "agent_id": agent_id,
-                                    "chunk": content,
-                                    "index": chunk_index,
-                                }));
+                                let _ = app.emit(
+                                    "ai-stream-chunk",
+                                    serde_json::json!({
+                                        "agent_id": agent_id,
+                                        "chunk": content,
+                                        "index": chunk_index,
+                                    }),
+                                );
                                 chunk_index += 1;
                             }
                         }
@@ -248,25 +313,38 @@ pub async fn ai_stream_request(
             Err(e) => {
                 // If we have partial response, emit it before error
                 if !full_response.is_empty() {
-                    let _ = app.emit("ai-stream-done", serde_json::json!({
-                        "agent_id": agent_id,
-                        "full_response": full_response,
-                    }));
+                    let _ = app.emit(
+                        "ai-stream-done",
+                        serde_json::json!({
+                            "agent_id": agent_id,
+                            "full_response": full_response,
+                        }),
+                    );
                 }
-                let _ = app.emit("ai-stream-error", serde_json::json!({
-                    "agent_id": agent_id,
-                    "error": format!("Stream interrupted: {}", e),
-                }));
-                return Err(AppError::with_source(ErrorCode::AiStreamInterrupted, "SSE stream error", e.to_string()));
+                let _ = app.emit(
+                    "ai-stream-error",
+                    serde_json::json!({
+                        "agent_id": agent_id,
+                        "error": format!("Stream interrupted: {}", e),
+                    }),
+                );
+                return Err(AppError::with_source(
+                    ErrorCode::AiStreamInterrupted,
+                    "SSE stream error",
+                    e.to_string(),
+                ));
             }
         }
     }
 
     // Stream ended naturally (no [DONE] marker)
-    let _ = app.emit("ai-stream-done", serde_json::json!({
-        "agent_id": agent_id,
-        "full_response": full_response,
-    }));
+    let _ = app.emit(
+        "ai-stream-done",
+        serde_json::json!({
+            "agent_id": agent_id,
+            "full_response": full_response,
+        }),
+    );
     Ok(full_response)
 }
 
@@ -278,8 +356,9 @@ pub async fn ai_stream_request(
 /// Reads token from `token.enc` and API base/model from `config.json`.
 pub async fn load_ai_proxy_config(app_handle: &tauri::AppHandle) -> AppResult<AiProxyConfig> {
     use tauri::Manager;
-    let data_dir = app_handle.path().app_data_dir()
-        .map_err(|e| AppError::with_source(ErrorCode::IoError, "Cannot get app data dir", e.to_string()))?;
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        AppError::with_source(ErrorCode::IoError, "Cannot get app data dir", e.to_string())
+    })?;
 
     // Load encrypted token
     let token = crate::storage::load_token(&data_dir).unwrap_or_default();

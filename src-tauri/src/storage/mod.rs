@@ -133,11 +133,18 @@ fn token_path(app_data_dir: &Path) -> PathBuf {
 fn ssh_private_key_path(app_data_dir: &Path, key_ref: &str) -> AppResult<PathBuf> {
     let valid = !key_ref.is_empty()
         && key_ref.len() <= 96
-        && key_ref.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        && key_ref
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
     if !valid {
-        return Err(AppError::new(ErrorCode::InvalidParam, "Invalid SSH private-key reference"));
+        return Err(AppError::new(
+            ErrorCode::InvalidParam,
+            "Invalid SSH private-key reference",
+        ));
     }
-    Ok(app_data_dir.join("ssh-keys").join(format!("{}.enc", key_ref)))
+    Ok(app_data_dir
+        .join("ssh-keys")
+        .join(format!("{}.enc", key_ref)))
 }
 
 /// 读取应用配置
@@ -191,9 +198,16 @@ pub fn delete_token(app_data_dir: &Path) -> AppResult<()> {
 
 /// Save a pasted or selected private key without exposing its plaintext in
 /// browser localStorage or the host configuration file.
-pub fn save_ssh_private_key(app_data_dir: &Path, key_ref: &str, private_key: &str) -> AppResult<()> {
+pub fn save_ssh_private_key(
+    app_data_dir: &Path,
+    key_ref: &str,
+    private_key: &str,
+) -> AppResult<()> {
     if private_key.trim().is_empty() {
-        return Err(AppError::new(ErrorCode::InvalidKeyFormat, "Private key cannot be empty"));
+        return Err(AppError::new(
+            ErrorCode::InvalidKeyFormat,
+            "Private key cannot be empty",
+        ));
     }
     let path = ssh_private_key_path(app_data_dir, key_ref)?;
     let encrypted = crypto::encrypt_token(private_key)?;
@@ -230,17 +244,24 @@ pub fn write_file(path: &Path, content: &str) -> AppResult<()> {
 /// 通用文件读取工具
 pub fn read_file(path: &Path) -> AppResult<String> {
     if !path.exists() {
-        return Err(AppError::new(ErrorCode::ConfigNotFound, format!("文件不存在: {}", path.display())));
+        return Err(AppError::new(
+            ErrorCode::ConfigNotFound,
+            format!("文件不存在: {}", path.display()),
+        ));
     }
-    fs::read_to_string(path).map_err(|e| AppError::with_source(ErrorCode::ReadFailed, "文件读取失败", e.to_string()))
+    fs::read_to_string(path)
+        .map_err(|e| AppError::with_source(ErrorCode::ReadFailed, "文件读取失败", e.to_string()))
 }
 
 /// 生成唯一ID
 pub fn generate_id() -> String {
-    format!("{:x}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis())
+    format!(
+        "{:x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    )
 }
 
 #[cfg(test)]
@@ -286,7 +307,12 @@ mod tests {
     fn test_ssh_private_key_vault_roundtrip() {
         let dir = env::temp_dir().join("tauri-ai-test-ssh-key-vault");
         let _ = fs::remove_dir_all(&dir);
-        save_ssh_private_key(&dir, "key-test_123", "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----").unwrap();
+        save_ssh_private_key(
+            &dir,
+            "key-test_123",
+            "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+        )
+        .unwrap();
         assert_eq!(
             load_ssh_private_key(&dir, "key-test_123").unwrap(),
             "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"

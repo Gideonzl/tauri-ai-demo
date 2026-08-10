@@ -3,14 +3,14 @@
 //! 指令命名对齐规范：save_token / load_token / ai_chat / ai_chat_stream
 //! SSH增强：ssh_test_connect / sftp_read_dir / sftp_mkdir / sftp_remove / sftp_rename / sftp_upload / sftp_download
 
-use crate::error::{AppError, AppResult, ErrorCode};
-use crate::storage::{self, AppConfig};
-use crate::protocol::ssh::{self, SshConnectConfig, SshSessionInfo, SshTestResult};
-use crate::protocol::sftp::{self, DirectoryListing, FileEntry, TransferProgress};
-use crate::network;
 use crate::ai;
-use tauri::{AppHandle, Emitter, Manager};
+use crate::error::{AppError, AppResult, ErrorCode};
+use crate::network;
+use crate::protocol::sftp::{self, DirectoryListing, FileEntry, TransferProgress};
+use crate::protocol::ssh::{self, SshConnectConfig, SshSessionInfo, SshTestResult};
+use crate::storage::{self, AppConfig};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, Manager};
 
 // ============================================================
 // Token 相关指令
@@ -20,7 +20,11 @@ use serde::{Deserialize, Serialize};
 #[tauri::command]
 pub fn save_token(app: AppHandle, token: String) -> AppResult<()> {
     let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppError::with_source(crate::error::ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
     })?;
     storage::save_token(&data_dir, &token)
 }
@@ -29,7 +33,11 @@ pub fn save_token(app: AppHandle, token: String) -> AppResult<()> {
 #[tauri::command]
 pub fn load_token(app: AppHandle) -> AppResult<String> {
     let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppError::with_source(crate::error::ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
     })?;
     storage::load_token(&data_dir)
 }
@@ -38,7 +46,11 @@ pub fn load_token(app: AppHandle) -> AppResult<String> {
 #[tauri::command]
 pub fn delete_token(app: AppHandle) -> AppResult<()> {
     let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppError::with_source(crate::error::ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
     })?;
     storage::delete_token(&data_dir)
 }
@@ -47,7 +59,11 @@ pub fn delete_token(app: AppHandle) -> AppResult<()> {
 #[tauri::command]
 pub fn has_token(app: AppHandle) -> AppResult<bool> {
     let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppError::with_source(crate::error::ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
     })?;
     Ok(storage::has_token(&data_dir))
 }
@@ -60,7 +76,11 @@ pub fn has_token(app: AppHandle) -> AppResult<bool> {
 #[tauri::command]
 pub fn save_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
     let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppError::with_source(crate::error::ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
     })?;
     storage::write_config(&data_dir, &config)
 }
@@ -69,7 +89,11 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
 #[tauri::command]
 pub fn load_config(app: AppHandle) -> AppResult<AppConfig> {
     let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppError::with_source(crate::error::ErrorCode::IoError, "获取app_data_dir失败", e.to_string())
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
     })?;
     storage::read_config(&data_dir)
 }
@@ -83,8 +107,17 @@ pub fn load_config(app: AppHandle) -> AppResult<AppConfig> {
 /// Resolve encrypted private-key material immediately before use.  The key is
 /// then held only by the live SSH session for reconnect support.
 fn hydrate_private_key(app: &AppHandle, config: &mut SshConnectConfig) -> AppResult<()> {
-    if let ssh::SshAuthMethod::PrivateKey { key_content, key_ref, .. } = &mut config.auth {
-        let missing_content = key_content.as_deref().map(str::trim).unwrap_or("").is_empty();
+    if let ssh::SshAuthMethod::PrivateKey {
+        key_content,
+        key_ref,
+        ..
+    } = &mut config.auth
+    {
+        let missing_content = key_content
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty();
         if missing_content {
             if let Some(key_ref) = key_ref.as_deref() {
                 let data_dir = app.path().app_data_dir().map_err(|e| {
@@ -114,13 +147,19 @@ pub fn delete_ssh_private_key(app: AppHandle, key_ref: String) -> AppResult<()> 
 }
 
 #[tauri::command]
-pub async fn ssh_test_connect(app: AppHandle, mut config: SshConnectConfig) -> AppResult<SshTestResult> {
+pub async fn ssh_test_connect(
+    app: AppHandle,
+    mut config: SshConnectConfig,
+) -> AppResult<SshTestResult> {
     hydrate_private_key(&app, &mut config)?;
     ssh::ssh_test_connect(&config).await
 }
 
 #[tauri::command]
-pub async fn ssh_connect(app: AppHandle, mut config: SshConnectConfig) -> AppResult<SshSessionInfo> {
+pub async fn ssh_connect(
+    app: AppHandle,
+    mut config: SshConnectConfig,
+) -> AppResult<SshSessionInfo> {
     hydrate_private_key(&app, &mut config)?;
     ssh::connect(config).await
 }
@@ -144,14 +183,19 @@ pub async fn ssh_exec_full(session_id: String, command: String) -> AppResult<ssh
 
 /// 打开交互式Shell（PTY分配 + shell启动）
 #[tauri::command]
-pub async fn ssh_open_shell(app: AppHandle, session_id: String, cols: u32, rows: u32) -> AppResult<()> {
+pub async fn ssh_open_shell(
+    app: AppHandle,
+    session_id: String,
+    cols: u32,
+    rows: u32,
+) -> AppResult<()> {
     ssh::open_shell(app, &session_id, cols, rows).await
 }
 
 /// 向Shell写入数据（用户键盘输入）
 #[tauri::command]
-pub async fn ssh_write(session_id: String, data: Vec<u8>) -> AppResult<()> {
-    ssh::write_to_shell(&session_id, &data).await
+pub async fn ssh_write(app: AppHandle, session_id: String, data: Vec<u8>) -> AppResult<()> {
+    ssh::write_to_shell(app, &session_id, &data).await
 }
 
 /// 调整PTY终端尺寸
@@ -190,17 +234,28 @@ pub async fn sftp_rename(session_id: String, old_path: String, new_path: String)
 
 /// 上传本地文件到远端（支持拖拽传入本地路径）
 #[tauri::command]
-pub async fn sftp_upload(session_id: String, local_path: String, remote_path: String) -> AppResult<TransferProgress> {
+pub async fn sftp_upload(
+    session_id: String,
+    local_path: String,
+    remote_path: String,
+) -> AppResult<TransferProgress> {
     // 验证本地文件存在
     if !std::path::Path::new(&local_path).exists() {
-        return Err(AppError::new(crate::error::ErrorCode::SftpUploadFailed, format!("本地文件不存在: {}", local_path)));
+        return Err(AppError::new(
+            crate::error::ErrorCode::SftpUploadFailed,
+            format!("本地文件不存在: {}", local_path),
+        ));
     }
     sftp::upload_file(&session_id, &local_path, &remote_path).await
 }
 
 /// 下载远端文件到本地
 #[tauri::command]
-pub async fn sftp_download(session_id: String, remote_path: String, local_path: String) -> AppResult<TransferProgress> {
+pub async fn sftp_download(
+    session_id: String,
+    remote_path: String,
+    local_path: String,
+) -> AppResult<TransferProgress> {
     // 确保本地目标目录存在
     if let Some(parent) = std::path::Path::new(&local_path).parent() {
         std::fs::create_dir_all(parent).ok();
@@ -236,7 +291,9 @@ pub struct AiChatRequest {
     pub api_timeout_ms: u64,
 }
 
-fn default_api_timeout() -> u64 { 30000 }
+fn default_api_timeout() -> u64 {
+    30000
+}
 
 /// AI 对话消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,7 +328,10 @@ pub async fn ai_chat(app: AppHandle, request: AiChatRequest) -> AppResult<AiChat
             agent_id: request.agent_id.clone(),
             reply: String::new(),
             success: false,
-            error: Some("No API token configured. Please configure an AI model in AI Models page.".to_string()),
+            error: Some(
+                "No API token configured. Please configure an AI model in AI Models page."
+                    .to_string(),
+            ),
         });
     }
 
@@ -330,12 +390,20 @@ pub async fn ai_chat(app: AppHandle, request: AiChatRequest) -> AppResult<AiChat
             agent_id: request.agent_id.clone(),
             reply: String::new(),
             success: false,
-            error: Some(format!("API returned status {}: {}", response.status, response.body)),
+            error: Some(format!(
+                "API returned status {}: {}",
+                response.status, response.body
+            )),
         });
     }
 
-    let parsed: serde_json::Value = serde_json::from_str(&response.body)
-        .map_err(|e| AppError::with_source(ErrorCode::AiRequestFailed, "Failed to parse AI response", e.to_string()))?;
+    let parsed: serde_json::Value = serde_json::from_str(&response.body).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::AiRequestFailed,
+            "Failed to parse AI response",
+            e.to_string(),
+        )
+    })?;
 
     let reply = parsed["choices"][0]["message"]["content"]
         .as_str()
@@ -359,8 +427,16 @@ async fn resolve_api_config(
         return Ok((
             request.api_base.clone(),
             request.api_token.clone(),
-            if request.api_model.is_empty() { "gpt-4o-mini".to_string() } else { request.api_model.clone() },
-            if request.api_timeout_ms == 0 { 30000 } else { request.api_timeout_ms },
+            if request.api_model.is_empty() {
+                "gpt-4o-mini".to_string()
+            } else {
+                request.api_model.clone()
+            },
+            if request.api_timeout_ms == 0 {
+                30000
+            } else {
+                request.api_timeout_ms
+            },
         ));
     }
     // Fallback: load from Rust encrypted storage
@@ -377,20 +453,29 @@ pub async fn ai_chat_stream(app: AppHandle, request: AiChatRequest) -> AppResult
     let (api_base, api_key, model, timeout_ms) = match resolve_api_config(&app, &request).await {
         Ok(cfg) => cfg,
         Err(e) => {
-            let _ = app.emit("ai-stream-error", serde_json::json!({
-                "agent_id": &agent_id,
-                "error": format!("Failed to load config: {}", e),
-            }));
+            let _ = app.emit(
+                "ai-stream-error",
+                serde_json::json!({
+                    "agent_id": &agent_id,
+                    "error": format!("Failed to load config: {}", e),
+                }),
+            );
             return Err(e);
         }
     };
 
     if api_key.is_empty() {
-        let _ = app.emit("ai-stream-error", serde_json::json!({
-            "agent_id": &agent_id,
-            "error": "No API token configured. Please configure an AI model in AI Models page.",
-        }));
-        return Err(AppError::new(ErrorCode::AiTokenInvalid, "No API token configured"));
+        let _ = app.emit(
+            "ai-stream-error",
+            serde_json::json!({
+                "agent_id": &agent_id,
+                "error": "No API token configured. Please configure an AI model in AI Models page.",
+            }),
+        );
+        return Err(AppError::new(
+            ErrorCode::AiTokenInvalid,
+            "No API token configured",
+        ));
     }
 
     // 2) Get agent system prompt
@@ -418,8 +503,7 @@ pub async fn ai_chat_stream(app: AppHandle, request: AiChatRequest) -> AppResult
         "content": request.message,
     }));
 
-    let messages_json = serde_json::to_string(&messages)
-        .unwrap_or_else(|_| "[]".to_string());
+    let messages_json = serde_json::to_string(&messages).unwrap_or_else(|_| "[]".to_string());
 
     // 4) Build proxy config struct for the network layer
     let proxy_config = network::AiProxyConfig {
@@ -434,18 +518,24 @@ pub async fn ai_chat_stream(app: AppHandle, request: AiChatRequest) -> AppResult
     match network::ai_stream_request(app.clone(), &proxy_config, &agent_id, &messages_json).await {
         Ok(full_response) => {
             if full_response.is_empty() {
-                let _ = app.emit("ai-stream-done", serde_json::json!({
-                    "agent_id": agent_id,
-                    "full_response": "",
-                }));
+                let _ = app.emit(
+                    "ai-stream-done",
+                    serde_json::json!({
+                        "agent_id": agent_id,
+                        "full_response": "",
+                    }),
+                );
             }
             Ok(())
         }
         Err(e) => {
-            let _ = app.emit("ai-stream-error", serde_json::json!({
-                "agent_id": agent_id,
-                "error": e.to_string(),
-            }));
+            let _ = app.emit(
+                "ai-stream-error",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "error": e.to_string(),
+                }),
+            );
             Err(e)
         }
     }
@@ -470,7 +560,10 @@ pub struct AiTestResponse {
 /// AI API 连通性测试 — POST /chat/completions with max_tokens=1，绕过 CORS
 #[tauri::command]
 pub async fn test_ai_connection(request: AiTestRequest) -> AppResult<AiTestResponse> {
-    let url = format!("{}/chat/completions", request.api_base.trim_end_matches('/'));
+    let url = format!(
+        "{}/chat/completions",
+        request.api_base.trim_end_matches('/')
+    );
 
     // 发送一条最小对话测试连通性和鉴权
     let body = serde_json::json!({
@@ -481,7 +574,10 @@ pub async fn test_ai_connection(request: AiTestRequest) -> AppResult<AiTestRespo
     });
 
     let mut headers = std::collections::HashMap::new();
-    headers.insert("Authorization".to_string(), format!("Bearer {}", request.api_token));
+    headers.insert(
+        "Authorization".to_string(),
+        format!("Bearer {}", request.api_token),
+    );
     headers.insert("Content-Type".to_string(), "application/json".to_string());
 
     let http_config = network::HttpRequestConfig {
@@ -489,7 +585,11 @@ pub async fn test_ai_connection(request: AiTestRequest) -> AppResult<AiTestRespo
         method: network::HttpMethod::Post,
         headers,
         body: Some(body.to_string()),
-        timeout_ms: if request.timeout_ms == 0 { 15000 } else { request.timeout_ms },
+        timeout_ms: if request.timeout_ms == 0 {
+            15000
+        } else {
+            request.timeout_ms
+        },
     };
 
     match network::send_request(http_config).await {
@@ -500,8 +600,15 @@ pub async fn test_ai_connection(request: AiTestRequest) -> AppResult<AiTestRespo
                 message: if success {
                     "Connection successful".to_string()
                 } else {
-                    format!("API returned status {}: {}", resp.status,
-                        if resp.body.len() > 300 { format!("{}...", &resp.body[..300]) } else { resp.body.clone() })
+                    format!(
+                        "API returned status {}: {}",
+                        resp.status,
+                        if resp.body.len() > 300 {
+                            format!("{}...", &resp.body[..300])
+                        } else {
+                            resp.body.clone()
+                        }
+                    )
                 },
                 status_code: resp.status,
             })
@@ -545,7 +652,13 @@ pub struct CompressRequest {
 
 #[tauri::command]
 pub async fn sftp_compress(request: CompressRequest) -> AppResult<()> {
-    sftp::compress(&request.session_id, &request.source_path, &request.target_path, request.decompress).await
+    sftp::compress(
+        &request.session_id,
+        &request.source_path,
+        &request.target_path,
+        request.decompress,
+    )
+    .await
 }
 
 // ============================================================

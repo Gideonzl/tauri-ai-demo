@@ -13,6 +13,7 @@ const store = read('src/stores/ssh.ts')
 const api = read('src/api/tauri.ts')
 const storage = read('src-tauri/src/storage/mod.rs')
 const commands = read('src-tauri/src/commands/mod.rs')
+const shellSession = read('src/sessions/SSHShellSession.ts')
 const zhLocale = read('src/i18n/zh-CN.json')
 const enLocale = read('src/i18n/en.json')
 
@@ -73,5 +74,11 @@ for (const key of ['keyContent', 'keyPassphrase', 'loadLocalKey', 'dragKeyHere',
   assert.ok(zhLocale.includes(`\"${key}\"`), `中文语言包缺少 SSH ${key} 文案`)
   assert.ok(enLocale.includes(`\"${key}\"`), `英文语言包缺少 SSH ${key} 文案`)
 }
+assert.ok(ssh.includes('oneshot::Sender<AppResult<()>>'), '交互终端写入必须确认远端 PTY 是否实际接收')
+assert.ok(ssh.includes('reconnect_shell_session'), '交互终端失效后必须自动重连并重建 PTY')
+assert.ok(ssh.includes('send_shell_input'), '交互终端必须通过可确认的写入链路发送输入')
+assert.ok(ssh.includes('Shell write timed out'), '交互终端写入不能无限期卡住')
+assert.ok(shellSession.includes('private writeQueue: Promise<void> = Promise.resolve()'), '重连期间终端输入必须顺序发送，不能并发落入旧 PTY')
+assert.ok(shellSession.includes('this.writeQueue = this.writeQueue'), '终端输入必须串行等待上一次写入或重连完成')
 
 console.log('SSH and terminal reliability checks passed')

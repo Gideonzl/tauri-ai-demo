@@ -31,6 +31,8 @@ export class SSHShellSession extends BaseSession {
   private rows: number
   private unlistenData: (() => void) | null = null
   private unlistenStatus: (() => void) | null = null
+  /** Serializes keystrokes while the backend restores an idle SSH transport. */
+  private writeQueue: Promise<void> = Promise.resolve()
 
   constructor(sessionId: string, name: string, cols = 80, rows = 24) {
     super()
@@ -93,7 +95,13 @@ export class SSHShellSession extends BaseSession {
   /** Send keystroke to remote PTY — every char, no buffering (Tabby: channel.write) */
   sendInput(data: string): void {
     if (this.destroyed) return
-    sshWrite(this.sessionId, data)
+    this.writeQueue = this.writeQueue
+      .then(() => sshWrite(this.sessionId, data))
+      .catch((error) => {
+        console.error('[SSHShellSession] SSH input could not be restored:', error)
+        const message = error instanceof Error ? error.message : String(error)
+        this.emitOutput(`\r\n\x1b[1;31m● SSH input failed: ${message}\x1b[0m\r\n`)
+      })
   }
 
   /** Notify server of terminal size change (Tabby: channel.setWindow) */

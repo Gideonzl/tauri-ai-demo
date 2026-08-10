@@ -11,8 +11,8 @@ pub mod network;
 pub mod protocol;
 pub mod storage;
 
-use tauri::Manager;
 use tauri::image::Image;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
