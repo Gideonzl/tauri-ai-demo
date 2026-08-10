@@ -48,7 +48,9 @@ function wrap(text: string, color: string): string {
  * For simplicity we use negative lookahead/lookbehind to skip text
  * immediately preceded by or followed by ANSI sequences.
  */
-function colorizeRegion(text: string, pattern: RegExp, color: string): string {
+type ColorResolver = string | ((match: string) => string)
+
+function colorizeRegion(text: string, pattern: RegExp, color: ColorResolver): string {
   // Split text into regions: plain and ANSI-colored
   const parts: { text: string; isAnsi: boolean }[] = []
   let lastIdx = 0
@@ -71,9 +73,10 @@ function colorizeRegion(text: string, pattern: RegExp, color: string): string {
     if (p.isAnsi) return p.text
     // Apply pattern replacement only to this plain-text segment
     const newPattern = new RegExp(pattern.source, pattern.flags)
-    return p.text.replace(newPattern, (m, ...args) => {
-      // Make sure the match doesn't touch ANSI boundaries
-      return wrap(m, color)
+    return p.text.replace(newPattern, (m) => {
+      // Conditional rules return their complete ANSI-wrapped match. Generic
+      // rules only provide the color and are wrapped here.
+      return typeof color === 'function' ? color(m) : wrap(m, color)
     })
   }).join('')
 }

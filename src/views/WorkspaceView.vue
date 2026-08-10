@@ -726,7 +726,7 @@ const { register, unregister } = useContextMenu() || !!(window as any).__TAURI_I
       username: server.username,
       auth: server.authType === 'password'
         ? { type: 'password', password: server.password || '' }
-        : { type: 'private_key', key_path: server.keyPath || '' },
+        : { type: 'private_key', key_path: server.keyPath || '', passphrase: server.keyPassphrase || undefined },
       timeout_ms: 10000,
       remark: '',
       pinned: false,

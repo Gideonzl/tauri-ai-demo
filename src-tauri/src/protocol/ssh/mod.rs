@@ -7,6 +7,7 @@ use russh::client;
 use russh::ChannelMsg;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tauri::{AppHandle, Emitter};
@@ -31,6 +32,34 @@ pub struct SshConnectConfig {
 }
 fn default_port() -> u16 { 22 }
 fn default_timeout() -> u64 { 10000 }
+
+/// Normalize a user-entered private-key path before it reaches russh.
+/// `russh_keys` receives a literal path, so a common `~/.ssh/id_ed25519`
+/// entry otherwise fails on Windows and Unix alike.
+fn normalize_key_path(key_path: &str) -> String {
+    let raw = key_path.trim().trim_matches('"');
+    if raw == "~" || raw.starts_with("~/") || raw.starts_with("~\\") {
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"));
+        if let Some(home) = home {
+            let suffix = raw[1..].trim_start_matches(['/', '\\']);
+            return PathBuf::from(home).join(suffix).to_string_lossy().into_owned();
+        }
+    }
+    raw.to_owned()
+}
+
+#[cfg(test)]
+mod key_path_tests {
+    use super::normalize_key_path;
+
+    #[test]
+    fn expands_tilde_private_key_path() {
+        let resolved = normalize_key_path("~/.ssh/id_ed25519");
+        assert!(!resolved.starts_with('~'));
+        assert!(resolved.ends_with(".ssh/id_ed25519") || resolved.ends_with(".ssh\\id_ed25519"));
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -180,23 +209,31 @@ async fn shell_task(
 
 pub async fn ssh_test_connect(config: &SshConnectConfig) -> AppResult<SshTestResult> {
     let start = std::time::Instant::now();
-    let cfg = Arc::new(client::Config::default());
+    let cfg = Arc::new(build_client_config());
+    let timeout = std::time::Duration::from_millis(config.timeout_ms.max(5000));
 
-    let mut session = match client::connect(cfg, (config.host.as_str(), config.port), SshHandler).await {
-        Ok(s) => s,
-        Err(e) => {
+    let mut session = match tokio::time::timeout(timeout, client::connect(cfg, (config.host.as_str(), config.port), SshHandler)).await {
+        Ok(Ok(session)) => session,
+        Ok(Err(e)) => {
             let err = e.to_string().to_lowercase();
             let etype = if err.contains("refused") { SshTestErrorType::PortUnreachable }
                        else if err.contains("timeout") { SshTestErrorType::FirewallBlocked }
                        else { SshTestErrorType::PortUnreachable };
             return Ok(SshTestResult { reachable: false, error_type: Some(etype), error_message: Some(e.to_string()), latency_ms: None });
         }
+        Err(_) => return Ok(SshTestResult {
+            reachable: false,
+            error_type: Some(SshTestErrorType::FirewallBlocked),
+            error_message: Some("Connection test timed out".into()),
+            latency_ms: None,
+        }),
     };
 
     let auth_ok = match &config.auth {
         SshAuthMethod::Password { password } => session.authenticate_password(&config.username, password).await.unwrap_or(false),
         SshAuthMethod::PrivateKey { key_path, passphrase } => {
-            match russh_keys::load_secret_key(key_path, passphrase.as_deref()) {
+            let key_path = normalize_key_path(key_path);
+            match russh_keys::load_secret_key(&key_path, passphrase.as_deref()) {
                 Ok(key) => session.authenticate_publickey(&config.username, Arc::new(key)).await.unwrap_or(false),
                 Err(e) => return Ok(SshTestResult { reachable: false, error_type: Some(SshTestErrorType::InvalidKey), error_message: Some(format!("Key load error: {}", e)), latency_ms: None }),
             }
@@ -249,7 +286,8 @@ async fn establish_handle(config: &SshConnectConfig) -> AppResult<client::Handle
                 .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Auth failed", e.to_string()))?
         }
         SshAuthMethod::PrivateKey { key_path, passphrase } => {
-            let key = russh_keys::load_secret_key(key_path, passphrase.as_deref())
+            let key_path = normalize_key_path(key_path);
+            let key = russh_keys::load_secret_key(&key_path, passphrase.as_deref())
                 .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Cannot load key", e.to_string()))?;
             handle.authenticate_publickey(&config.username, Arc::new(key)).await
                 .map_err(|e| AppError::with_source(ErrorCode::SshAuthFailed, "Key auth failed", e.to_string()))?

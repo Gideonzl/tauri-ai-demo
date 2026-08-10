@@ -151,6 +151,17 @@ const BASE_TOKENS: Record<string, string> = {
 // Full palette builder
 // ============================================================
 
+interface TerminalPalette {
+  source: string
+  background: string
+  foreground: string
+  cursor: string
+  black: string; red: string; green: string; yellow: string
+  blue: string; magenta: string; cyan: string; white: string
+  brightBlack: string; brightRed: string; brightGreen: string; brightYellow: string
+  brightBlue: string; brightMagenta: string; brightCyan: string; brightWhite: string
+}
+
 interface ThemeDef {
   primary: string
   bg: string
@@ -158,6 +169,8 @@ interface ThemeDef {
   text: string
   textSecondary: string
   isLight?: boolean
+  /** Terminal palette is intentionally independent from the application shell. */
+  terminal?: TerminalPalette
   syntax: {
     keyword: string; string_: string; number: string; comment: string
     key: string; section: string; error: string; warning: string
@@ -252,6 +265,14 @@ const THEME_DEFS: Record<string, ThemeDef> = {
       key: '#8be9fd', section: '#f1fa8c', error: '#ff5555', warning: '#f1fa8c',
       info: '#8be9fd', variable: '#ffb86c',
     },
+    terminal: {
+      source: 'iTerm2-Color-Schemes/Dracula',
+      background: '#282a36', foreground: '#f8f8f2', cursor: '#f8f8f2',
+      black: '#21222c', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c',
+      blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#f8f8f2',
+      brightBlack: '#6272a4', brightRed: '#ff6e6e', brightGreen: '#69ff94', brightYellow: '#ffffa5',
+      brightBlue: '#d6acff', brightMagenta: '#ff92df', brightCyan: '#a4ffff', brightWhite: '#ffffff',
+    },
   },
 
   'nord': {
@@ -264,6 +285,14 @@ const THEME_DEFS: Record<string, ThemeDef> = {
       keyword: '#81a1c1', string_: '#a3be8c', number: '#b48ead', comment: '#4c566a',
       key: '#88c0d0', section: '#ebcb8b', error: '#bf616a', warning: '#d08770',
       info: '#5e81ac', variable: '#d08770',
+    },
+    terminal: {
+      source: 'iTerm2-Color-Schemes/Nord',
+      background: '#2e3440', foreground: '#d8dee9', cursor: '#d8dee9',
+      black: '#3b4252', red: '#bf616a', green: '#a3be8c', yellow: '#ebcb8b',
+      blue: '#81a1c1', magenta: '#b48ead', cyan: '#88c0d0', white: '#e5e9f0',
+      brightBlack: '#4c566a', brightRed: '#bf616a', brightGreen: '#a3be8c', brightYellow: '#ebcb8b',
+      brightBlue: '#81a1c1', brightMagenta: '#b48ead', brightCyan: '#8fbcbb', brightWhite: '#eceff4',
     },
   },
 
@@ -290,6 +319,14 @@ const THEME_DEFS: Record<string, ThemeDef> = {
       keyword: '#cba6f7', string_: '#a6e3a1', number: '#fab387', comment: '#6c7086',
       key: '#89b4fa', section: '#f9e2af', error: '#f38ba8', warning: '#f9e2af',
       info: '#89dceb', variable: '#f38ba8',
+    },
+    terminal: {
+      source: 'iTerm2-Color-Schemes/Catppuccin Mocha',
+      background: '#1e1e2e', foreground: '#cdd6f4', cursor: '#f5e0dc',
+      black: '#45475a', red: '#f38ba8', green: '#a6e3a1', yellow: '#f9e2af',
+      blue: '#89b4fa', magenta: '#f5c2e7', cyan: '#94e2d5', white: '#bac2de',
+      brightBlack: '#585b70', brightRed: '#f38ba8', brightGreen: '#a6e3a1', brightYellow: '#f9e2af',
+      brightBlue: '#89b4fa', brightMagenta: '#f5c2e7', brightCyan: '#94e2d5', brightWhite: '#a6adc8',
     },
   },
 
@@ -493,30 +530,31 @@ function buildPalette(def: ThemeDef): Record<string, string> {
     '--syntax-info': def.syntax.info,
     '--syntax-variable': def.syntax.variable,
 
-    // Terminal (xterm.js) theme
-    '--terminal-bg': bgApp,
-    '--terminal-fg': textPrimary,
-    '--terminal-cursor': primary,
+    // Terminal (xterm.js) theme. Curated terminal schemes keep their native
+    // ANSI pairing instead of borrowing potentially low-contrast UI colors.
+    '--terminal-bg': def.terminal?.background || bgApp,
+    '--terminal-fg': def.terminal?.foreground || textPrimary,
+    '--terminal-cursor': def.terminal?.cursor || primary,
     '--shadow-sm': isLight ? '0 1px 2px rgba(0,0,0,0.08)' : '0 1px 2px rgba(0,0,0,0.3)',
     '--shadow-md': isLight ? '0 2px 6px rgba(0,0,0,0.1)' : '0 2px 6px rgba(0,0,0,0.4)',
     '--shadow-lg': isLight ? '0 4px 12px rgba(0,0,0,0.12)' : '0 4px 12px rgba(0,0,0,0.5)',
 
-    '--terminal-black': isLight ? lighten(bgApp, 0.06) : darken(bgApp, 0.04),
-    '--terminal-red': def.syntax.error,
-    '--terminal-green': def.syntax.string_,
-    '--terminal-yellow': def.syntax.warning,
-    '--terminal-blue': def.syntax.info,
-    '--terminal-magenta': def.syntax.keyword,
-    '--terminal-cyan': def.syntax.key,
-    '--terminal-white': textPrimary,
-    '--terminal-bright-black': textMuted,
-    '--terminal-bright-red': def.syntax.error,
-    '--terminal-bright-green': def.syntax.string_,
-    '--terminal-bright-yellow': def.syntax.warning,
-    '--terminal-bright-blue': def.syntax.info,
-    '--terminal-bright-magenta': def.syntax.keyword,
-    '--terminal-bright-cyan': def.syntax.key,
-    '--terminal-bright-white': '#ffffff',
+    '--terminal-black': def.terminal?.black || (isLight ? lighten(bgApp, 0.06) : darken(bgApp, 0.04)),
+    '--terminal-red': def.terminal?.red || def.syntax.error,
+    '--terminal-green': def.terminal?.green || def.syntax.string_,
+    '--terminal-yellow': def.terminal?.yellow || def.syntax.warning,
+    '--terminal-blue': def.terminal?.blue || def.syntax.info,
+    '--terminal-magenta': def.terminal?.magenta || def.syntax.keyword,
+    '--terminal-cyan': def.terminal?.cyan || def.syntax.key,
+    '--terminal-white': def.terminal?.white || textPrimary,
+    '--terminal-bright-black': def.terminal?.brightBlack || textMuted,
+    '--terminal-bright-red': def.terminal?.brightRed || def.syntax.error,
+    '--terminal-bright-green': def.terminal?.brightGreen || def.syntax.string_,
+    '--terminal-bright-yellow': def.terminal?.brightYellow || def.syntax.warning,
+    '--terminal-bright-blue': def.terminal?.brightBlue || def.syntax.info,
+    '--terminal-bright-magenta': def.terminal?.brightMagenta || def.syntax.keyword,
+    '--terminal-bright-cyan': def.terminal?.brightCyan || def.syntax.key,
+    '--terminal-bright-white': def.terminal?.brightWhite || '#ffffff',
   }
 }
 

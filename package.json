@@ -11,6 +11,7 @@
     "test:ops-remediation": "node scripts/verify-ops-remediation.mjs",
     "test:ops-orchestration": "node scripts/verify-ops-orchestration.mjs",
     "test:ops-runbooks": "node scripts/verify-ops-runbooks.mjs",
+    "test:ssh-terminal-reliability": "node scripts/verify-ssh-terminal-reliability.mjs",
     "test:ui-refresh": "node scripts/verify-ui-refresh.mjs",
     "preview": "vite preview",
     "tauri": "tauri"

@@ -36,6 +36,9 @@
       <el-form-item v-if="formData.authType === 'key'" label="Key Path">
         <el-input v-model="formData.keyPath" placeholder="~/.ssh/id_rsa" />
       </el-form-item>
+      <el-form-item v-if="formData.authType === 'key'" label="Passphrase">
+        <el-input v-model="formData.keyPassphrase" type="password" show-password placeholder="Leave blank for an unencrypted key" />
+      </el-form-item>
       <el-form-item label="Group">
         <el-autocomplete
           v-model="formData.group"
@@ -71,12 +74,14 @@
     />
 
     <template #footer>
-      <el-button size="small" @click="handleTestConnection" :loading="testing" type="success">
-        Test Connection
-      </el-button>
-      <div style="flex:1" />
-      <el-button size="small" @click="sshStore.showConnectDialog = false">Cancel</el-button>
-      <el-button size="small" type="primary" @click="handleSave">Save</el-button>
+      <div class="host-dialog-footer">
+        <el-button size="small" @click="handleTestConnection" :loading="testing" type="success">
+          Test Connection
+        </el-button>
+        <span class="host-dialog-footer-spacer" />
+        <el-button size="small" @click="sshStore.showConnectDialog = false">Cancel</el-button>
+        <el-button size="small" type="primary" @click="handleSave">Save</el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -84,7 +89,7 @@
 <script setup lang="ts">
 import { reactive, watch, ref, onMounted, onUnmounted } from 'vue'
 import { useSshStore } from '@/stores/ssh'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { RefreshLeft, Scissor, CopyDocument, DocumentCopy, Delete, Select } from '@element-plus/icons-vue'
 
 const ictx = reactive({ visible: false, x: 0, y: 0, target: null as HTMLInputElement | HTMLTextAreaElement | null })
@@ -132,6 +137,7 @@ const formData = reactive({
   authType: 'password' as 'password' | 'key',
   password: '',
   keyPath: '',
+  keyPassphrase: '',
   group: '',
 })
 
@@ -147,6 +153,7 @@ watch(() => sshStore.showConnectDialog, (visible) => {
       authType: s.authType,
       password: s.password || '',
       keyPath: s.keyPath || '',
+      keyPassphrase: s.keyPassphrase || '',
       group: s.group || '',
     })
   }
@@ -155,6 +162,10 @@ watch(() => sshStore.showConnectDialog, (visible) => {
 function handleSave() {
   if (!formData.name || !formData.host || !formData.username) {
     ElMessage.warning('Please fill in required fields')
+    return
+  }
+  if (formData.authType === 'key' && !formData.keyPath.trim()) {
+    ElMessage.warning('Please provide a private key path')
     return
   }
 
@@ -173,18 +184,22 @@ function handleClosed() {
   testResult.value = null
   Object.assign(formData, {
     name: '', host: '', port: 22, username: 'root',
-    authType: 'password', password: '', keyPath: '', group: '',
+    authType: 'password', password: '', keyPath: '', keyPassphrase: '', group: '',
   })
 }
 
 /**
  * 测试连接 — 一键预检连通性
  * 精准区分：端口不通 / 账号密码错误 / 密钥无效 / 防火墙拦截
- * Demo版：模拟测试结果，生产环境应调用Rust后端 ssh_test_connect 指令
+ * 直接调用 Rust 后端；失败必须显示真实错误，不能伪造连接成功。
  */
 async function handleTestConnection() {
   if (!formData.host || !formData.username) {
     ElMessage.warning('Please fill in Host and Username first')
+    return
+  }
+  if (formData.authType === 'key' && !formData.keyPath.trim()) {
+    ElMessage.warning('Please provide a private key path first')
     return
   }
 
@@ -192,7 +207,6 @@ async function handleTestConnection() {
   testResult.value = null
 
   try {
-    // Try real Rust backend first
     const { sshTestConnect } = await import('@/api/tauri')
     const result = await sshTestConnect({
       host: formData.host,
@@ -200,7 +214,7 @@ async function handleTestConnection() {
       username: formData.username,
       auth: formData.authType === 'password'
         ? { type: 'password', password: formData.password }
-        : { type: 'private_key', key_path: formData.keyPath || '' },
+        : { type: 'private_key', key_path: formData.keyPath.trim(), passphrase: formData.keyPassphrase || undefined },
       timeout_ms: 10000,
       remark: '',
       pinned: false,
@@ -210,19 +224,28 @@ async function handleTestConnection() {
     } else {
       testResult.value = { success: false, message: result.error_message || 'Connection failed' }
     }
-  } catch {
-    // Fallback: demo mode
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    const host = formData.host
-    if (host === '0.0.0.0' || host.startsWith('192.168.255')) {
-      testResult.value = { success: false, message: 'Port unreachable: Connection refused (port ' + formData.port + ')' }
-    } else if (formData.password === 'wrong' || formData.password === 'invalid') {
-      testResult.value = { success: false, message: 'Authentication failed: Invalid username or password' }
-    } else {
-      testResult.value = { success: true, message: 'Demo: Connected to ' + host + ':' + formData.port + ' as ' + formData.username }
-    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    testResult.value = { success: false, message: `Test could not run: ${message}` }
+  } finally {
+    testing.value = false
   }
-
-  testing.value = false
 }
 </script>
+
+<style scoped lang="scss">
+.host-dialog-footer {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  width: 100%;
+}
+
+.host-dialog-footer-spacer { flex: 1 1 auto; }
+
+@media (max-width: 460px) {
+  .host-dialog-footer { flex-wrap: wrap; }
+  .host-dialog-footer-spacer { display: none; }
+  .host-dialog-footer > :first-child { margin-right: auto; }
+}
+</style>
