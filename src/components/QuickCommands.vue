@@ -7,11 +7,11 @@
   Termius dark style, no emoji
 -->
 <template>
-  <div class="quick-cmds" :class="{ collapsed: collapsed }">
+  <div class="quick-cmds" :class="{ collapsed: isCollapsed }">
     <!-- Header bar -->
-    <div class="qc-header" @click="collapsed = !collapsed">
+    <div class="qc-header" @click="toggleCollapsed">
       <div class="qc-header-left">
-        <el-icon :size="12"><component :is="collapsed ? 'ArrowRight' : 'ArrowDown'" /></el-icon>
+        <el-icon :size="12"><component :is="isCollapsed ? 'ArrowRight' : 'ArrowDown'" /></el-icon>
         <span class="qc-title">Quick Commands</span>
         <span class="qc-count">{{ filteredCommands.length }}</span>
       </div>
@@ -23,7 +23,7 @@
     </div>
 
     <!-- Command grid (collapsible) -->
-    <div v-if="!collapsed" class="qc-body">
+    <div v-if="!isCollapsed" class="qc-body">
       <!-- Category filter tabs -->
       <div class="qc-categories">
         <span
@@ -94,10 +94,16 @@ import { useLocale } from '@/composables/useLocale'
 
 const { t } = useLocale()
 const sshStore = useSshStore()
+const props = withDefaults(defineProps<{ forceCollapsed?: boolean }>(), { forceCollapsed: false })
 const collapsed = ref(true)
+const isCollapsed = computed(() => props.forceCollapsed || collapsed.value)
 const manageMode = ref(false)
 const { register, unregister } = useContextMenu()
 const activeCategory = ref('All')
+
+function toggleCollapsed() {
+  if (!props.forceCollapsed) collapsed.value = !collapsed.value
+}
 
 const categories = computed(() => {
   const cats = new Set<string>()

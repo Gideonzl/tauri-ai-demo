@@ -29,12 +29,13 @@
         <span v-if="file.loading" class="tab-loading">...</span>
         <el-icon class="tab-close" :size="12" @click.stop="sshStore.openFiles.splice(idx, 1); if (sshStore.activeFileIndex >= sshStore.openFiles.length) sshStore.activeFileIndex = sshStore.openFiles.length - 1"><Close /></el-icon>
       </div>
+      <button v-if="terminalFocusMode" class="focus-exit-tab" title="退出专注终端模式" @click="toggleTerminalFocusMode">退出专注</button>
     </div>
 
     <!-- 内容区：分栏布局 -->
     <div class="workspace-content">
       <!-- 左侧面板 -->
-      <div class="host-list-panel" :style="{ width: hostListWidth + 'px' }">
+      <div class="host-list-panel" :class="{ collapsed: hostListCollapsed }" :style="{ width: hostListCollapsed ? '0px' : hostListWidth + 'px' }">
         <template v-if="leftPanelMode === 'hosts'">
           <div class="host-list-top">
             <el-input v-model="sshStore.searchQuery" size="small"  :placeholder="t('workspace.searchHosts')" clearable class="search-input">
@@ -126,7 +127,8 @@
         </template>
       </div>
 
-      <div class="resize-bar-hostlist" @mousedown="onHostListResizeStart" />
+      <button v-if="hostListCollapsed && !terminalFocusMode" class="host-list-restore" title="展开主机列表" @click="restoreHostList">›</button>
+      <div v-else class="resize-bar-hostlist" @mousedown="onHostListResizeStart" />
 
       <div class="terminal-area">
         <!-- File viewer + Terminal split layout (Xterminal style) -->
@@ -164,7 +166,7 @@
           <div v-if="sshStore.activeFileIndex >= 0 && sshStore.openFiles[sshStore.activeFileIndex]" class="split-handle" @mousedown="onSplitResizeStart"></div>
           <!-- Terminal bottom section -->
           <div class="term-section" :class="{ 'has-files': sshStore.activeFileIndex >= 0 && sshStore.openFiles[sshStore.activeFileIndex] }">
-            <QuickCommands />
+            <QuickCommands :force-collapsed="terminalFocusMode" />
             <!-- Render independent TerminalPanel per session — only active one visible -->
             <div v-for="s in sshStore.sessions" :key="s.id" v-show="s.id === sshStore.activeSessionId" class="term-panel-wrapper">
               <TerminalPanel :session="s" @cwd-change="onCwdChange" />
@@ -181,7 +183,7 @@
       </div>
     </div>
 
-    <footer class="status-bar">
+    <footer v-if="!terminalFocusMode" class="status-bar">
       <span class="status-item" :class="isTauriMode ? 'text-success' : 'text-warning'" style="font-weight:600">
         <span class="status-dot" :class="isTauriMode ? 'bg-success' : 'bg-warning'"></span>
         {{ isTauriMode ? 'TAURI' : t('workspace.demo') }}
@@ -248,7 +250,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, provide, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, provide, watch, nextTick, inject } from 'vue'
+import type { Ref } from 'vue'
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
 import { useLocale } from '@/composables/useLocale'
@@ -271,6 +274,8 @@ const { t } = useLocale()
 const configStore = useConfigStore()
 const isTauriMode = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 const { register, unregister } = useContextMenu()
+const terminalFocusMode = inject<Ref<boolean>>('terminalFocusMode', ref(false))
+const toggleTerminalFocusMode = inject<() => void>('toggleTerminalFocusMode', () => {})
 
 const portForwardingRef = ref<InstanceType<typeof PortForwarding> | null>(null)
 const keyManagerRef = ref<InstanceType<typeof KeyManager> | null>(null)
@@ -700,6 +705,8 @@ const HOST_LIST_MIN = 120
 const HOST_LIST_MAX = 400
 const HOST_LIST_DEFAULT = 200
 const hostListWidth = ref(HOST_LIST_DEFAULT)
+const hostListCollapsed = ref(false)
+const focusHostListSnapshot = ref<{ width: number; collapsed: boolean } | null>(null)
 let hostListResizing = false
 let hostListStartX = 0
 let hostListStartWidth = 0
@@ -728,6 +735,23 @@ function onHostListResizeEnd() {
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
 }
+
+function restoreHostList() {
+  hostListCollapsed.value = false
+  hostListWidth.value = Math.max(HOST_LIST_MIN, focusHostListSnapshot.value?.width || HOST_LIST_DEFAULT)
+}
+
+watch(terminalFocusMode, (enabled) => {
+  if (enabled) {
+    focusHostListSnapshot.value = { width: hostListWidth.value, collapsed: hostListCollapsed.value }
+    hostListCollapsed.value = true
+    hostListWidth.value = 0
+  } else if (focusHostListSnapshot.value) {
+    hostListWidth.value = focusHostListSnapshot.value.width
+    hostListCollapsed.value = focusHostListSnapshot.value.collapsed
+    focusHostListSnapshot.value = null
+  }
+}, { immediate: true })
 
 // Split resize for file viewer vs terminal
 const fileViewerHeight = ref(250)
@@ -874,7 +898,9 @@ onUnmounted(() => {
 
 .workspace-content { flex: 1; overflow: hidden; display: flex; }
 
-.host-list-panel { border-right: 1px solid $color-border; display: flex; flex-direction: column; flex-shrink: 0; background: linear-gradient(180deg, $surface-contrast-soft, $color-bg-primary); overflow: hidden; }
+.host-list-panel { border-right: 1px solid $color-border; display: flex; flex-direction: column; flex-shrink: 0; background: linear-gradient(180deg, $surface-contrast-soft, $color-bg-primary); overflow: hidden; transition: width 0.18s ease;
+  &.collapsed { border-right: none; }
+}
 
 .host-list-top { flex-shrink: 0; padding: $spacing-sm $spacing-sm 0 $spacing-sm; border-bottom: 1px solid $color-border-light; }
 
@@ -974,6 +1000,14 @@ onUnmounted(() => {
 
 .terminal-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: $spacing-sm; color: $color-text-secondary;
   .empty-icon { color: $color-primary; opacity: 0.68; filter: drop-shadow($glow-soft); } p { font-size: $font-size-md; color: $color-text-primary; } .sub { font-size: $font-size-sm; color: $color-text-secondary; }
+}
+
+.host-list-restore { width: 18px; min-width: 18px; border: 0; border-right: 1px solid $color-border; background: $surface-contrast; color: $color-text-secondary; cursor: pointer; padding: 0; font-size: 18px;
+  &:hover { color: $color-primary; background: $color-bg-hover; }
+}
+
+.focus-exit-tab { height: 26px; margin-left: auto; border: 1px solid $color-border; border-radius: $border-radius-sm; background: $color-bg-active; color: $color-text-secondary; cursor: pointer; padding: 0 9px; font-size: $font-size-xs;
+  &:hover { color: $color-primary; border-color: $color-primary; }
 }
 
 .status-bar { height: $status-bar-height; background: $surface-contrast; border-top: 1px solid $color-border; display: flex; align-items: center; padding: 0 $spacing-md; gap: $spacing-sm; flex-shrink: 0; font-size: $font-size-xs; color: $color-text-secondary; font-family: $font-family-mono;

@@ -17,7 +17,7 @@ function assert(condition, message) {
 }
 
 const handleSend = aiPanel.match(
-  /async function handleSend\(\)[\s\S]*?\n}\r?\n\r?\nfunction handleStop/
+  /async function handleSend[\s\S]*?\n}\r?\n\r?\nfunction handleStop/
 )?.[0] ?? ''
 assert(
   /agentStore\.activeMode,\s*handleConfirmCommand/.test(handleSend),
@@ -77,7 +77,7 @@ assert(batchPanel.includes('runWithConcurrency'), '批量执行必须使用并�
 assert(batchPanel.includes('opsAgentStore.decide'), '批量命令必须复用权限策略')
 assert(!batchPanel.includes('const DANGER ='), '批量页不得使用独立高危正则绕过统一权限策略')
 assert(!batchPanel.includes('sshExec('), '批量页不得直接调用旧 sshExec 字符串接口')
-assert(sshProtocol.includes('channel.request_pty(true, "xterm-256color"'), '交互终端必须沿用已验证可用的 PTY 协商参数')
+assert(/channel\s*\.\s*request_pty\(true,\s*"xterm-256color"/.test(sshProtocol), '交互终端必须沿用已验证可用的 PTY 协商参数')
 assert(sshProtocol.includes('async fn take_session_handle'), 'PTY 与命令通道必须协调共享 SSH handle')
 assert(sshProtocol.includes('from_secs(15)'), 'PTY 等待共享 handle 的时间必须覆盖慢速命令通道启动')
 assert(sshProtocol.includes('SSH session stayed busy while opening another channel'), '共享 handle 被占用时必须等待而非误报连接失败')

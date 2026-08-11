@@ -17,7 +17,7 @@
     <div class="shell-aurora shell-aurora-b"></div>
 
     <!-- 顶部品牌导航栏 -->
-    <header class="app-topbar">
+    <header v-if="!terminalFocusMode" class="app-topbar">
       <div class="tb-brand">
         <img src="/app-icon.png?v=2" class="tb-logo" alt="" />
         <span class="tb-name">AITerminal</span>
@@ -38,6 +38,7 @@
       <button class="tb-icon-btn" :title="t('nav.settings')" @click="goSettings">
         <el-icon :size="16"><Setting /></el-icon>
       </button>
+      <button class="tb-focus-btn" title="专注终端模式" @click="toggleTerminalFocusMode">专注终端</button>
     </header>
 
     <div class="main-layout">
@@ -214,6 +215,7 @@ import AiChat from '@/components/AiChat.vue'
 import SystemMonitor from '@/components/SystemMonitor.vue'
 import AiCommandPalette from '@/components/AiCommandPalette.vue'
 import { useContextMenu } from '@/composables/useContextMenu'
+import { TERMINAL_FOCUS_STORAGE_KEY } from '@/utils/terminalFocusLayout'
 
 
 
@@ -223,6 +225,29 @@ const { register, unregister } = useContextMenu()
 const router = useRouter()
 const isTauriMode = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 function goSettings() { if (router.currentRoute.value.path !== '/settings') router.push('/settings') }
+
+const terminalFocusMode = ref(false)
+const focusAiPanelSnapshot = ref(false)
+
+function persistTerminalFocusMode() {
+  try { localStorage.setItem(TERMINAL_FOCUS_STORAGE_KEY, JSON.stringify({ enabled: terminalFocusMode.value })) } catch {}
+}
+
+function toggleTerminalFocusMode() {
+  if (terminalFocusMode.value) {
+    terminalFocusMode.value = false
+    aiPanelCollapsed.value = focusAiPanelSnapshot.value
+  } else {
+    focusAiPanelSnapshot.value = aiPanelCollapsed.value
+    terminalFocusMode.value = true
+    aiPanelCollapsed.value = true
+  }
+  persistTerminalFocusMode()
+  nextTick(() => window.dispatchEvent(new Event('aiterminal:layout-changed')))
+}
+
+provide('terminalFocusMode', terminalFocusMode)
+provide('toggleTerminalFocusMode', toggleTerminalFocusMode)
 
 // 右键菜单
 const ctx = reactive({ visible: false, x: 0, y: 0 })
@@ -524,7 +549,13 @@ function toggleAiPanel() {
 
 
 onMounted(async () => {
-
+  try {
+    const saved = JSON.parse(localStorage.getItem(TERMINAL_FOCUS_STORAGE_KEY) || 'null')
+    if (saved?.enabled === true) {
+      terminalFocusMode.value = true
+      aiPanelCollapsed.value = true
+    }
+  } catch {}
   await configStore.init()
 
 })
@@ -1006,6 +1037,19 @@ onUnmounted(() => {
   border: 1px solid $color-border-focus;
   box-shadow: none;
   animation: none;
+}
+
+.tb-focus-btn {
+  height: 28px;
+  border: 1px solid $color-border;
+  border-radius: $border-radius-sm;
+  padding: 0 9px;
+  color: $color-text-secondary;
+  background: $color-bg-active;
+  cursor: pointer;
+  font-size: $font-size-xs;
+
+  &:hover { color: $color-primary; border-color: $color-primary; }
 }
 
 @keyframes pulse-neon-ring {
