@@ -12,9 +12,14 @@ try {
   const sessions = [{ id: 'first' }, { id: 'second' }, { id: 'third' }]
 
   assert.deepEqual(
-    reorderSessionTabs(sessions, 'third', 'first').map((session) => session.id),
-    ['third', 'second', 'first'],
-    '拖到另一个标签上时必须只交换两个终端窗口的位置',
+    reorderSessionTabs(sessions, 'third', 'first', 'before').map((session) => session.id),
+    ['third', 'first', 'second'],
+    '拖到目标标签左半边时必须插入到目标前方',
+  )
+  assert.deepEqual(
+    reorderSessionTabs(sessions, 'first', 'third', 'after').map((session) => session.id),
+    ['second', 'third', 'first'],
+    '拖到目标标签右半边时必须插入到目标后方',
   )
   assert.deepEqual(
     reorderSessionTabs(sessions, 'second', 'second').map((session) => session.id),

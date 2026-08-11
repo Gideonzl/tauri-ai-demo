@@ -63,7 +63,7 @@ export const useSshStore = defineStore('ssh', () => {
   function requestPtyShell() { ptyRequestCount.value++ }
   function closeSession(sessionId: string) { sessions.value = sessions.value.filter(s => s.id !== sessionId); if (activeSessionId.value === sessionId) activeSessionId.value = sessions.value[0]?.id || '' }
   function switchSession(sessionId: string) { activeSessionId.value = sessionId }
-  function reorderSessions(draggedId: string, targetId: string) { sessions.value = reorderSessionTabs(sessions.value, draggedId, targetId) }
+  function reorderSessions(draggedId: string, targetId: string, placement: 'before' | 'after') { sessions.value = reorderSessionTabs(sessions.value, draggedId, targetId, placement) }
   const STORAGE_KEYS = { servers: 'ssh-servers', groups: 'ssh-groups', quickCommands: 'ssh-quick-commands' }
   function saveToStorage() { try { const d = localStorage; d.setItem(STORAGE_KEYS.servers, JSON.stringify(servers.value)); d.setItem(STORAGE_KEYS.groups, JSON.stringify(groups.value)); d.setItem(STORAGE_KEYS.quickCommands, JSON.stringify(quickCommands.value)) } catch (e) { console.error(e) } }
   function loadFromStorage() { try { const d = localStorage; const sr = d.getItem(STORAGE_KEYS.servers); if (sr) servers.value = JSON.parse(sr); const gr = d.getItem(STORAGE_KEYS.groups); if (gr) groups.value = JSON.parse(gr); const qr = d.getItem(STORAGE_KEYS.quickCommands); if (qr) quickCommands.value = JSON.parse(qr) } catch (e) { console.error(e) } }

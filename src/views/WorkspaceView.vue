@@ -14,7 +14,7 @@
         <el-icon :size="14"><Monitor /></el-icon>
         <span>{{ t('workspace.hosts') }}</span>
       </div>
-      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts', 'drag-over': draggedSessionId === session.id }" draggable="true" @click="switchToSession(session.id)" @dragstart="onSessionDragStart($event, session.id)" @dragover.prevent @drop="onSessionDrop($event, session.id)" @dragend="onSessionDragEnd">
+      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts', 'drop-before': dropTargetSessionId === session.id && dropPlacement === 'before', 'drop-after': dropTargetSessionId === session.id && dropPlacement === 'after' }" draggable="true" @click="switchToSession(session.id)" @dragstart="onSessionDragStart($event, session.id)" @dragover.prevent="onSessionDragOver($event, session.id)" @drop="onSessionDrop($event, session.id)" @dragend="onSessionDragEnd">
         <span class="tab-status" :class="session.status"></span>
         <span class="tab-name">{{ session.serverName }}</span>
         <el-icon class="tab-close" :size="12" @click.stop="handleCloseSession(session.id)"><Close /></el-icon>
@@ -637,21 +637,34 @@ function switchToSession(sessionId: string) {
 }
 
 const draggedSessionId = ref('')
+const dropTargetSessionId = ref('')
+const dropPlacement = ref<'before' | 'after'>('before')
 
 function onSessionDragStart(event: DragEvent, sessionId: string) {
   draggedSessionId.value = sessionId
+  dropTargetSessionId.value = ''
   event.dataTransfer?.setData('application/x-aiterminal-session', sessionId)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
+function onSessionDragOver(event: DragEvent, targetId: string) {
+  if (targetId === draggedSessionId.value) return
+  const target = event.currentTarget as HTMLElement
+  const bounds = target.getBoundingClientRect()
+  dropTargetSessionId.value = targetId
+  dropPlacement.value = event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after'
+}
+
 function onSessionDrop(event: DragEvent, targetId: string) {
   const draggedId = event.dataTransfer?.getData('application/x-aiterminal-session') || draggedSessionId.value
-  if (draggedId) sshStore.reorderSessions(draggedId, targetId)
+  if (draggedId) sshStore.reorderSessions(draggedId, targetId, dropPlacement.value)
   draggedSessionId.value = ''
+  dropTargetSessionId.value = ''
 }
 
 function onSessionDragEnd() {
   draggedSessionId.value = ''
+  dropTargetSessionId.value = ''
 }
 
 // === 服务器列表伸缩 ===
@@ -815,7 +828,8 @@ onUnmounted(() => {
   }
   &[draggable='true'] { cursor: grab; }
   &[draggable='true']:active { cursor: grabbing; }
-  &.drag-over { box-shadow: inset 2px 0 0 $color-primary; }
+  &.drop-before { box-shadow: inset 2px 0 0 $color-primary; }
+  &.drop-after { box-shadow: inset -2px 0 0 $color-primary; }
 }
 
 .hosts-tab { font-weight: 600; }
