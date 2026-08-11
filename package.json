@@ -1,7 +1,7 @@
 {
   "name": "aiterminal",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "test:ops-orchestration": "node scripts/verify-ops-orchestration.mjs",
     "test:ops-runbooks": "node scripts/verify-ops-runbooks.mjs",
     "test:ssh-terminal-reliability": "node scripts/verify-ssh-terminal-reliability.mjs",
+    "test:terminal-colorizer": "node scripts/verify-terminal-colorizer-runtime.mjs",
     "test:ui-refresh": "node scripts/verify-ui-refresh.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
