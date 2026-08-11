@@ -9,7 +9,6 @@ export function reorderSessionTabs<T extends { id: string }>(
   if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) return sessions
 
   const reordered = [...sessions]
-  const [dragged] = reordered.splice(fromIndex, 1)
-  reordered.splice(targetIndex, 0, dragged)
+  ;[reordered[fromIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[fromIndex]]
   return reordered
 }

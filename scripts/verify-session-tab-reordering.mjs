@@ -13,8 +13,8 @@ try {
 
   assert.deepEqual(
     reorderSessionTabs(sessions, 'third', 'first').map((session) => session.id),
-    ['third', 'first', 'second'],
-    '拖到标签前方时必须重排会话数组',
+    ['third', 'second', 'first'],
+    '拖到另一个标签上时必须只交换两个终端窗口的位置',
   )
   assert.deepEqual(
     reorderSessionTabs(sessions, 'second', 'second').map((session) => session.id),
