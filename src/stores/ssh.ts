@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { reorderSessionTabs } from '@/utils/sessionTabOrder'
 
 export interface SshServer { id: string; name: string; host: string; port: number; username: string; authType: 'password' | 'key'; password?: string; keyPath?: string; keyRef?: string; keyPassphrase?: string; group?: string; remark?: string; lastConnected?: number }
 export interface ServerGroup { id: string; name: string; color?: string; sortOrder?: number }
@@ -62,9 +63,10 @@ export const useSshStore = defineStore('ssh', () => {
   function requestPtyShell() { ptyRequestCount.value++ }
   function closeSession(sessionId: string) { sessions.value = sessions.value.filter(s => s.id !== sessionId); if (activeSessionId.value === sessionId) activeSessionId.value = sessions.value[0]?.id || '' }
   function switchSession(sessionId: string) { activeSessionId.value = sessionId }
+  function reorderSessions(draggedId: string, targetId: string) { sessions.value = reorderSessionTabs(sessions.value, draggedId, targetId) }
   const STORAGE_KEYS = { servers: 'ssh-servers', groups: 'ssh-groups', quickCommands: 'ssh-quick-commands' }
   function saveToStorage() { try { const d = localStorage; d.setItem(STORAGE_KEYS.servers, JSON.stringify(servers.value)); d.setItem(STORAGE_KEYS.groups, JSON.stringify(groups.value)); d.setItem(STORAGE_KEYS.quickCommands, JSON.stringify(quickCommands.value)) } catch (e) { console.error(e) } }
   function loadFromStorage() { try { const d = localStorage; const sr = d.getItem(STORAGE_KEYS.servers); if (sr) servers.value = JSON.parse(sr); const gr = d.getItem(STORAGE_KEYS.groups); if (gr) groups.value = JSON.parse(gr); const qr = d.getItem(STORAGE_KEYS.quickCommands); if (qr) quickCommands.value = JSON.parse(qr) } catch (e) { console.error(e) } }
   function init() { loadFromStorage(); const demoIds = new Set(['Web Server', 'DB Server', 'Dev Server', 'Staging', 'Monitor']); const hasDemo = servers.value.some(s => demoIds.has(s.name)); if (hasDemo) { servers.value = servers.value.filter(s => !demoIds.has(s.name)); groups.value = []; servers.value.forEach(s => { if (s.group && !groups.value.find(g => g.name === s.group)) groups.value.push({ id: genId(), name: s.group }) }); saveToStorage() } }
-  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, injectedCommand, injectCommandSeq, runInTerminal, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, init }
+  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, injectedCommand, injectCommandSeq, runInTerminal, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, reorderSessions, init }
 })

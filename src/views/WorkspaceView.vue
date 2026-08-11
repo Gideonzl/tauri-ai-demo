@@ -14,7 +14,7 @@
         <el-icon :size="14"><Monitor /></el-icon>
         <span>{{ t('workspace.hosts') }}</span>
       </div>
-      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts' }" @click="switchToSession(session.id)">
+      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts', 'drag-over': draggedSessionId === session.id }" draggable="true" @click="switchToSession(session.id)" @dragstart="onSessionDragStart($event, session.id)" @dragover.prevent @drop="onSessionDrop($event, session.id)" @dragend="onSessionDragEnd">
         <span class="tab-status" :class="session.status"></span>
         <span class="tab-name">{{ session.serverName }}</span>
         <el-icon class="tab-close" :size="12" @click.stop="handleCloseSession(session.id)"><Close /></el-icon>
@@ -636,6 +636,24 @@ function switchToSession(sessionId: string) {
   leftPanelMode.value = 'sftp'
 }
 
+const draggedSessionId = ref('')
+
+function onSessionDragStart(event: DragEvent, sessionId: string) {
+  draggedSessionId.value = sessionId
+  event.dataTransfer?.setData('application/x-aiterminal-session', sessionId)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function onSessionDrop(event: DragEvent, targetId: string) {
+  const draggedId = event.dataTransfer?.getData('application/x-aiterminal-session') || draggedSessionId.value
+  if (draggedId) sshStore.reorderSessions(draggedId, targetId)
+  draggedSessionId.value = ''
+}
+
+function onSessionDragEnd() {
+  draggedSessionId.value = ''
+}
+
 // === 服务器列表伸缩 ===
 const HOST_LIST_MIN = 120
 const HOST_LIST_MAX = 400
@@ -795,6 +813,9 @@ onUnmounted(() => {
   &.active { color: $color-text-primary; background-color: $color-bg-active;
     &::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 16px; height: 2px; background-color: $color-primary; border-radius: 1px 1px 0 0; box-shadow: $glow-soft; animation: scale-in 0.2s ease; }
   }
+  &[draggable='true'] { cursor: grab; }
+  &[draggable='true']:active { cursor: grabbing; }
+  &.drag-over { box-shadow: inset 2px 0 0 $color-primary; }
 }
 
 .hosts-tab { font-weight: 600; }
