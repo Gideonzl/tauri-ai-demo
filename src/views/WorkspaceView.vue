@@ -14,7 +14,7 @@
         <el-icon :size="14"><Monitor /></el-icon>
         <span>{{ t('workspace.hosts') }}</span>
       </div>
-      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts', 'drop-before': dropTargetSessionId === session.id && dropPlacement === 'before', 'drop-after': dropTargetSessionId === session.id && dropPlacement === 'after' }" draggable="true" @click="switchToSession(session.id)" @dragstart="onSessionDragStart($event, session.id)" @dragover.prevent="onSessionDragOver($event, session.id)" @drop="onSessionDrop($event, session.id)" @dragend="onSessionDragEnd">
+      <div v-for="session in sshStore.sessions" :key="session.id" class="tab-item session-tab" :data-session-id="session.id" :class="{ active: session.id === sshStore.activeSessionId && leftPanelMode !== 'hosts', 'drop-before': dropTargetSessionId === session.id && dropPlacement === 'before', 'drop-after': dropTargetSessionId === session.id && dropPlacement === 'after', dragging: draggedSessionId === session.id }" @click="onSessionTabClick(session.id)" @pointerdown="onSessionTabPointerDown($event, session.id)">
         <span class="tab-status" :class="session.status"></span>
         <span class="tab-name">{{ session.serverName }}</span>
         <el-icon class="tab-close" :size="12" @click.stop="handleCloseSession(session.id)"><Close /></el-icon>
@@ -263,6 +263,7 @@ import QuickCommands from '@/components/QuickCommands.vue'
 import PortForwarding from '@/components/PortForwarding.vue'
 import KeyManager from '@/components/KeyManager.vue'
 import { useContextMenu } from '@/composables/useContextMenu'
+import { getSessionTabDropPlacement } from '@/utils/sessionTabOrder'
 
 const sshStore = useSshStore()
 const modelStore = useModelStore()
@@ -639,32 +640,59 @@ function switchToSession(sessionId: string) {
 const draggedSessionId = ref('')
 const dropTargetSessionId = ref('')
 const dropPlacement = ref<'before' | 'after'>('before')
+let sessionTabPointerId: number | null = null
+let sessionTabStartX = 0
+let sessionTabMoved = false
+let suppressSessionTabClick = false
 
-function onSessionDragStart(event: DragEvent, sessionId: string) {
+function onSessionTabPointerDown(event: PointerEvent, sessionId: string) {
+  if (event.button !== 0) return
   draggedSessionId.value = sessionId
   dropTargetSessionId.value = ''
-  event.dataTransfer?.setData('application/x-aiterminal-session', sessionId)
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  sessionTabPointerId = event.pointerId
+  sessionTabStartX = event.clientX
+  sessionTabMoved = false
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+  document.addEventListener('pointermove', onSessionTabPointerMove)
+  document.addEventListener('pointerup', onSessionTabPointerUp)
+  document.addEventListener('pointercancel', onSessionTabPointerUp)
 }
 
-function onSessionDragOver(event: DragEvent, targetId: string) {
-  if (targetId === draggedSessionId.value) return
-  const target = event.currentTarget as HTMLElement
-  const bounds = target.getBoundingClientRect()
+function updateSessionTabDropTarget(event: PointerEvent) {
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('.session-tab')
+  const targetId = target?.dataset.sessionId
+  if (!targetId || targetId === draggedSessionId.value) {
+    dropTargetSessionId.value = ''
+    return
+  }
   dropTargetSessionId.value = targetId
-  dropPlacement.value = event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after'
+  dropPlacement.value = getSessionTabDropPlacement(target.getBoundingClientRect(), event.clientX)
 }
 
-function onSessionDrop(event: DragEvent, targetId: string) {
-  const draggedId = event.dataTransfer?.getData('application/x-aiterminal-session') || draggedSessionId.value
-  if (draggedId) sshStore.reorderSessions(draggedId, targetId, dropPlacement.value)
-  draggedSessionId.value = ''
-  dropTargetSessionId.value = ''
+function onSessionTabPointerMove(event: PointerEvent) {
+  if (event.pointerId !== sessionTabPointerId) return
+  if (Math.abs(event.clientX - sessionTabStartX) > 4) sessionTabMoved = true
+  if (sessionTabMoved) updateSessionTabDropTarget(event)
 }
 
-function onSessionDragEnd() {
+function onSessionTabPointerUp(event?: PointerEvent) {
+  if (event && event.pointerId !== sessionTabPointerId) return
+  if (sessionTabMoved && draggedSessionId.value && dropTargetSessionId.value) {
+    sshStore.reorderSessions(draggedSessionId.value, dropTargetSessionId.value, dropPlacement.value)
+    suppressSessionTabClick = true
+    window.setTimeout(() => { suppressSessionTabClick = false }, 0)
+  }
   draggedSessionId.value = ''
   dropTargetSessionId.value = ''
+  sessionTabPointerId = null
+  document.removeEventListener('pointermove', onSessionTabPointerMove)
+  document.removeEventListener('pointerup', onSessionTabPointerUp)
+  document.removeEventListener('pointercancel', onSessionTabPointerUp)
+}
+
+function onSessionTabClick(sessionId: string) {
+  if (suppressSessionTabClick) return
+  switchToSession(sessionId)
 }
 
 // === 服务器列表伸缩 ===
@@ -813,6 +841,7 @@ onUnmounted(() => {
   document.removeEventListener('click', hideAllMenus)
   document.removeEventListener('mousemove', onHostListResizeMove)
   document.removeEventListener('mouseup', onHostListResizeEnd)
+  onSessionTabPointerUp()
 })
 </script>
 
@@ -826,8 +855,8 @@ onUnmounted(() => {
   &.active { color: $color-text-primary; background-color: $color-bg-active;
     &::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 16px; height: 2px; background-color: $color-primary; border-radius: 1px 1px 0 0; box-shadow: $glow-soft; animation: scale-in 0.2s ease; }
   }
-  &[draggable='true'] { cursor: grab; }
-  &[draggable='true']:active { cursor: grabbing; }
+  &.session-tab { cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
+  &.session-tab.dragging { cursor: grabbing; opacity: 0.82; }
   &.drop-before { box-shadow: inset 2px 0 0 $color-primary; }
   &.drop-after { box-shadow: inset -2px 0 0 $color-primary; }
 }

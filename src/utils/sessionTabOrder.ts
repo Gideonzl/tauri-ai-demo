@@ -1,3 +1,10 @@
+export function getSessionTabDropPlacement(
+  bounds: Pick<DOMRect, 'left' | 'width'>,
+  pointerX: number,
+): 'before' | 'after' {
+  return pointerX < bounds.left + bounds.width / 2 ? 'before' : 'after'
+}
+
 /** Return a new session order after dragging one tab onto another tab. */
 export function reorderSessionTabs<T extends { id: string }>(
   sessions: T[],

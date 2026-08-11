@@ -8,7 +8,7 @@ const server = await createServer({
 })
 
 try {
-  const { reorderSessionTabs } = await server.ssrLoadModule('/src/utils/sessionTabOrder.ts')
+  const { getSessionTabDropPlacement, reorderSessionTabs } = await server.ssrLoadModule('/src/utils/sessionTabOrder.ts')
   const sessions = [{ id: 'first' }, { id: 'second' }, { id: 'third' }]
 
   assert.deepEqual(
@@ -25,6 +25,16 @@ try {
     reorderSessionTabs(sessions, 'second', 'second').map((session) => session.id),
     ['first', 'second', 'third'],
     '拖到自身时不得改变会话顺序',
+  )
+  assert.equal(
+    getSessionTabDropPlacement({ left: 100, width: 80 }, 120),
+    'before',
+    '鼠标位于标签左半边时应提示插入到前方',
+  )
+  assert.equal(
+    getSessionTabDropPlacement({ left: 100, width: 80 }, 160),
+    'after',
+    '鼠标位于标签右半边时应提示插入到后方',
   )
   console.log('Session tab reordering checks passed.')
 } finally {
