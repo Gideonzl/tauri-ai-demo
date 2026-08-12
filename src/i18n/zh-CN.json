@@ -204,7 +204,10 @@
   },
   "scripts": {
     "title": "脚本计划",
-    "newScript": "新建",
+  "newScript": "新建",
+  "moreActions": "更多",
+  "runSettings": "运行设置",
+  "noExecutionTargets": "未选择目标",
     "importLibrary": "导入",
     "exportLibrary": "导出",
     "libraryExported": "已导出 {n} 个脚本；未包含计划任务和服务器目标",

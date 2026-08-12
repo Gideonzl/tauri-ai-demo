@@ -204,7 +204,10 @@
   },
   "scripts": {
     "title": "Scripts & Schedules",
-    "newScript": "New",
+  "newScript": "New",
+  "moreActions": "More",
+  "runSettings": "Run settings",
+  "noExecutionTargets": "No targets selected",
     "importLibrary": "Import",
     "exportLibrary": "Export",
     "libraryExported": "Exported {n} scripts; schedules and server targets were excluded",
