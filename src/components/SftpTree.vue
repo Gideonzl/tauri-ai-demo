@@ -567,7 +567,10 @@ function formatSize(bytes: number): string { if(bytes<1024)return`${bytes}B`; if
 let unlistenDrop: (() => void) | null = null
 
 onMounted(async () => {
-  treeData.value = getDemoChildren(currentPath.value)
+  // The active workspace session may already be connected when this panel is
+  // mounted. Load it through the backend immediately so remote folders never
+  // get replaced by the demo tree.
+  handleRefresh()
   register(hideCtx)
   document.addEventListener('click', hideCtx)
 

@@ -285,7 +285,7 @@ async fn shell_task(
                     // Servers and NAT devices may close an idle PTY while the
                     // terminal tab is still open. Keep the frontend session
                     // alive so the next input can transparently rebuild it.
-                    Some(ChannelMsg::Eof) | None => { emit_status(&app, &session_id, "reconnecting", "SSH PTY became idle and will be restored on input"); return; }
+                    Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => { emit_status(&app, &session_id, "reconnecting", "SSH PTY became idle and will be restored on input"); return; }
                     _ => {}
                 }
             }
@@ -732,7 +732,7 @@ async fn read_exec_output(
             Ok(Some(ChannelMsg::ExitStatus { exit_status })) => {
                 exit_code = Some(exit_status as i32);
             }
-            Ok(Some(ChannelMsg::Eof)) | Ok(None) => break,
+            Ok(Some(ChannelMsg::Eof)) | Ok(Some(ChannelMsg::Close)) | Ok(None) => break,
             Ok(_) => {}
             Err(_) => {
                 timed_out = true;

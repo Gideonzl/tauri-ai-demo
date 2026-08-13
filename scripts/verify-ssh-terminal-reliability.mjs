@@ -14,6 +14,8 @@ const api = read('src/api/tauri.ts')
 const storage = read('src-tauri/src/storage/mod.rs')
 const commands = read('src-tauri/src/commands/mod.rs')
 const shellSession = read('src/sessions/SSHShellSession.ts')
+const workspace = read('src/views/WorkspaceView.vue')
+const sftpTree = read('src/components/SftpTree.vue')
 const zhLocale = read('src/i18n/zh-CN.json')
 const enLocale = read('src/i18n/en.json')
 
@@ -80,5 +82,25 @@ assert.ok(ssh.includes('send_shell_input'), '交互终端必须通过可确认�
 assert.ok(ssh.includes('Shell write timed out'), '交互终端写入不能无限期卡住')
 assert.ok(shellSession.includes('private writeQueue: Promise<void> = Promise.resolve()'), '重连期间终端输入必须顺序发送，不能并发落入旧 PTY')
 assert.ok(shellSession.includes('this.writeQueue = this.writeQueue'), '终端输入必须串行等待上一次写入或重连完成')
+assert.ok(
+  ssh.includes('Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None'),
+  '空闲 SSH 终端必须同时识别 EOF 和 Close，不能向已经关闭的 PTY 写入数据',
+)
+assert.ok(
+  ssh.includes('Ok(Some(ChannelMsg::Eof)) | Ok(Some(ChannelMsg::Close)) | Ok(None) => break'),
+  '文件列表和命令执行必须在 SSH Close 后结束读取，不能无限等待',
+)
+assert.ok(
+  workspace.includes('const isTauri = isTauriMode'),
+  'Tauri v2 连接失败不得错误回退为演示模式',
+)
+assert.ok(
+  !workspace.includes('const { register, unregister } = useContextMenu() || !!(window as any).__TAURI_INTERNALS__'),
+  '连接处理不得覆盖上下文菜单变量或误用 Tauri 运行时标识',
+)
+assert.ok(
+  /onMounted\(async \(\) => \{\s*\/\/ The active workspace session[\s\S]*?handleRefresh\(\)/.test(sftpTree),
+  '连接会话后文件树必须主动读取远端根目录，不能只显示模拟文件',
+)
 
 console.log('SSH and terminal reliability checks passed')

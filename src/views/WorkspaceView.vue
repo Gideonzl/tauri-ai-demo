@@ -797,8 +797,7 @@ async function handleConnect(serverId: string) {
   sshStore.updateSessionStatus(session.id, 'connecting')
 
   // Check if Tauri runtime is available (v1: __TAURI__, v2: __TAURI_INTERNALS__)
-  const isTauri = !!(window as any).__TAURI__
-const { register, unregister } = useContextMenu() || !!(window as any).__TAURI_INTERNALS__
+  const isTauri = isTauriMode
   console.log('[handleConnect] isTauri:', isTauri, 'server:', server.host, 'port:', server.port)
 
   try {
