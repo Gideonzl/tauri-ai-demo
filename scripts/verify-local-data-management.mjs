@@ -24,6 +24,8 @@ assert.ok(snapshots.includes('function importSnapshots'), '快照必须支持受
 assert.ok(chat.includes('saveAsSnapshot'), 'AI 消息菜单必须允许保存快照')
 assert.ok(history.includes('saveAsSnapshot'), '命令历史菜单必须允许保存快照')
 assert.ok(settings.includes('showSnapshots'), '设置页必须可展开快照列表')
+assert.ok(settings.includes('showSnapshotCreate'), '设置页必须提供可发现的新建快照入口')
+assert.ok(settings.includes('createManualSnapshot'), '设置页必须可以直接创建快照')
 assert.ok(settings.includes('importSnapshotToTerminal'), '设置页必须允许快照导入终端')
 assert.ok(settings.includes('sendSnapshotToAi'), '设置页必须允许快照发送给 AI')
 assert.ok(settings.includes('DATA_CATEGORIES'), '设置页必须定义可见的数据分类')
@@ -37,5 +39,9 @@ assert.ok(storage.includes('clear_sensitive_local_data'), '后端必须能删除
 assert.ok(api.includes("invoke<void>('clear_sensitive_local_data')"), '前端必须调用凭据清理接口')
 assert.ok(zhLocale.includes('"saveSnapshot"'), '中文语言包必须包含快照保存文案')
 assert.ok(enLocale.includes('"saveSnapshot"'), '英文语言包必须包含快照保存文案')
+assert.ok(zhLocale.includes('"snapshotEmpty"'), '中文语言包必须包含快照空状态文案')
+assert.ok(enLocale.includes('"snapshotEmpty"'), '英文语言包必须包含快照空状态文案')
+assert.ok(zhLocale.includes('"noData"'), '中文语言包必须包含通用空状态文案')
+assert.ok(enLocale.includes('"noData"'), '英文语言包必须包含通用空状态文案')
 
 console.log('Local data management checks passed')

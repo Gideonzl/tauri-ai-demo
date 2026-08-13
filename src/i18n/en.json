@@ -768,6 +768,11 @@
   },
   "data": {
     "snapshots": "Workflow snapshots",
+    "newSnapshot": "New snapshot",
+    "snapshotTitle": "Snapshot title (optional)",
+    "snapshotCommand": "Enter a command or script to save",
+    "snapshotEmpty": "No workflow snapshots yet",
+    "snapshotEmptyHint": "Create one here, or right-click an AI reply or command history item.",
     "saveSnapshot": "Save as snapshot",
     "snapshotSaved": "Saved locally",
     "importToTerminal": "Send to terminal",
@@ -807,7 +812,9 @@
     "attention": "Attention",
     "critical": "Critical"
   },
-  "common": {
+    "common": {
+    "noData": "No data",
+    "tip": "Notice",
     "copy": "Copy",
     "paste": "Paste",
     "selectAll": "Select All",

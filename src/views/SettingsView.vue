@@ -200,7 +200,23 @@
             <input ref="importInput" type="file" accept="application/json" style="display:none" @change="importData" />
           </div>
           <div v-if="showSnapshots" class="snapshot-list">
-            <div v-if="snapshotsStore.snapshots.length === 0" class="snapshot-empty">{{ t('common.noData') }}</div>
+            <div class="snapshot-toolbar">
+              <el-button size="small" text @click="showSnapshotCreate = !showSnapshotCreate">
+                <el-icon :size="12"><Plus /></el-icon>{{ t('data.newSnapshot') }}
+              </el-button>
+            </div>
+            <div v-if="showSnapshotCreate" class="snapshot-create">
+              <el-input v-model="snapshotDraft.title" size="small" :placeholder="t('data.snapshotTitle')" maxlength="120" />
+              <el-input v-model="snapshotDraft.command" type="textarea" :rows="3" resize="none" :placeholder="t('data.snapshotCommand')" />
+              <div class="snapshot-create-actions">
+                <el-button size="small" text @click="cancelSnapshotCreate">{{ t('common.cancel') }}</el-button>
+                <el-button size="small" type="primary" :disabled="!snapshotDraft.command.trim()" @click="createManualSnapshot">{{ t('common.save') }}</el-button>
+              </div>
+            </div>
+            <div v-if="snapshotsStore.snapshots.length === 0 && !showSnapshotCreate" class="snapshot-empty">
+              <span>{{ t('data.snapshotEmpty') }}</span>
+              <small>{{ t('data.snapshotEmptyHint') }}</small>
+            </div>
             <div v-for="snapshot in snapshotsStore.snapshots" :key="snapshot.id" class="snapshot-row">
               <button class="snapshot-main" @click="sendSnapshotToAi(snapshot.id)">
                 <span>{{ snapshot.title }}</span>
@@ -282,6 +298,8 @@ onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', h
 // ── Data export / import (backup) ──
 const importInput = ref<HTMLInputElement | null>(null)
 const showSnapshots = ref(false)
+const showSnapshotCreate = ref(false)
+const snapshotDraft = reactive({ title: '', command: '' })
 const dataRefresh = ref(0)
 
 const DATA_CATEGORIES = [
@@ -332,6 +350,25 @@ function sanitizeBackupValue(key: string, raw: string): string | null {
 
 function formatSnapshotTime(timestamp: number) {
   return new Intl.DateTimeFormat(locale.value, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(timestamp)
+}
+
+function cancelSnapshotCreate() {
+  showSnapshotCreate.value = false
+  snapshotDraft.title = ''
+  snapshotDraft.command = ''
+}
+
+function createManualSnapshot() {
+  const command = snapshotDraft.command.trim()
+  if (!command) return
+  const snapshot = snapshotsStore.createSnapshot({
+    title: snapshotDraft.title.trim() || command.split('\n')[0].slice(0, 48),
+    server: sshStore.activeSession ? { id: sshStore.activeSession.serverId, name: sshStore.activeSession.serverName } : undefined,
+    commands: [{ command, timestamp: Date.now() }],
+  })
+  if (!snapshot) return
+  cancelSnapshotCreate()
+  ElMessage.success(t('data.snapshotSaved'))
 }
 
 async function importSnapshotToTerminal(snapshotId: string) {
@@ -591,7 +628,11 @@ const themes = {
 .data-hint { font-size: $font-size-xs; color: $color-text-placeholder; margin-bottom: $spacing-sm; }
 .data-actions { display: flex; gap: $spacing-sm; }
 .snapshot-list { margin-top: $spacing-sm; border-top: 1px solid $color-border-light; }
-.snapshot-empty { padding: $spacing-sm 0; font-size: $font-size-xs; color: $color-text-placeholder; }
+.snapshot-toolbar { display: flex; justify-content: flex-end; min-height: 32px; align-items: center; }
+.snapshot-create { display: grid; gap: $spacing-xs; padding: $spacing-sm 0; border-top: 1px solid $color-border-light; }
+.snapshot-create-actions { display: flex; justify-content: flex-end; gap: $spacing-xs; }
+.snapshot-empty { display: grid; gap: 3px; padding: $spacing-md 0; font-size: $font-size-xs; color: $color-text-regular; }
+.snapshot-empty small { color: $color-text-placeholder; }
 .snapshot-row { display: flex; align-items: center; gap: $spacing-sm; min-height: 38px; border-bottom: 1px solid $color-border-light; }
 .snapshot-main { min-width: 0; flex: 1; border: none; padding: 6px 0; text-align: left; color: $color-text-primary; background: transparent; cursor: pointer; }
 .snapshot-main span, .snapshot-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -768,6 +768,11 @@
   },
   "data": {
     "snapshots": "工作流快照",
+    "newSnapshot": "新建快照",
+    "snapshotTitle": "快照标题（可选）",
+    "snapshotCommand": "输入要保存的命令或脚本",
+    "snapshotEmpty": "还没有工作流快照",
+    "snapshotEmptyHint": "可在这里新建，也可右键 AI 回复或命令历史保存。",
     "saveSnapshot": "保存为快照",
     "snapshotSaved": "已保存到本机",
     "importToTerminal": "导入终端",
@@ -807,7 +812,9 @@
     "attention": "注意",
     "critical": "严重"
   },
-  "common": {
+    "common": {
+    "noData": "暂无数据",
+    "tip": "提示",
     "copy": "复制",
     "paste": "粘贴",
     "selectAll": "全选",
