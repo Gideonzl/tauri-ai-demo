@@ -104,6 +104,16 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   function saveSchedules() { try { localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules.value)) } catch {} }
   function saveLogs() { try { localStorage.setItem(LOGS_KEY, JSON.stringify(runLogs.value.slice(0, MAX_LOGS))) } catch {} }
   function saveVersions() { try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions.value)) } catch {} }
+  function clearAllLocalData() {
+    scripts.value = []
+    schedules.value = []
+    runLogs.value = []
+    versions.value = []
+    runningScriptIds.value = []
+    try {
+      ;[SCRIPTS_KEY, SCHEDULES_KEY, LOGS_KEY, VERSIONS_KEY, LEGACY_APPROVALS_KEY].forEach(key => localStorage.removeItem(key))
+    } catch { /* ignore */ }
+  }
   function versionsFor(scriptId: string) { return versions.value.filter(item => item.scriptId === scriptId).sort((a, b) => b.createdAt - a.createdAt) }
 
   function upsertScript(input: Omit<ManagedScript, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ManagedScript {
@@ -364,6 +374,6 @@ export const useScriptAutomationStore = defineStore('scriptAutomation', () => {
   return {
     scripts, schedules, runLogs: recentLogs, versions, versionsFor, runningScriptIds, runningCount,
     upsertScript, removeScript, restoreVersion, exportScriptLibrary, importScriptLibrary, saveSchedule, removeSchedule, clearRunLogs, setScheduleEnabled, runScheduleNow,
-    executeScript, init, stopScheduler,
+    executeScript, clearAllLocalData, init, stopScheduler,
   }
 })

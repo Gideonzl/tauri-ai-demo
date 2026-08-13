@@ -96,6 +96,7 @@ export const useInspectionStore = defineStore('inspection', () => {
     return null
   }
   function saveReport() { try { localStorage.setItem(REPORT_KEY, JSON.stringify(report.value)) } catch {} }
+  function clearLocalReport() { report.value = null; try { localStorage.removeItem(REPORT_KEY) } catch {} }
 
   /** 执行一次完整巡检 */
   async function runInspection(sessionId: string, serverName: string, serverId: string): Promise<InspectionReport> {
@@ -185,5 +186,5 @@ export const useInspectionStore = defineStore('inspection', () => {
     return lines.join('\n')
   }
 
-  return { running, report, runInspection, buildAiPrompt, exportMarkdown, saveReport }
+  return { running, report, runInspection, buildAiPrompt, exportMarkdown, saveReport, clearLocalReport }
 })

@@ -178,6 +178,7 @@ export const useServiceOpsStore = defineStore('serviceOps', () => {
     return []
   }
   function saveReports() { try { localStorage.setItem(REPORTS_KEY, JSON.stringify(reports.value)) } catch {} }
+  function clearLocalReports() { reports.value = []; try { localStorage.removeItem(REPORTS_KEY) } catch {} }
 
   async function exec(sessionId: string, cmd: string): Promise<string> {
     try { return (await sshExec(sessionId, cmd)).trim() } catch { return '' }
@@ -213,5 +214,5 @@ export const useServiceOpsStore = defineStore('serviceOps', () => {
     return lines.join('\n').slice(0, 5000)
   }
 
-  return { running, reports, checkServer, buildAiPrompt, saveReports }
+  return { running, reports, checkServer, buildAiPrompt, saveReports, clearLocalReports }
 })

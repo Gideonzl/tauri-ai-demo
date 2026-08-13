@@ -755,10 +755,16 @@
     "dataManage": "数据管理",
     "exportData": "导出备份",
     "importData": "导入备份",
-    "exportHint": "导出全部服务器、主题、终端设置为 JSON 文件",
+    "exportHint": "导出不含密码、密钥与 Token 的本机业务数据",
     "dataExported": "已导出备份",
     "dataImported": "导入成功，即将刷新",
-    "importFailed": "导入失败：文件格式不正确"
+    "importFailed": "导入失败：文件格式不正确",
+    "clear": "清空",
+    "clearAll": "清空全部业务数据",
+    "clearConfirm": "确认清空「{name}」吗？此操作不可撤销。",
+    "clearAllConfirm": "这会删除本机全部业务数据，主题、语言和终端偏好会保留。是否继续？",
+    "clearAllConfirmFinal": "请再次确认：AI Token、服务器、密钥、历史和自动化数据都会被删除。",
+    "dataCleared": "已清空本机数据"
   },
   "data": {
     "snapshots": "工作流快照",
@@ -766,7 +772,15 @@
     "snapshotSaved": "已保存到本机",
     "importToTerminal": "导入终端",
     "sendToAi": "发送给 AI",
-    "deleteSnapshot": "删除快照"
+    "deleteSnapshot": "删除快照",
+    "connections": "连接配置",
+    "aiHistory": "AI 与命令历史",
+    "automation": "脚本与计划任务",
+    "operations": "运维记录与规则",
+    "credentials": "AI 配置与本机凭据",
+    "items": "{count} 项 · {size}",
+    "activeSessionUnaffected": "不会主动断开当前 SSH 连接。",
+    "clearWhenIdle": "请等待正在进行的 AI 或脚本任务结束后再清理。"
   },
   "monitor": {
     "title": "监控",

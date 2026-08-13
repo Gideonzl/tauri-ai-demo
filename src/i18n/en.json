@@ -755,10 +755,16 @@
     "dataManage": "Data Management",
     "exportData": "Export Backup",
     "importData": "Import Backup",
-    "exportHint": "Export all servers, theme and terminal settings as a JSON file",
+    "exportHint": "Export local business data without passwords, private keys, or tokens",
     "dataExported": "Backup exported",
     "dataImported": "Import successful, reloading",
-    "importFailed": "Import failed: invalid file format"
+    "importFailed": "Import failed: invalid file format",
+    "clear": "Clear",
+    "clearAll": "Clear all business data",
+    "clearConfirm": "Clear \"{name}\"? This cannot be undone.",
+    "clearAllConfirm": "This removes all local business data. Theme, language, and terminal preferences stay. Continue?",
+    "clearAllConfirmFinal": "Confirm again: AI tokens, servers, keys, history, and automation data will be removed.",
+    "dataCleared": "Local data cleared"
   },
   "data": {
     "snapshots": "Workflow snapshots",
@@ -766,7 +772,15 @@
     "snapshotSaved": "Saved locally",
     "importToTerminal": "Send to terminal",
     "sendToAi": "Send to AI",
-    "deleteSnapshot": "Delete snapshot"
+    "deleteSnapshot": "Delete snapshot",
+    "connections": "Connection profiles",
+    "aiHistory": "AI and command history",
+    "automation": "Scripts and schedules",
+    "operations": "Operations records and rules",
+    "credentials": "AI configuration and local credentials",
+    "items": "{count} items · {size}",
+    "activeSessionUnaffected": "Active SSH sessions are not disconnected.",
+    "clearWhenIdle": "Wait for the active AI or script task to finish before clearing data."
   },
   "monitor": {
     "title": "Monitor",

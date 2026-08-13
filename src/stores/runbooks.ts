@@ -76,10 +76,16 @@ export const useRunbookStore = defineStore('runbooks', () => {
     persist()
   }
 
+  function clearCustomRunbooks() {
+    customRunbooks.value = []
+    try { localStorage.removeItem(CUSTOM_RUNBOOKS_KEY) } catch { /* ignore */ }
+  }
+
   return {
     customRunbooks,
     batchRunbooks,
     addCustomRunbook,
     removeCustomRunbook,
+    clearCustomRunbooks,
   }
 })

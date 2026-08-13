@@ -182,6 +182,16 @@ export const useChatStore = defineStore('chat', () => {
     createConversation(agentId)
   }
 
+  /** Delete every persisted conversation without touching the active agent configuration. */
+  function clearAllConversations() {
+    if (isGenerating.value) return false
+    conversations.value = []
+    activeConversationId.value = ''
+    streamingBuffer.value = ''
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+    return true
+  }
+
   // === 上下文注入 ===
 
   /** 注入远端文件/目录路径 */
@@ -256,6 +266,7 @@ export const useChatStore = defineStore('chat', () => {
     appendStreamingContent,
     finishStreaming,
     clearSession,
+    clearAllConversations,
     // Context injection
     injectFilePathToChat,
     injectFileContentToChat,

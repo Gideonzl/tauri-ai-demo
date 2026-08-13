@@ -212,6 +212,17 @@
               </div>
             </div>
           </div>
+          <div class="data-cleanup">
+            <p class="data-hint">{{ t('data.activeSessionUnaffected') }}</p>
+            <div v-for="category in DATA_CATEGORIES" :key="category.id" class="data-row">
+              <div>
+                <span>{{ t(`data.${category.label}`) }}</span>
+                <small>{{ t('data.items', dataStats(category.keys)) }}</small>
+              </div>
+              <el-button text size="small" type="danger" @click="clearDataCategory(category.id)">{{ t('settings.clear') }}</el-button>
+            </div>
+            <el-button class="clear-all" size="small" type="danger" plain @click="clearAllBusinessData">{{ t('settings.clearAll') }}</el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -227,13 +238,20 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Refresh, Plus, Close, ArrowRight, Edit, Download, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useConfigStore } from '@/stores/config'
 import { useHighlightRulesStore, hexToAnsi, ansiToHex } from '@/stores/highlightRules'
 import { useTerminalSettingsStore, FONT_PRESETS } from '@/stores/terminalSettings'
 import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
 import { useChatStore } from '@/stores/chat'
 import { useSshStore } from '@/stores/ssh'
+import { useCommandHistoryStore } from '@/stores/commandHistory'
+import { useScriptAutomationStore } from '@/stores/scriptAutomation'
+import { useInspectionStore } from '@/stores/inspection'
+import { useServiceOpsStore } from '@/stores/serviceOps'
+import { useRunbookStore } from '@/stores/runbooks'
+import { useOpsAgentStore } from '@/stores/opsAgent'
+import { clearSensitiveLocalData } from '@/api/tauri'
 import { useLocale } from '@/composables/useLocale'
 import { useContextMenu } from '@/composables/useContextMenu'
 
@@ -244,6 +262,12 @@ const ts = useTerminalSettingsStore()
 const snapshotsStore = useWorkflowSnapshotsStore()
 const chatStore = useChatStore()
 const sshStore = useSshStore()
+const commandHistoryStore = useCommandHistoryStore()
+const scriptStore = useScriptAutomationStore()
+const inspectionStore = useInspectionStore()
+const serviceOpsStore = useServiceOpsStore()
+const runbookStore = useRunbookStore()
+const opsAgentStore = useOpsAgentStore()
 const { locale, setLocale, t, locales } = useLocale()
 const { register, unregister } = useContextMenu()
 const activeSection = ref('')
@@ -258,7 +282,53 @@ onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', h
 // ── Data export / import (backup) ──
 const importInput = ref<HTMLInputElement | null>(null)
 const showSnapshots = ref(false)
-const BACKUP_KEYS = ['ssh-servers', 'ssh-groups', 'ssh-quick-commands', 'color-scheme', 'terminal-settings', 'ops-alert-rules', 'ai-model-configs', 'highlight-rules', 'command-history']
+const dataRefresh = ref(0)
+
+const DATA_CATEGORIES = [
+  { id: 'connections', label: 'connections', keys: ['ssh-servers', 'ssh-groups', 'ssh-quick-commands'] },
+  { id: 'aiHistory', label: 'aiHistory', keys: ['ai-chat-conversations', 'cmd-history', 'workflow-snapshots'] },
+  { id: 'automation', label: 'automation', keys: ['script-automation-scripts', 'script-automation-schedules', 'script-automation-logs', 'script-automation-versions', 'script-automation-approvals'] },
+  { id: 'operations', label: 'operations', keys: ['ops-alert-rules', 'ops-inspection-report', 'ops-service-reports', 'ops-custom-runbooks', 'ops-agent-permission', 'ops-agent-rules', 'ops-agent-audit', 'ops-overview-cache', 'ops-service-selection'] },
+  { id: 'credentials', label: 'credentials', keys: ['ai-model-configs'] },
+] as const
+
+const BACKUP_KEYS = DATA_CATEGORIES
+  .filter(category => category.id !== 'credentials')
+  .flatMap(category => category.keys)
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function dataStats(keys: readonly string[]) {
+  void dataRefresh.value
+  let count = 0
+  let bytes = 0
+  for (const key of keys) {
+    const value = localStorage.getItem(key)
+    if (!value) continue
+    bytes += new Blob([value]).size
+    try { count += Array.isArray(JSON.parse(value)) ? JSON.parse(value).length : 1 } catch { count++ }
+  }
+  return { count, size: formatBytes(bytes) }
+}
+
+function sanitizeBackupValue(key: string, raw: string): string | null {
+  try {
+    const removeSecrets = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(removeSecrets)
+      if (!value || typeof value !== 'object') return value
+      return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+        .filter(([field]) => !/(password|passphrase|private.?key|keyref|token|api.?key|secret|authorization)/i.test(field))
+        .map(([field, fieldValue]) => [field, removeSecrets(fieldValue)]))
+    }
+    return JSON.stringify(removeSecrets(JSON.parse(raw)))
+  } catch {
+    return null
+  }
+}
 
 function formatSnapshotTime(timestamp: number) {
   return new Intl.DateTimeFormat(locale.value, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(timestamp)
@@ -290,7 +360,8 @@ function exportData() {
   const payload: Record<string, any> = { __app: 'AITerminal', __version: 1, __ts: Date.now(), data: {} }
   for (const k of BACKUP_KEYS) {
     const v = localStorage.getItem(k)
-    if (v != null) payload.data[k] = v
+    const safeValue = v == null ? null : sanitizeBackupValue(k, v)
+    if (safeValue != null) payload.data[k] = safeValue
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -313,7 +384,7 @@ function importData(e: Event) {
       const parsed = JSON.parse(String(reader.result))
       if (!parsed || parsed.__app !== 'AITerminal' || !parsed.data) throw new Error('bad format')
       for (const [k, v] of Object.entries(parsed.data)) {
-        if (typeof v === 'string') localStorage.setItem(k, v)
+        if (BACKUP_KEYS.includes(k as typeof BACKUP_KEYS[number]) && typeof v === 'string') localStorage.setItem(k, v)
       }
       ElMessage.success(t('settings.dataImported'))
       setTimeout(() => location.reload(), 800)
@@ -323,6 +394,64 @@ function importData(e: Event) {
   }
   reader.readAsText(file)
   ;(e.target as HTMLInputElement).value = ''
+}
+
+async function clearDataCategory(categoryId: typeof DATA_CATEGORIES[number]['id']) {
+  const category = DATA_CATEGORIES.find(item => item.id === categoryId)
+  if (!category) return
+  try {
+    await ElMessageBox.confirm(t('settings.clearConfirm', { name: t(`data.${category.label}`) }), t('common.tip'), { type: 'warning' })
+    if ((category.id === 'aiHistory' && chatStore.isGenerating) || (category.id === 'automation' && scriptStore.runningCount > 0)) {
+      ElMessage.warning(t('data.clearWhenIdle'))
+      return
+    }
+    if (category.id === 'credentials') await clearSensitiveLocalData()
+    category.keys.forEach(key => localStorage.removeItem(key))
+    if (category.id === 'connections') sshStore.clearLocalProfiles()
+    if (category.id === 'aiHistory') {
+      chatStore.clearAllConversations()
+      commandHistoryStore.clearAll()
+      snapshotsStore.clearSnapshots()
+    }
+    if (category.id === 'automation') scriptStore.clearAllLocalData()
+    if (category.id === 'operations') clearOperationData()
+    if (category.id === 'credentials') configStore.hasToken = false
+    dataRefresh.value++
+    ElMessage.success(t('settings.dataCleared'))
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(String(error))
+  }
+}
+
+async function clearAllBusinessData() {
+  try {
+    await ElMessageBox.confirm(t('settings.clearAllConfirm'), t('settings.clearAll'), { type: 'warning' })
+    await ElMessageBox.confirm(t('settings.clearAllConfirmFinal'), t('settings.clearAll'), { type: 'error' })
+    if (chatStore.isGenerating || scriptStore.runningCount > 0) {
+      ElMessage.warning(t('data.clearWhenIdle'))
+      return
+    }
+    await clearSensitiveLocalData()
+    DATA_CATEGORIES.flatMap(category => category.keys).forEach(key => localStorage.removeItem(key))
+    sshStore.clearLocalProfiles()
+    chatStore.clearAllConversations()
+    commandHistoryStore.clearAll()
+    snapshotsStore.clearSnapshots()
+    scriptStore.clearAllLocalData()
+    clearOperationData()
+    configStore.hasToken = false
+    dataRefresh.value++
+    ElMessage.success(t('settings.dataCleared'))
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(String(error))
+  }
+}
+
+function clearOperationData() {
+  inspectionStore.clearLocalReport()
+  serviceOpsStore.clearLocalReports()
+  runbookStore.clearCustomRunbooks()
+  opsAgentStore.clearLocalData()
 }
 
 // New/edit rule state
@@ -469,4 +598,10 @@ const themes = {
 .snapshot-main span { font-size: $font-size-xs; }
 .snapshot-main small { margin-top: 2px; color: $color-text-placeholder; font-size: 10px; }
 .snapshot-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.data-cleanup { margin-top: $spacing-md; padding-top: $spacing-sm; border-top: 1px solid $color-border-light; }
+.data-row { display: flex; align-items: center; justify-content: space-between; gap: $spacing-sm; min-height: 38px; border-bottom: 1px solid $color-border-light; }
+.data-row span, .data-row small { display: block; }
+.data-row span { font-size: $font-size-xs; color: $color-text-primary; }
+.data-row small { margin-top: 2px; font-size: 10px; color: $color-text-placeholder; }
+.clear-all { margin-top: $spacing-sm; }
 </style>

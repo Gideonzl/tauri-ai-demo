@@ -152,6 +152,13 @@ export const useOpsAgentStore = defineStore('opsAgent', () => {
     saveStorage(AUDIT_KEY, auditEvents.value)
   }
 
+  function clearLocalData() {
+    permissionLevel.value = 'controlled'
+    rules.value = []
+    auditEvents.value = []
+    try { [PERMISSION_KEY, RULES_KEY, AUDIT_KEY].forEach(key => localStorage.removeItem(key)) } catch { /* ignore */ }
+  }
+
   return {
     permissionLevel,
     rules,
@@ -163,5 +170,6 @@ export const useOpsAgentStore = defineStore('opsAgent', () => {
     completeAudit,
     setAuditApproval,
     clearAudit,
+    clearLocalData,
   }
 })
