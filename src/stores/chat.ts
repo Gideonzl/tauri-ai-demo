@@ -105,6 +105,10 @@ export const useChatStore = defineStore('chat', () => {
     return conversations.value.filter(c => c.agentId === agentId && c.messages.length > 0)
   }
 
+  function getConversation(id: string): Conversation | null {
+    return conversations.value.find(conversation => conversation.id === id) || null
+  }
+
   /** 获取当前活跃会话的消息（与 agent 解绑 —— 一条对话持续，切 agent 不换对话） */
   function getMessages(_agentId: string): ChatMessage[] {
     return activeConversation.value?.messages || []
@@ -244,6 +248,7 @@ export const useChatStore = defineStore('chat', () => {
     renameConversation,
     deleteConversation,
     getConversationsByAgent,
+    getConversation,
     // Messages
     getMessages,
     addUserMessage,

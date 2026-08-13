@@ -12,6 +12,7 @@
     "test:ops-orchestration": "node scripts/verify-ops-orchestration.mjs",
     "test:ops-runbooks": "node scripts/verify-ops-runbooks.mjs",
     "test:ssh-terminal-reliability": "node scripts/verify-ssh-terminal-reliability.mjs",
+    "test:local-data-management": "node scripts/verify-local-data-management.mjs",
     "test:session-tab-reordering": "node scripts/verify-session-tab-reordering.mjs",
     "test:terminal-focus-layout": "node scripts/verify-terminal-focus-layout.mjs",
     "test:terminal-colorizer": "node scripts/verify-terminal-colorizer-runtime.mjs",

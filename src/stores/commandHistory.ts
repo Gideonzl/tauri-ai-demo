@@ -67,6 +67,10 @@ export const useCommandHistoryStore = defineStore('commandHistory', () => {
       .sort((a, b) => b.timestamp - a.timestamp)
   }
 
+  function getEntry(id: string): CommandEntry | null {
+    return entries.value.find(entry => entry.id === id) || null
+  }
+
   function deleteEntry(id: string) {
     entries.value = entries.value.filter(e => e.id !== id)
     saveToStorage()
@@ -127,6 +131,7 @@ export const useCommandHistoryStore = defineStore('commandHistory', () => {
     historyServers,
     addEntry,
     getEntries,
+    getEntry,
     deleteEntry,
     clearServer,
     clearAll,
