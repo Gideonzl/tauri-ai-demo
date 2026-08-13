@@ -68,6 +68,7 @@
     <div v-if="menu.visible" class="ctx-menu" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
       <div class="ctx-item" @click="menuAct('execute')"><el-icon :size="13"><VideoPlay /></el-icon><span>{{ t('common.execute') }}</span></div>
       <div class="ctx-item" @click="menuAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('common.copy') }}</span></div>
+      <div class="ctx-item" @click="menuAct('snapshot')"><el-icon :size="13"><DocumentCopy /></el-icon><span>{{ t('data.saveSnapshot') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item danger" @click="menuAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
     </div>
@@ -77,13 +78,15 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, onActivated, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock, Connection, Delete, VideoPlay, CopyDocument, Refresh } from '@element-plus/icons-vue'
+import { Clock, Connection, Delete, VideoPlay, CopyDocument, DocumentCopy, Refresh } from '@element-plus/icons-vue'
 import { useCommandHistoryStore } from '@/stores/commandHistory'
+import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
 import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
 import { ElMessage } from 'element-plus'
 
 const cmdStore = useCommandHistoryStore()
+const snapshotsStore = useWorkflowSnapshotsStore()
 const sshStore = useSshStore()
 const router = useRouter()
 const { t } = useLocale()
@@ -179,6 +182,16 @@ function clearCurrent() {
   }
 }
 
+function saveAsSnapshot(cmd: { command: string; timestamp: number; serverId: string; serverName: string; cwd?: string }) {
+  snapshotsStore.createSnapshot({
+    title: cmd.command.slice(0, 48),
+    server: { id: cmd.serverId, name: cmd.serverName },
+    commands: [{ command: cmd.command, timestamp: cmd.timestamp }],
+    filePaths: cmd.cwd ? [cmd.cwd] : [],
+  })
+  ElMessage.success(t('data.snapshotSaved'))
+}
+
 /** 手动刷新：重载历史 + 自动选中当前活动服务器（看到刚执行的命令） */
 function handleRefresh() {
   cmdStore.reload()
@@ -210,6 +223,7 @@ function menuAct(action: string) {
   switch (action) {
     case 'execute': executeCommand(cmd); break
     case 'copy': navigator.clipboard.writeText(cmd.command).then(() => ElMessage.success('Copied')); break
+    case 'snapshot': saveAsSnapshot(cmd); break
     case 'delete': cmdStore.deleteEntry(cmd.id); break
   }
 }

@@ -760,6 +760,14 @@
     "dataImported": "Import successful, reloading",
     "importFailed": "Import failed: invalid file format"
   },
+  "data": {
+    "snapshots": "Workflow snapshots",
+    "saveSnapshot": "Save as snapshot",
+    "snapshotSaved": "Saved locally",
+    "importToTerminal": "Send to terminal",
+    "sendToAi": "Send to AI",
+    "deleteSnapshot": "Delete snapshot"
+  },
   "monitor": {
     "title": "Monitor",
     "noServer": "Not connected to server",

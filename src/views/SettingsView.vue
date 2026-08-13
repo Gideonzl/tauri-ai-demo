@@ -194,7 +194,23 @@
             <el-button size="small" @click="triggerImport">
               <el-icon :size="13"><Upload /></el-icon>{{ t('settings.importData') }}
             </el-button>
+            <el-button size="small" text @click="showSnapshots = !showSnapshots">
+              {{ t('data.snapshots') }}<span v-if="snapshotsStore.snapshotCount"> · {{ snapshotsStore.snapshotCount }}</span>
+            </el-button>
             <input ref="importInput" type="file" accept="application/json" style="display:none" @change="importData" />
+          </div>
+          <div v-if="showSnapshots" class="snapshot-list">
+            <div v-if="snapshotsStore.snapshots.length === 0" class="snapshot-empty">{{ t('common.noData') }}</div>
+            <div v-for="snapshot in snapshotsStore.snapshots" :key="snapshot.id" class="snapshot-row">
+              <button class="snapshot-main" @click="sendSnapshotToAi(snapshot.id)">
+                <span>{{ snapshot.title }}</span>
+                <small>{{ formatSnapshotTime(snapshot.createdAt) }} · {{ snapshot.commands.length }}</small>
+              </button>
+              <div class="snapshot-actions">
+                <el-button text size="small" @click="importSnapshotToTerminal(snapshot.id)">{{ t('data.importToTerminal') }}</el-button>
+                <el-button text size="small" type="danger" @click="snapshotsStore.deleteSnapshot(snapshot.id)">{{ t('data.deleteSnapshot') }}</el-button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -208,18 +224,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { Refresh, Plus, Close, ArrowRight, Edit, Download, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useConfigStore } from '@/stores/config'
 import { useHighlightRulesStore, hexToAnsi, ansiToHex } from '@/stores/highlightRules'
 import { useTerminalSettingsStore, FONT_PRESETS } from '@/stores/terminalSettings'
+import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
+import { useChatStore } from '@/stores/chat'
+import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
 import { useContextMenu } from '@/composables/useContextMenu'
 
 const configStore = useConfigStore()
+const router = useRouter()
 const hlStore = useHighlightRulesStore()
 const ts = useTerminalSettingsStore()
+const snapshotsStore = useWorkflowSnapshotsStore()
+const chatStore = useChatStore()
+const sshStore = useSshStore()
 const { locale, setLocale, t, locales } = useLocale()
 const { register, unregister } = useContextMenu()
 const activeSection = ref('')
@@ -233,7 +257,34 @@ onUnmounted(() => { unregister(hideCtx); document.removeEventListener('click', h
 
 // ── Data export / import (backup) ──
 const importInput = ref<HTMLInputElement | null>(null)
+const showSnapshots = ref(false)
 const BACKUP_KEYS = ['ssh-servers', 'ssh-groups', 'ssh-quick-commands', 'color-scheme', 'terminal-settings', 'ops-alert-rules', 'ai-model-configs', 'highlight-rules', 'command-history']
+
+function formatSnapshotTime(timestamp: number) {
+  return new Intl.DateTimeFormat(locale.value, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(timestamp)
+}
+
+async function importSnapshotToTerminal(snapshotId: string) {
+  const snapshot = snapshotsStore.getSnapshot(snapshotId)
+  if (!snapshot) return
+  if (!sshStore.activeSession) {
+    ElMessage.warning('请先打开一个终端会话')
+    return
+  }
+  await router.push('/')
+  await nextTick()
+  sshStore.runInTerminal(snapshot.commands.map(command => command.command).join('\n'))
+  ElMessage.success(t('data.importToTerminal'))
+}
+
+function sendSnapshotToAi(snapshotId: string) {
+  const snapshot = snapshotsStore.getSnapshot(snapshotId)
+  if (!snapshot) return
+  const commands = snapshot.commands.map(command => `\`\`\`shell\n${command.command}\n\`\`\``).join('\n')
+  const summary = snapshot.aiSummary ? `\n${snapshot.aiSummary}` : ''
+  chatStore.addUserMessage('ops', `[${t('data.snapshots')}] ${snapshot.title}\n${commands}${summary}`)
+  ElMessage.success(t('data.sendToAi'))
+}
 
 function exportData() {
   const payload: Record<string, any> = { __app: 'AITerminal', __version: 1, __ts: Date.now(), data: {} }
@@ -410,4 +461,12 @@ const themes = {
 }
 .data-hint { font-size: $font-size-xs; color: $color-text-placeholder; margin-bottom: $spacing-sm; }
 .data-actions { display: flex; gap: $spacing-sm; }
+.snapshot-list { margin-top: $spacing-sm; border-top: 1px solid $color-border-light; }
+.snapshot-empty { padding: $spacing-sm 0; font-size: $font-size-xs; color: $color-text-placeholder; }
+.snapshot-row { display: flex; align-items: center; gap: $spacing-sm; min-height: 38px; border-bottom: 1px solid $color-border-light; }
+.snapshot-main { min-width: 0; flex: 1; border: none; padding: 6px 0; text-align: left; color: $color-text-primary; background: transparent; cursor: pointer; }
+.snapshot-main span, .snapshot-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snapshot-main span { font-size: $font-size-xs; }
+.snapshot-main small { margin-top: 2px; color: $color-text-placeholder; font-size: 10px; }
+.snapshot-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 </style>

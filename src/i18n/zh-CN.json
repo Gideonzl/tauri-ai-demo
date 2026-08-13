@@ -760,6 +760,14 @@
     "dataImported": "导入成功，即将刷新",
     "importFailed": "导入失败：文件格式不正确"
   },
+  "data": {
+    "snapshots": "工作流快照",
+    "saveSnapshot": "保存为快照",
+    "snapshotSaved": "已保存到本机",
+    "importToTerminal": "导入终端",
+    "sendToAi": "发送给 AI",
+    "deleteSnapshot": "删除快照"
+  },
   "monitor": {
     "title": "监控",
     "noServer": "未连接到服务器",

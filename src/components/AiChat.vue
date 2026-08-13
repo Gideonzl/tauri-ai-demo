@@ -177,6 +177,7 @@
       <div class="ctx-item" @click="msgMenuAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('common.copy') }}</span></div>
       <div class="ctx-item" @click="msgMenuAct('copyAll')"><el-icon :size="13"><DocumentCopy /></el-icon><span>{{ t('common.copyMessage') }}</span></div>
       <div class="ctx-sep"></div>
+      <div v-if="msgMenu.msg?.role === 'assistant' && extractSnapshotCommands(msgMenu.msg.content).length" class="ctx-item" @click="msgMenuAct('snapshot')"><el-icon :size="13"><DocumentCopy /></el-icon><span>{{ t('data.saveSnapshot') }}</span></div>
       <div class="ctx-item" @click="msgMenuAct('selectAll')"><el-icon :size="13"><Select /></el-icon><span>{{ t('common.selectAll') }}</span></div>
     </div>
     <OpsAuditDrawer v-model="showAudit" :events="opsAgentStore.auditEvents" @clear="opsAgentStore.clearAudit" />
@@ -187,6 +188,7 @@
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAgentStore } from '@/stores/agent'
 import { useChatStore } from '@/stores/chat'
+import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
 import { useModelStore } from '@/stores/model'
 import { useSshStore } from '@/stores/ssh'
 import { useOpsAgentStore } from '@/stores/opsAgent'
@@ -214,6 +216,7 @@ const agentIcons: Record<string, any> = { coder: Edit, ops: SetUp, analyst: Data
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
+const snapshotsStore = useWorkflowSnapshotsStore()
 const modelStore = useModelStore()
 const sshStore = useSshStore()
 const opsAgentStore = useOpsAgentStore()
@@ -237,6 +240,27 @@ function onMsgContextMenu(e: MouseEvent, msg: any) {
 
 function hideMsgMenu() { msgMenu.visible = false }
 
+function extractSnapshotCommands(content: string): string[] {
+  const commands: string[] = []
+  const matches = content.matchAll(/```(?:sh|shell|bash|zsh)?\s*\n([\s\S]*?)```/gi)
+  for (const match of matches) {
+    const command = match[1].trim()
+    if (command) commands.push(command)
+  }
+  return commands.slice(0, 20)
+}
+
+function saveAsSnapshot(content: string) {
+  const commands = extractSnapshotCommands(content)
+  const snapshot = snapshotsStore.createSnapshot({
+    title: commands[0]?.split('\n')[0] || t('data.snapshots'),
+    server: sshStore.activeSession ? { id: sshStore.activeSession.serverId, name: sshStore.activeSession.serverName } : undefined,
+    commands: commands.map(command => ({ command, timestamp: Date.now() })),
+    aiSummary: content,
+  })
+  if (snapshot) ElMessage.success(t('data.snapshotSaved'))
+}
+
 function msgMenuAct(action: string) {
   const msg = msgMenu.msg
   hideMsgMenu()
@@ -253,6 +277,9 @@ function msgMenuAct(action: string) {
     }
     case 'copyAll':
       navigator.clipboard.writeText(msg.content).then(() => ElMessage.success('Message copied'))
+      break
+    case 'snapshot':
+      saveAsSnapshot(msg.content)
       break
     case 'selectAll': {
       const el = renderedMsgs.get(msg.id)
