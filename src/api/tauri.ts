@@ -28,6 +28,10 @@ export async function deleteToken(): Promise<void> {
   return invoke<void>('delete_token')
 }
 
+export async function clearSensitiveLocalData(): Promise<void> {
+  return invoke<void>('clear_sensitive_local_data')
+}
+
 export async function hasToken(): Promise<boolean> {
   return invoke<boolean>('has_token')
 }

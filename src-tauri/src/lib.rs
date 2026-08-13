@@ -25,6 +25,7 @@ pub fn run() {
             commands::save_token,
             commands::load_token,
             commands::delete_token,
+            commands::clear_sensitive_local_data,
             commands::has_token,
             // Config
             commands::save_config,

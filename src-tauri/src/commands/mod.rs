@@ -55,6 +55,19 @@ pub fn delete_token(app: AppHandle) -> AppResult<()> {
     storage::delete_token(&data_dir)
 }
 
+/// Delete all locally encrypted credentials used by the application.
+#[tauri::command]
+pub fn clear_sensitive_local_data(app: AppHandle) -> AppResult<()> {
+    let data_dir = app.path().app_data_dir().map_err(|e| {
+        AppError::with_source(
+            crate::error::ErrorCode::IoError,
+            "获取app_data_dir失败",
+            e.to_string(),
+        )
+    })?;
+    storage::clear_sensitive_local_data(&data_dir)
+}
+
 /// 检查 Token 是否已配置
 #[tauri::command]
 pub fn has_token(app: AppHandle) -> AppResult<bool> {

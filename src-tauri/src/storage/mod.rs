@@ -227,6 +227,17 @@ pub fn delete_ssh_private_key(app_data_dir: &Path, key_ref: &str) -> AppResult<(
     Ok(())
 }
 
+/// Delete credential material that is intentionally kept outside browser
+/// storage. UI preferences and non-sensitive local records are not touched.
+pub fn clear_sensitive_local_data(app_data_dir: &Path) -> AppResult<()> {
+    delete_token(app_data_dir)?;
+    let key_dir = app_data_dir.join("ssh-keys");
+    if key_dir.exists() {
+        fs::remove_dir_all(key_dir)?;
+    }
+    Ok(())
+}
+
 /// 检查 Token 是否已配置
 pub fn has_token(app_data_dir: &Path) -> bool {
     token_path(app_data_dir).exists()
@@ -319,6 +330,20 @@ mod tests {
         );
         delete_ssh_private_key(&dir, "key-test_123").unwrap();
         assert!(load_ssh_private_key(&dir, "key-test_123").is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_clear_sensitive_local_data_removes_token_and_private_keys() {
+        let dir = env::temp_dir().join("tauri-ai-test-clear-sensitive-data");
+        let _ = fs::remove_dir_all(&dir);
+        save_token(&dir, "sk-test-clear").unwrap();
+        save_ssh_private_key(&dir, "key-to-clear", "-----BEGIN PRIVATE KEY-----\nabc").unwrap();
+
+        clear_sensitive_local_data(&dir).unwrap();
+
+        assert!(!token_path(&dir).exists());
+        assert!(!dir.join("ssh-keys").exists());
         let _ = fs::remove_dir_all(&dir);
     }
 }
