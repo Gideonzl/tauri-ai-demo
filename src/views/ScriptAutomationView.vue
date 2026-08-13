@@ -69,7 +69,6 @@
           <button type="button" :class="{ active: activeTab === 'schedules' }" @click="activeTab = 'schedules'">{{ t('scripts.tabSchedules') }}<i v-if="scriptStore.schedules.length">{{ scriptStore.schedules.length }}</i></button>
           <button type="button" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">{{ t('scripts.tabHistory') }}<i v-if="scriptStore.runLogs.length">{{ scriptStore.runLogs.length }}</i></button>
         </div>
-        <div class="script-head-status"><span></span>{{ t('scripts.schedulerOnline') }}</div>
       </header>
 
       <section v-if="activeTab === 'editor'" class="script-editor-view">
@@ -80,10 +79,9 @@
               <el-input v-model="draft.description" class="script-description-input" :placeholder="t('scripts.descriptionPlaceholder')" />
             </div>
             <div class="script-form-actions">
-              <el-button type="primary" size="small" @click="saveScript">{{ t('common.save') }}</el-button>
               <el-button class="script-run-btn" type="primary" size="small" :loading="scriptStore.runningScriptIds.includes(draft.id || '')" :disabled="!canRun" @click="runNow"><el-icon :size="14"><VideoPlay /></el-icon>{{ t('scripts.runNow') }}</el-button>
               <el-dropdown class="script-editor-more-menu" trigger="click">
-                <el-button size="small" :aria-label="t('scripts.moreActions')">{{ t('scripts.moreActions') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+                <el-button class="script-editor-more-icon" size="small" circle :aria-label="t('scripts.moreActions')"><el-icon :size="14"><MoreFilled /></el-icon></el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item @click="openFocusEditor"><el-icon><FullScreen /></el-icon>{{ t('scripts.focusEdit') }}</el-dropdown-item>
@@ -228,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, ChatDotRound, Clock, CopyDocument, Delete, Document, DocumentCopy, Download, EditPen, FullScreen, Lock, MagicStick, MoreFilled, Plus, Search, Timer, Upload, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useLocale } from '@/composables/useLocale'
@@ -279,6 +277,9 @@ const historyTimeRange = ref<'all' | 'day' | 'week' | 'month'>('all')
 const historyQuery = ref('')
 const scriptLibraryQuery = ref('')
 const runSettingsOpen = ref(false)
+const AUTO_SAVE_DELAY = 700
+let autoSaveTimer: ReturnType<typeof window.setTimeout> | undefined
+const lastSavedDraftSignature = ref('')
 
 const currentRisk = computed(() => classifyCommand(draft.content).risk)
 const canRun = computed(() => Boolean(draft.id && draft.content.trim() && selectedTargets.size))
@@ -309,11 +310,16 @@ const filteredScripts = computed(() => {
   return scriptStore.scripts.filter(script => `${script.name} ${script.description} ${script.tags.join(' ')}`.toLocaleLowerCase().includes(query))
 })
 
+function draftSignature() { return JSON.stringify({ id: draft.id || '', name: draft.name, description: draft.description, content: draft.content, tags: draft.tags }) }
+function clearAutoSave() { if (autoSaveTimer) window.clearTimeout(autoSaveTimer); autoSaveTimer = undefined }
+
 function copyIntoDraft(script?: { id: string; name: string; description: string; content: string; tags: string[] }) {
   Object.assign(draft, script ? { id: script.id, name: script.name, description: script.description, content: script.content, tags: script.tags.join(', ') } : { id: undefined, name: '', description: '', content: '', tags: '' })
+  lastSavedDraftSignature.value = draftSignature()
 }
 
 function selectScript(scriptId: string) {
+  persistDraft(true)
   const script = scriptStore.scripts.find(item => item.id === scriptId)
   if (!script) return
   activeScriptId.value = scriptId
@@ -321,7 +327,7 @@ function selectScript(scriptId: string) {
   scheduleDraft.scriptId = scriptId
 }
 
-function newScript() { activeScriptId.value = ''; copyIntoDraft(); activeTab.value = 'editor' }
+function newScript() { persistDraft(true); activeScriptId.value = ''; copyIntoDraft(); activeTab.value = 'editor' }
 function exportLibrary() {
   const blob = new Blob([JSON.stringify(scriptStore.exportScriptLibrary(), null, 2)], { type: 'application/json;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -348,13 +354,22 @@ function scriptRisk(content: string) { return classifyCommand(content).risk }
 function scriptName(scriptId: string) { return scriptStore.scripts.find(script => script.id === scriptId)?.name || t('scripts.missingScript') }
 function scriptLastRun(scriptId: string): ScriptRunLog | undefined { return scriptStore.runLogs.find(log => log.scriptId === scriptId) }
 
-function saveScript() {
-  if (!draft.content.trim()) { ElMessage.warning(t('scripts.contentRequired')); return }
+function persistDraft(force = false): boolean {
+  clearAutoSave()
+  if (!draft.content.trim()) return false
+  const signature = draftSignature()
+  if (!force && signature === lastSavedDraftSignature.value) return Boolean(draft.id)
   const script = scriptStore.upsertScript({ id: draft.id, name: draft.name, description: draft.description, content: draft.content, tags: draft.tags.split(',') })
   activeScriptId.value = script.id
   scheduleDraft.scriptId = script.id
   copyIntoDraft(script)
-  ElMessage.success(t('scripts.saved'))
+  return true
+}
+
+function scheduleAutoSave() {
+  clearAutoSave()
+  if (!draft.content.trim() || draftSignature() === lastSavedDraftSignature.value) return
+  autoSaveTimer = window.setTimeout(() => { persistDraft() }, AUTO_SAVE_DELAY)
 }
 
 function duplicateScript() {
@@ -381,7 +396,7 @@ function openFocusEditor() {
 }
 
 function saveAndCloseFocusEditor() {
-  saveScript()
+  persistDraft(true)
   if (draft.id) focusEditorOpen.value = false
 }
 
@@ -404,7 +419,7 @@ function onLibraryResizeStart(event: PointerEvent) {
 }
 
 function runNow() {
-  if (!draft.id) { saveScript(); if (!draft.id) return }
+  if (!persistDraft(true)) { ElMessage.warning(t('scripts.contentRequired')); return }
   if (!selectedTargets.size) { ElMessage.warning(t('scripts.targetRequired')); return }
   scriptParameters.value.forEach(name => { if (parameterValues[name] === undefined) parameterValues[name] = '' })
   executionPreviewOpen.value = true
@@ -549,7 +564,12 @@ onMounted(() => {
   window.addEventListener('aiterminal:script-ai-response', onAiScriptResponse)
 })
 
-onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', onAiScriptResponse))
+watch(() => [draft.name, draft.description, draft.content, draft.tags], scheduleAutoSave)
+
+onUnmounted(() => {
+  persistDraft(true)
+  window.removeEventListener('aiterminal:script-ai-response', onAiScriptResponse)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -581,12 +601,11 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
   button { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 5px 10px; border-radius: 6px; background: transparent; color: $color-text-secondary; cursor: pointer; font: inherit; font-size: 11px; &.active { background: $color-bg-active; color: $color-primary; font-weight: 650; } }
   i { min-width: 15px; padding: 0 3px; border-radius: 8px; background: $color-bg-hover; color: inherit; font-size: 9px; font-style: normal; }
 }
-.script-head-status { display: inline-flex; align-items: center; gap: 5px; color: $color-success; font-size: 10px; span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px $color-bg-success-hover; } }
 
 .script-editor-view { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .script-editor-main { display: flex; flex-direction: column; width: min(100%, 1180px); margin: 0 auto; min-height: 0; padding: 14px 20px; container-type: inline-size; container-name: script-editor; }
 .script-form-head { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 12px; }.script-form-fields { flex: 1; display: grid; gap: 2px; min-width: 0; }.script-form-actions { display: flex; flex: 0 0 auto; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }.script-form-actions :deep(.el-button) { margin: 0; }
-.script-form-fields :deep(.el-input__wrapper) { padding: 0 10px; border: 0 !important; border-radius: 6px; background: $color-bg-input !important; box-shadow: inset 0 0 0 1px $color-border !important; transition: box-shadow .16s ease; }.script-form-fields :deep(.el-input.is-focus .el-input__wrapper) { box-shadow: inset 0 0 0 1px $color-primary !important; }.script-form-fields :deep(.el-input__wrapper:hover) { box-shadow: inset 0 0 0 1px $color-border !important; }.script-form-fields :deep(.el-input__inner) { background: transparent !important; }.script-name-input :deep(.el-input__inner) { height: 27px; font-size: 13px; font-weight: 600; color: $color-text-primary; letter-spacing: 0; }.script-description-input :deep(.el-input__inner) { height: 23px; color: $color-text-secondary; font-size: 11px; letter-spacing: 0; }
+.script-form-fields :deep(.el-input__wrapper) { padding: 0; border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: inset 0 -1px 0 transparent !important; transition: box-shadow .16s ease; }.script-form-fields :deep(.el-input__wrapper:hover) { box-shadow: inset 0 -1px 0 $color-border !important; }.script-form-fields :deep(.el-input.is-focus .el-input__wrapper) { box-shadow: inset 0 -1px 0 $color-primary !important; }.script-form-fields :deep(.el-input__inner) { padding: 0; background: transparent !important; }.script-name-input :deep(.el-input__inner) { height: 27px; font-size: 13px; font-weight: 600; color: $color-text-primary; letter-spacing: 0; }.script-description-input :deep(.el-input__inner) { height: 23px; color: $color-text-secondary; font-size: 11px; letter-spacing: 0; }
 .script-editor-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; color: $color-text-secondary; font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .5px; }.script-language { color: $color-primary; font-family: $font-family-mono; }
 .script-editor { flex: 1; min-height: 250px; resize: none; padding: 13px; border: 1px solid $color-border; border-radius: 7px; outline: none; background: $color-bg-input; color: $color-text-primary; font: 12px/1.65 $font-family-mono; tab-size: 2; &:focus { border-color: $color-primary; box-shadow: none; } }
 .script-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-top: 10px; }.script-tags-input { flex: 1 1 180px; min-width: 0; max-width: 320px; }.script-updated { flex: 1 1 130px; color: $color-text-placeholder; font-size: 10px; }
@@ -600,7 +619,7 @@ onUnmounted(() => window.removeEventListener('aiterminal:script-ai-response', on
 
 @media (max-width: 1040px) { .script-editor-view { grid-template-columns: minmax(0, 1fr) 9px 230px; }.script-form-head { flex-direction: column; }.script-form-actions { justify-content: flex-start; } }
 @media (max-width: 820px) { .script-page { flex-direction: column; }.script-library { width: auto; max-height: 190px; border-right: 0; border-bottom: 1px solid $color-border-light; }.script-library-resize { display: none; }.script-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; }.script-workspace { overflow: hidden; } }
-@media (max-width: 560px) { .script-library-head { align-items: stretch; flex-direction: column; }.script-library-actions { justify-content: flex-start; }.script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.script-head-status { align-self: flex-end; }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
+@media (max-width: 560px) { .script-library-head { align-items: stretch; flex-direction: column; }.script-library-actions { justify-content: flex-start; }.script-page-head, .history-summary, .schedule-card-foot { align-items: flex-start; flex-direction: column; }.history-actions { width: 100%; flex-wrap: wrap; :deep(.el-input) { flex: 1; width: auto; } }.script-tabs { width: 100%; overflow-x: auto; }.schedule-form-grid { grid-template-columns: 1fr; }.schedule-item { flex-wrap: wrap; }.schedule-copy { min-width: calc(100% - 44px); }.script-log-head { flex-wrap: wrap; }.script-log-time { margin-left: 0; }.script-editor-main, .script-schedules-view, .script-history-view { padding: 11px; } }
 @container script-library (max-width: 225px) { .script-library-head { align-items: stretch; }.script-library-actions { width: 100%; justify-content: flex-start; }.script-library-new-button { width: 28px; min-width: 28px; padding: 0; }.script-library-new-button span { display: none; }.script-library-meta { gap: 6px; flex-wrap: wrap; } }
 @container script-workspace (max-width: 480px) { .script-form-head { flex-direction: column; }.script-form-fields { width: 100%; flex-basis: auto; }.script-form-actions { width: 100%; margin-left: 0; justify-content: flex-start; }.script-editor-view { grid-template-columns: 1fr; overflow-y: auto; }.script-editor-resize { display: none; }.script-editor-main { min-height: 430px; }.script-execution-panel { border-left: 0; border-top: 1px solid $color-border-light; min-height: 280px; }.script-target-list { max-height: 130px; } }
 @container script-editor (max-width: 420px) { .script-form-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.script-form-actions :deep(.el-button) { width: 100%; min-width: 0; padding-inline: 6px; font-size: 10px; }.script-form-actions .script-focus-button { grid-column: 1 / -1; padding-inline: 10px; font-size: 11px; } }
