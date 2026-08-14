@@ -120,6 +120,7 @@ assertIncludes(sideNav, '$shell-nav-rail', '侧边栏发光轨道必须跟随主
 
 assertIncludes(workspace, '$shell-workspace-bg', '主机工作区必须和当前主题使用同一背景体系')
 assertIncludes(workspace, '$surface-contrast', '主机列表和标签栏必须使用可读性面板')
+assertIncludes(workspace, "import HostImportExport from '@/components/HostImportExport.vue'", '主机工作区引用导入导出组件时必须显式导入，避免启动警告')
 assertIncludes(terminalPanel, '$surface-contrast', '终端标题栏必须使用可读性面板')
 
 assertIncludes(opsView, 'ops-hero', '智能运维页必须有驾驶舱 Hero 区')

@@ -52,6 +52,10 @@ assert.ok(terminalPanel.includes('new TerminalCommandCapture'), '终端必须创
 assert.ok(terminalPanel.includes('capture.append(data)'), 'PTY 输出必须进入捕获器')
 assert.ok(terminalPanel.includes("data === '\\x03'"), 'Ctrl+C 必须结束持续命令记录')
 assert.ok(xtermFrontend.includes('addOperationAction'), '终端必须提供可降级的单条 AI 操作装饰')
+assert.ok(
+  /registerDecoration\(\{\s*marker,\s*anchor:\s*'right',\s*x:\s*1,\s*width:\s*2\s*\}\)/.test(xtermFrontend),
+  '终端 AI 操作必须从右侧保留一个字符偏移，xterm 的 x=0 会回落到行首并遮挡提示符',
+)
 assert.ok(history.includes('useOperationRecordsStore'), '历史页必须读取统一操作记录')
 assert.ok(history.includes('expandedRecordId'), '历史页必须按需展开单条输出')
 assert.ok(history.includes('formatOperationForAi'), '单条记录必须生成稳定的 AI 上下文')

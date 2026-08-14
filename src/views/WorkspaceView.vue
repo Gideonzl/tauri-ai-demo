@@ -265,6 +265,7 @@ import SftpTree from '@/components/SftpTree.vue'
 import QuickCommands from '@/components/QuickCommands.vue'
 import PortForwarding from '@/components/PortForwarding.vue'
 import KeyManager from '@/components/KeyManager.vue'
+import HostImportExport from '@/components/HostImportExport.vue'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { getSessionTabDropPlacement } from '@/utils/sessionTabOrder'
 
