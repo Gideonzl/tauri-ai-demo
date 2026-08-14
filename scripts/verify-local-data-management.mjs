@@ -62,5 +62,8 @@ assert.ok(chat.includes('async function injectTerminalText'), '终端记录发�
 assert.ok(chat.includes('await handleSend({ bypassRemediation: true })'), '终端记录必须直接触发 AI 回复')
 assert.ok(zhLocale.includes('"legacyNoOutput"'), '中文语言包必须解释旧记录没有输出')
 assert.ok(enLocale.includes('"legacyNoOutput"'), '英文语言包必须解释旧记录没有输出')
+assert.ok(settings.includes("'operation-records-v1'"), 'AI 与历史分类必须包含统一操作记录')
+assert.ok(settings.includes('useOperationRecordsStore'), '数据管理必须加载统一操作记录 store')
+assert.ok(settings.includes('operationRecordsStore.clearAll()'), '分类清理和全部清理必须同步清空操作记录内存')
 
 console.log('Local data management checks passed')

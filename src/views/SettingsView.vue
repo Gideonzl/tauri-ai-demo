@@ -262,6 +262,7 @@ import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
 import { useChatStore } from '@/stores/chat'
 import { useSshStore } from '@/stores/ssh'
 import { useCommandHistoryStore } from '@/stores/commandHistory'
+import { useOperationRecordsStore } from '@/stores/operationRecords'
 import { useScriptAutomationStore } from '@/stores/scriptAutomation'
 import { useInspectionStore } from '@/stores/inspection'
 import { useServiceOpsStore } from '@/stores/serviceOps'
@@ -279,6 +280,7 @@ const snapshotsStore = useWorkflowSnapshotsStore()
 const chatStore = useChatStore()
 const sshStore = useSshStore()
 const commandHistoryStore = useCommandHistoryStore()
+const operationRecordsStore = useOperationRecordsStore()
 const scriptStore = useScriptAutomationStore()
 const inspectionStore = useInspectionStore()
 const serviceOpsStore = useServiceOpsStore()
@@ -304,7 +306,7 @@ const dataRefresh = ref(0)
 
 const DATA_CATEGORIES = [
   { id: 'connections', label: 'connections', keys: ['ssh-servers', 'ssh-groups', 'ssh-quick-commands'] },
-  { id: 'aiHistory', label: 'aiHistory', keys: ['ai-chat-conversations', 'cmd-history', 'workflow-snapshots'] },
+  { id: 'aiHistory', label: 'aiHistory', keys: ['ai-chat-conversations', 'cmd-history', 'operation-records-v1', 'workflow-snapshots'] },
   { id: 'automation', label: 'automation', keys: ['script-automation-scripts', 'script-automation-schedules', 'script-automation-logs', 'script-automation-versions', 'script-automation-approvals'] },
   { id: 'operations', label: 'operations', keys: ['ops-alert-rules', 'ops-inspection-report', 'ops-service-reports', 'ops-custom-runbooks', 'ops-agent-permission', 'ops-agent-rules', 'ops-agent-audit', 'ops-overview-cache', 'ops-service-selection'] },
   { id: 'credentials', label: 'credentials', keys: ['ai-model-configs'] },
@@ -448,6 +450,7 @@ async function clearDataCategory(categoryId: typeof DATA_CATEGORIES[number]['id'
     if (category.id === 'aiHistory') {
       chatStore.clearAllConversations()
       commandHistoryStore.clearAll()
+      operationRecordsStore.clearAll()
       snapshotsStore.clearSnapshots()
     }
     if (category.id === 'automation') scriptStore.clearAllLocalData()
@@ -473,6 +476,7 @@ async function clearAllBusinessData() {
     sshStore.clearLocalProfiles()
     chatStore.clearAllConversations()
     commandHistoryStore.clearAll()
+    operationRecordsStore.clearAll()
     snapshotsStore.clearSnapshots()
     scriptStore.clearAllLocalData()
     clearOperationData()
