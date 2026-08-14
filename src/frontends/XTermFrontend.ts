@@ -16,7 +16,7 @@
  *   Unicode11Addon — wide character / emoji support
  */
 
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type IDecoration } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -61,6 +61,7 @@ export class XTermFrontend {
   private searchAddon: SearchAddon
   private resizeObserver: ResizeObserver | null = null
   private _element: HTMLElement | null = null
+  private operationDecorations: IDecoration[] = []
 
   constructor() {
     this.terminal = new Terminal({
@@ -208,6 +209,8 @@ export class XTermFrontend {
     this.resizeObserver = null
     this.selectionDisposable?.dispose()
     this.selectionDisposable = null
+    this.operationDecorations.forEach(decoration => decoration.dispose())
+    this.operationDecorations = []
     this.terminal.dispose()
     this.input$.complete()
     this.resize$.complete()
@@ -217,8 +220,8 @@ export class XTermFrontend {
   // ── Output (called by session) ──
 
   /** Write raw data to terminal (Tabby: frontend.write) */
-  write(data: string): void {
-    this.terminal.write(data)
+  write(data: string, callback?: () => void): void {
+    this.terminal.write(data, callback)
   }
 
   /** Write data + \\r\\n */
@@ -274,6 +277,41 @@ export class XTermFrontend {
       if (text) this.input$.next(text)
     } catch {
       // Clipboard not available
+    }
+  }
+
+  /** Add a non-blocking action next to a completed terminal operation. */
+  addOperationAction(recordId: string, onSendToAi: () => void): void {
+    try {
+      const marker = this.terminal.registerMarker(0)
+      if (!marker) return
+      const decoration = this.terminal.registerDecoration({ marker, anchor: 'right', x: 0, width: 2 })
+      if (!decoration) {
+        marker.dispose()
+        return
+      }
+      decoration.onRender((element) => {
+        if (element.dataset.operationAction === recordId) return
+        element.dataset.operationAction = recordId
+        element.style.pointerEvents = 'auto'
+        element.style.zIndex = '4'
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'xterm-operation-ai'
+        button.textContent = 'AI'
+        button.title = 'Send this command and output to AI'
+        button.setAttribute('aria-label', button.title)
+        button.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onSendToAi()
+        })
+        element.replaceChildren(button)
+      })
+      this.operationDecorations.push(decoration)
+      if (this.operationDecorations.length > 50) this.operationDecorations.shift()?.dispose()
+    } catch {
+      // Alternate buffers and older renderers may not support decorations.
     }
   }
 

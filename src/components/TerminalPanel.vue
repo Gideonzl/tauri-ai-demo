@@ -54,16 +54,19 @@ import { DemoSession } from '@/sessions/DemoSession'
 import { Subject } from '@/sessions/Observable'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useLocale } from '@/composables/useLocale'
-import { useCommandHistoryStore } from '@/stores/commandHistory'
+import { useOperationRecordsStore } from '@/stores/operationRecords'
+import { TerminalCommandCapture } from '@/utils/terminal-command-capture'
+import { formatOperationForAi } from '@/utils/operation-records'
 
 // ── Props, Emits, Store ──
 const { t } = useLocale()
-const cmdHistory = useCommandHistoryStore()
+const operationRecords = useOperationRecordsStore()
 const props = defineProps<{ session?: any }>()
 const emit = defineEmits<{ cwdChange: [path: string] }>()
 const sshStore = useSshStore()
 const configStore = useConfigStore()
 const termSettings = useTerminalSettingsStore()
+const sendTerminalToAI = inject<(text: string, serverInfo?: string) => void>('sendTerminalToAI')
 
 // ── Quick command injection (from parent WorkspaceView) ──
 // Route through frontend.input$ so it's echoed AND recorded to history (like typing).
@@ -131,20 +134,36 @@ function insertEmoji(emoji: string) {
   frontend.focus()
 }
 
-// ── Command history recording ──
+// ── Independent operation recording ──
 let cmdBuffer = ''
 
-function recordCommand(data: string) {
+const capture = new TerminalCommandCapture({
+  onComplete: (input) => {
+    try {
+      const record = operationRecords.addRecord(input)
+      frontend?.addOperationAction(record.id, () => {
+        sendTerminalToAI?.(formatOperationForAi(record), record.serverName)
+      })
+    } catch (error) {
+      console.warn('[TerminalPanel] operation record could not be saved:', error)
+    }
+  },
+})
+
+function captureInput(data: string) {
+  if (data === '\x03') {
+    capture.interrupt()
+    return
+  }
   for (const ch of data) {
     if (ch === '\r') {
-      // Enter pressed — flush buffer as a command
       const cmd = cmdBuffer.trim()
-      if (cmd && sshStore.activeSession) {
-        cmdHistory.addEntry(
-          sshStore.activeSession.serverId,
-          sshStore.activeSession.serverName,
-          cmd
-        )
+      if (cmd && props.session) {
+        capture.submit(cmd, {
+          serverId: props.session.serverId,
+          serverName: props.session.serverName || srvName.value,
+          sessionId: props.session.realSessionId,
+        })
       }
       cmdBuffer = ''
     } else if (ch === '\x7f' || ch === '\b') {
@@ -200,12 +219,15 @@ function wireSessionStreams(activeSession: BaseSession): void {
   subs = Subject.combine(
     frontend.input$.subscribe((data: string) => {
       activeSession.sendInput(data)
-      // Record commands for history (extract lines ending with \r)
-      recordCommand(data)
+      captureInput(data)
     }),
 
     activeSession.output$.subscribe((data: string) => {
-      frontend!.write(data)
+      frontend!.write(data, () => {
+        try { capture.append(data) } catch (error) {
+          console.warn('[TerminalPanel] terminal output capture failed:', error)
+        }
+      })
     }),
 
     frontend.resize$.subscribe(({ rows, cols }: { rows: number; cols: number }) => {
@@ -215,6 +237,7 @@ function wireSessionStreams(activeSession: BaseSession): void {
 
   // Cleanup when the session destroys itself (e.g., server disconnect).
   activeSession.destroyed$.subscribe(() => {
+    capture.flush()
     subs?.unsubscribe()
     subs = null
   })
@@ -227,6 +250,8 @@ async function createSession(): Promise<void> {
   // Each TerminalPanel instance owns exactly one session — no switching
   subs?.unsubscribe()
   subs = null
+  capture.flush()
+  cmdBuffer = ''
 
   if (!frontend) return
 
@@ -334,6 +359,7 @@ watch(
       frontend.writeln('\x1b[1;31m  Check host credentials\x1b[0m')
       frontend.writeln('\x1b[1;31m══════════════════════════════════════════\x1b[0m')
     } else if (st === 'disconnected') {
+      capture.flush()
       if (session && !session.destroyed) {
         frontend.writeln('\r\n\x1b[1;33m● Disconnected\x1b[0m')
       }
@@ -352,6 +378,7 @@ onUnmounted(() => {
   document.removeEventListener('click', hideTermMenu)
   subs?.unsubscribe()
   subs = null
+  capture.flush()
   session?.destroy()
   session = null
   frontend?.dispose()
@@ -373,6 +400,26 @@ onUnmounted(() => {
 .tbadge.demo { color: $color-warning }
 .tpty { color: $color-primary-light; font-size: 10px; margin-left: 4px }
 .tstatus { margin-left: auto; color: $color-text-secondary; font-size: 11px }
+
+:deep(.xterm-operation-ai) {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid $color-border;
+  border-radius: 5px;
+  background: $color-bg-toolbar;
+  color: $color-primary-light;
+  font: 600 9px/16px system-ui, sans-serif;
+  opacity: .66;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    border-color: $color-primary;
+    outline: none;
+  }
+}
 
 // Emoji popup panel — theme-aware, VSCode-style
 .emoji-panel {
