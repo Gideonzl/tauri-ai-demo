@@ -13,6 +13,9 @@ Add a minimal search experience for the output of the currently active terminal 
 
 ## Interaction
 
+- The terminal title bar includes a compact search button: a magnifier plus a `Ctrl F` hint. It opens the same search control as the keyboard shortcut; it does not create separate state.
+- At narrow terminal widths the `Ctrl F` hint is hidden while the magnifier remains visible with the localized `Search terminal output` tooltip.
+- The button has a restrained active treatment while the search control is open.
 - `Ctrl+F` opens a compact floating search control at the upper-right of the terminal viewport; `Cmd+F` does the same on macOS.
 - The control contains a query field, current/total result count, previous and next controls, and one close control.
 - Search is case-insensitive partial-text matching by default. For example, `hit` matches any occurrence of `hit` in terminal output.
