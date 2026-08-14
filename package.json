@@ -17,6 +17,7 @@
     "test:session-tab-reordering": "node scripts/verify-session-tab-reordering.mjs",
     "test:terminal-focus-layout": "node scripts/verify-terminal-focus-layout.mjs",
     "test:terminal-colorizer": "node scripts/verify-terminal-colorizer-runtime.mjs",
+    "test:terminal-global-search": "node --experimental-strip-types scripts/test-terminal-search.mjs",
     "test:ui-refresh": "node scripts/verify-ui-refresh.mjs",
     "preview": "vite preview",
     "tauri": "tauri"

@@ -18,6 +18,23 @@
     <span v-if="isReal" class="tpty">PTY</span>
     <span class="tstatus">{{ status }}</span>
   </div>
+  <div v-if="terminalSearchOpen" class="terminal-search-overlay" @mousedown.stop>
+    <el-input
+      ref="searchInput"
+      v-model="searchQuery"
+      class="terminal-search-input"
+      size="small"
+      :placeholder="t('terminal.searchPlaceholder')"
+      clearable
+      @keydown.enter.prevent="searchNext"
+      @keydown.down.prevent="searchNext"
+      @keydown.up.prevent="searchPrevious"
+    />
+    <span class="terminal-search-count" :class="{ empty: searchDisplay.total === 0 }">{{ searchDisplay.current }} / {{ searchDisplay.total }}</span>
+    <button type="button" class="terminal-search-action" :title="t('terminal.searchPrevious')" :aria-label="t('terminal.searchPrevious')" @mousedown.prevent @click="searchPrevious"><el-icon><ArrowUp /></el-icon></button>
+    <button type="button" class="terminal-search-action" :title="t('terminal.searchNext')" :aria-label="t('terminal.searchNext')" @mousedown.prevent @click="searchNext"><el-icon><ArrowDown /></el-icon></button>
+    <button type="button" class="terminal-search-action terminal-search-close" :title="t('common.close')" :aria-label="t('common.close')" @mousedown.prevent @click="closeTerminalSearch"><el-icon><Close /></el-icon></button>
+  </div>
   <div class="tb" ref="tbr" @contextmenu.prevent="onTermContextMenu"></div>
 
   <!-- 终端右键菜单 — 复用全局 ctx-menu/ctx-item/ctx-sep 样式，与文件树右键 1:1 一致 -->
@@ -43,11 +60,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, inject } from 'vue'
 import type { Ref } from 'vue'
-import { CopyDocument, DocumentCopy, Select, Delete, Sunny } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, Close, CopyDocument, DocumentCopy, Select, Delete, Sunny } from '@element-plus/icons-vue'
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
 import { useTerminalSettingsStore } from '@/stores/terminalSettings'
-import { XTermFrontend } from '@/frontends/XTermFrontend'
+import { XTermFrontend, type TerminalSearchResult } from '@/frontends/XTermFrontend'
 import { BaseSession } from '@/sessions/BaseSession'
 import { SSHShellSession } from '@/sessions/SSHShellSession'
 import { DemoSession } from '@/sessions/DemoSession'
@@ -57,6 +74,7 @@ import { useLocale } from '@/composables/useLocale'
 import { useOperationRecordsStore } from '@/stores/operationRecords'
 import { TerminalCommandCapture } from '@/utils/terminal-command-capture'
 import { formatOperationForAi } from '@/utils/operation-records'
+import { normalizeTerminalSearchResult } from '@/utils/terminal-search'
 
 // ── Props, Emits, Store ──
 const { t } = useLocale()
@@ -88,6 +106,11 @@ watch(() => sshStore.injectCommandSeq, () => {
 
 // ── Template refs ──
 const tbr = ref<HTMLElement>()
+const terminalSearchOpen = ref(false)
+const searchQuery = ref('')
+const searchResult = ref<TerminalSearchResult>({ resultIndex: -1, resultCount: 0 })
+const searchInput = ref<{ focus: () => void }>()
+const searchDisplay = computed(() => normalizeTerminalSearchResult(searchResult.value))
 
 // ── Terminal context menu (复用 global.scss 的 ctx-menu/ctx-item/ctx-sep 样式) ──
 const tmenu = reactive({ visible: false, x: 0, y: 0, showEmoji: false })
@@ -183,6 +206,48 @@ function captureInput(data: string) {
 let frontend: XTermFrontend | null = null
 let session: BaseSession | null = null
 let subs: ReturnType<typeof Subject.combine> | null = null
+let searchResultsSubscription: { dispose: () => void } | null = null
+
+function openTerminalSearch() {
+  if (!frontend) return
+  terminalSearchOpen.value = true
+  nextTick(() => searchInput.value?.focus())
+}
+
+function closeTerminalSearch() {
+  terminalSearchOpen.value = false
+  searchQuery.value = ''
+  frontend?.clearSearch()
+  nextTick(() => frontend?.focus())
+}
+
+function searchNext() {
+  frontend?.updateSearch(searchQuery.value)
+}
+
+function searchPrevious() {
+  frontend?.findPrevious(searchQuery.value)
+}
+
+function onTerminalSearchKeydown(event: KeyboardEvent) {
+  if (!isPanelActive.value) return
+  const hasModifier = event.ctrlKey || event.metaKey
+  if (hasModifier && !event.altKey && event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    event.stopPropagation()
+    openTerminalSearch()
+    return
+  }
+  if (terminalSearchOpen.value && event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    closeTerminalSearch()
+  }
+}
+
+watch(searchQuery, (query) => {
+  if (terminalSearchOpen.value) frontend?.updateSearch(query)
+})
 
 function formatPtyError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
@@ -305,9 +370,11 @@ async function createSession(): Promise<void> {
 onMounted(() => {
   register(hideTermMenu)
   document.addEventListener('click', hideTermMenu)
+  document.addEventListener('keydown', onTerminalSearchKeydown, true)
   nextTick(() => {
     if (!tbr.value) return
     frontend = new XTermFrontend()
+    searchResultsSubscription = frontend.onSearchResults((result) => { searchResult.value = result })
     frontend.open(tbr.value)
     frontend.updateTheme() // Apply current theme to terminal
     frontend.applySettings({ ...termSettings.settings }) // Apply user terminal prefs
@@ -376,6 +443,9 @@ watch(() => configStore.colorScheme, () => {
 onUnmounted(() => {
   unregister(hideTermMenu)
   document.removeEventListener('click', hideTermMenu)
+  document.removeEventListener('keydown', onTerminalSearchKeydown, true)
+  searchResultsSubscription?.dispose()
+  searchResultsSubscription = null
   subs?.unsubscribe()
   subs = null
   capture.flush()
@@ -387,7 +457,7 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.tp { height: 100%; width: 100%; background: $color-bg-app; display: flex; flex-direction: column }
+.tp { height: 100%; width: 100%; background: $color-bg-app; display: flex; flex-direction: column; position: relative }
 .tbar { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; background: linear-gradient(90deg, $color-bg-active, transparent 34%), $surface-contrast; border-bottom: 1px solid $color-border; font-size: 12px; color: $color-text-primary; flex-shrink: 0 }
 .tdot { width: 7px; height: 7px; border-radius: 50%; background: $color-text-placeholder; flex-shrink: 0 }
 .tdot.connected { background: $color-success }
@@ -400,6 +470,43 @@ onUnmounted(() => {
 .tbadge.demo { color: $color-warning }
 .tpty { color: $color-primary-light; font-size: 10px; margin-left: 4px }
 .tstatus { margin-left: auto; color: $color-text-secondary; font-size: 11px }
+
+.terminal-search-overlay {
+  position: absolute;
+  z-index: 8;
+  top: 34px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: min(430px, calc(100% - 36px));
+  padding: 5px;
+  border: 1px solid $color-border;
+  border-radius: $border-radius-md;
+  background: $surface-contrast;
+}
+.terminal-search-input { flex: 1; min-width: 0 }
+.terminal-search-count { min-width: 38px; color: $color-text-regular; font: 600 11px/1.2 $font-family-mono; text-align: center; white-space: nowrap }
+.terminal-search-count.empty { color: $color-text-secondary }
+.terminal-search-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: $border-radius-sm;
+  background: transparent;
+  color: $color-text-regular;
+  cursor: pointer;
+  &:hover, &:focus-visible { background: $color-bg-hover; color: $color-text-primary; outline: none }
+}
+.terminal-search-close { margin-left: 1px }
+@media (max-width: 520px) {
+  .terminal-search-overlay { right: 10px; width: calc(100% - 20px) }
+  .terminal-search-count { min-width: 32px; font-size: 10px }
+}
 
 :deep(.xterm-operation-ai) {
   width: 22px;

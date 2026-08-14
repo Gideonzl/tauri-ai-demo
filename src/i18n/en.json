@@ -678,7 +678,10 @@
     "banner": "AITerminal",
     "bannerHelp": "Tab=complete  ?=history  help",
     "opening": "Opening PTY shell...",
-    "disconnected": "Disconnected"
+    "disconnected": "Disconnected",
+    "searchPlaceholder": "Search terminal output",
+    "searchPrevious": "Previous match",
+    "searchNext": "Next match"
   },
   "chat": {
     "newChat": "New Chat",

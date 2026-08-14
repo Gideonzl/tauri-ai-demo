@@ -18,12 +18,18 @@
 
 import { Terminal, type IDecoration } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { SearchAddon } from '@xterm/addon-search'
+import { SearchAddon, type ISearchResultChangeEvent } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import '@xterm/xterm/css/xterm.css'
 import { Subject } from '@/sessions/Observable'
+import { createTerminalSearchOptions } from '@/utils/terminal-search'
+
+export interface TerminalSearchResult {
+  resultIndex: number
+  resultCount: number
+}
 
 // ── Theme ──
 const DEFAULT_THEME = {
@@ -59,6 +65,9 @@ export class XTermFrontend {
   private terminal: Terminal
   private fitAddon: FitAddon
   private searchAddon: SearchAddon
+  private searchResultDisposable: { dispose: () => void } | null = null
+  private searchResult: TerminalSearchResult = { resultIndex: -1, resultCount: 0 }
+  private searchResultListeners = new Set<(result: TerminalSearchResult) => void>()
   private resizeObserver: ResizeObserver | null = null
   private _element: HTMLElement | null = null
   private operationDecorations: IDecoration[] = []
@@ -92,6 +101,9 @@ export class XTermFrontend {
     // Search — Ctrl+Shift+F
     this.searchAddon = new SearchAddon()
     this.terminal.loadAddon(this.searchAddon)
+    this.searchResultDisposable = this.searchAddon.onDidChangeResults((result) => {
+      this.setSearchResult(result)
+    })
 
     // Web links — Ctrl+Click to open URLs
     this.terminal.loadAddon(new WebLinksAddon())
@@ -209,6 +221,9 @@ export class XTermFrontend {
     this.resizeObserver = null
     this.selectionDisposable?.dispose()
     this.selectionDisposable = null
+    this.searchResultDisposable?.dispose()
+    this.searchResultDisposable = null
+    this.searchResultListeners.clear()
     this.operationDecorations.forEach(decoration => decoration.dispose())
     this.operationDecorations = []
     this.terminal.dispose()
@@ -231,19 +246,53 @@ export class XTermFrontend {
 
   // ── Search (Tabby: Ctrl+Shift+F → search bar) ──
 
-  /** Show the search addon bar */
-  showSearch(): void {
-    this.searchAddon.show()
+  private setSearchResult(result: ISearchResultChangeEvent | TerminalSearchResult): void {
+    this.searchResult = {
+      resultIndex: result.resultIndex,
+      resultCount: result.resultCount,
+    }
+    this.searchResultListeners.forEach(listener => listener(this.searchResult))
   }
 
-  /** Find next search match */
-  findNext(query: string): void {
-    this.searchAddon.findNext(query)
+  private getSearchOptions() {
+    const style = getComputedStyle(document.documentElement)
+    const read = (prop: string, fallback: string) => style.getPropertyValue(prop).trim() || fallback
+    return createTerminalSearchOptions({
+      matchBackground: read('--terminal-bright-black', '#444460'),
+      matchBorder: read('--terminal-yellow', '#ffcb6b'),
+      activeMatchBackground: read('--terminal-yellow', '#ffcb6b'),
+      activeMatchBorder: read('--terminal-fg', '#ffffff'),
+    })
   }
 
-  /** Find previous search match */
-  findPrevious(query: string): void {
-    this.searchAddon.findPrevious(query)
+  /** Find the next case-insensitive match and update all decorations. */
+  updateSearch(query: string): boolean {
+    const term = query.trim()
+    if (!term) {
+      this.clearSearch()
+      return false
+    }
+    return this.searchAddon.findNext(term, this.getSearchOptions())
+  }
+
+  /** Find the previous case-insensitive match. */
+  findPrevious(query: string): boolean {
+    const term = query.trim()
+    if (!term) return false
+    return this.searchAddon.findPrevious(term, this.getSearchOptions())
+  }
+
+  /** Clear highlights and reset the visible result count. */
+  clearSearch(): void {
+    this.searchAddon.clearDecorations()
+    this.setSearchResult({ resultIndex: -1, resultCount: 0 })
+  }
+
+  /** Subscribe to xterm result changes without exposing the addon itself. */
+  onSearchResults(listener: (result: TerminalSearchResult) => void): { dispose: () => void } {
+    this.searchResultListeners.add(listener)
+    listener(this.searchResult)
+    return { dispose: () => this.searchResultListeners.delete(listener) }
   }
 
   // ── Control ──

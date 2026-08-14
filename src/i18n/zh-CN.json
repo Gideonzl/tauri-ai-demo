@@ -678,7 +678,10 @@
     "banner": "AITerminal",
     "bannerHelp": "Tab=补全  ?=历史  help=帮助",
     "opening": "正在打开 PTY 终端...",
-    "disconnected": "已断开连接"
+    "disconnected": "已断开连接",
+    "searchPlaceholder": "搜索终端输出",
+    "searchPrevious": "上一条匹配",
+    "searchNext": "下一条匹配"
   },
   "chat": {
     "newChat": "新对话",
