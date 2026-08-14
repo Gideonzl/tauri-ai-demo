@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:operation-records": "node --experimental-strip-types scripts/test-operation-records.mjs",
     "test:agent-execution": "node scripts/verify-agent-execution.mjs",
     "test:ops-permissions": "node scripts/verify-ops-permissions.mjs",
     "test:ops-remediation": "node scripts/verify-ops-remediation.mjs",
