@@ -6,6 +6,7 @@ import {
   saveOperationRecords,
   formatOperationForAi,
 } from '../src/utils/operation-records.ts'
+import { TerminalCommandCapture } from '../src/utils/terminal-command-capture.ts'
 
 class MemoryStorage {
   data = new Map()
@@ -41,5 +42,38 @@ assert.equal(migrated[0].output, '')
 saveOperationRecords(storage, Array.from({ length: 220 }, (_, index) => ({ ...base, id: `op-${index}`, startedAt: index })))
 assert.equal(JSON.parse(storage.getItem(OPERATION_RECORDS_KEY)).length, 200)
 assert.match(formatOperationForAi(base), /pwd[\s\S]*\/root/)
+
+const completed = []
+let clock = 1000
+const capture = new TerminalCommandCapture({ onComplete: record => completed.push(record), now: () => clock })
+const context = { serverId: 's1', serverName: 'demo', sessionId: 'real-1', cwd: '/root' }
+
+capture.submit('pwd', context)
+clock = 1025
+capture.append('pwd\r\n/root\r\nroot@demo:~# ')
+assert.equal(completed[0].command, 'pwd')
+assert.equal(completed[0].output, '/root')
+assert.equal(completed[0].durationMs, 25)
+assert.equal(completed[0].status, 'success')
+
+capture.submit('true', context)
+capture.append('true\r\nroot@demo:~# ')
+assert.equal(completed[1].output, '')
+
+capture.submit('tail -f app.log', context)
+capture.append('line 1\r\n')
+capture.interrupt()
+capture.append('^C\r\nroot@demo:~# ')
+assert.equal(completed[2].status, 'interrupted')
+assert.match(completed[2].output, /line 1/)
+
+capture.submit('sleep 10', context)
+capture.append('\x1b[32mworking\x1b[0m\r\n')
+capture.submit('echo next', context)
+assert.equal(completed[3].status, 'unknown')
+assert.equal(completed[3].output, 'working')
+
+capture.flush()
+assert.equal(completed[4].status, 'unknown')
 
 console.log('Operation record model checks passed')
