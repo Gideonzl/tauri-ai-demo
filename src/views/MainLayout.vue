@@ -361,10 +361,11 @@ provide('injectFileContentToAI', (filePath: string, content: string, serverInfo?
   aiChatRef.value?.injectFileContent(filePath, content, serverInfo)
 
 })
-provide('sendTerminalToAI', (text: string, serverInfo?: string) => {
-
-  aiChatRef.value?.injectTerminalText(text, serverInfo)
-
+provide('sendTerminalToAI', async (text: string, serverInfo?: string) => {
+  rightPanelTab.value = 'ai'
+  if (aiPanelCollapsed.value) toggleAiPanel()
+  await nextTick()
+  return await aiChatRef.value?.injectTerminalText(text, serverInfo) || false
 })
 provide('sendOperationsAnalysisToAI', async (title: string, content: string, prompt: string, serverInfo?: string): Promise<boolean> => {
   rightPanelTab.value = 'ai'

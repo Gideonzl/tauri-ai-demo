@@ -1,74 +1,90 @@
-<!-- CommandHistoryView — 按服务器分类的命令历史记录 -->
 <template>
-  <div class="cmd-history-view" @contextmenu.prevent="onCtx">
-    <div class="history-header">
-      <div class="header-left">
-        <el-icon :size="16"><Clock /></el-icon>
-        <span class="header-title">Command History</span>
+  <div class="operation-history" @contextmenu.prevent>
+    <header class="history-header">
+      <div class="header-title">
+        <el-icon :size="15"><Clock /></el-icon>
+        <span>{{ t('operationHistory.title') }}</span>
+        <small>{{ filteredRecords.length }}</small>
       </div>
-      <div class="header-right">
-        <el-button size="small" text @click="handleRefresh" title="刷新">
-          <el-icon :size="14"><Refresh /></el-icon>
-        </el-button>
+      <div class="header-tools">
+        <el-input
+          v-model="searchQuery"
+          class="history-search"
+          size="small"
+          clearable
+          :placeholder="t('operationHistory.search')"
+        />
         <el-select
           v-model="selectedServerId"
-          size="small"
-          placeholder="Select server"
           class="server-select"
+          size="small"
+          :placeholder="t('operationHistory.selectServer')"
           :popper-append-to-body="false"
         >
           <el-option
-            v-for="s in visibleHistoryServers"
-            :key="s.serverId"
-            :label="s.serverName"
-            :value="s.serverId"
+            v-for="server in visibleHistoryServers"
+            :key="server.serverId"
+            :label="server.serverName"
+            :value="server.serverId"
           />
         </el-select>
-        <el-button v-if="selectedServerId" size="small" text @click="clearCurrent">
-          <el-icon :size="13"><Delete /></el-icon>
-        </el-button>
+        <button class="icon-action" :title="t('common.refresh')" @click="handleRefresh">
+          <el-icon :size="14"><Refresh /></el-icon>
+        </button>
+        <button v-if="selectedServerId" class="icon-action danger" :title="t('common.clear')" @click="clearCurrent">
+          <el-icon :size="14"><Delete /></el-icon>
+        </button>
       </div>
-    </div>
+    </header>
 
-    <!-- Current server info -->
-    <div v-if="activeServer && selectedServerId === activeServer.serverId" class="current-server-bar">
-      <el-icon :size="12"><Connection /></el-icon>
+    <div v-if="activeServer && selectedServerId === activeServer.id" class="current-server">
+      <span class="live-dot"></span>
       <span>{{ activeServer.username }}@{{ activeServer.host }}:{{ activeServer.port }}</span>
-      <span class="live-badge">LIVE</span>
+      <span>LIVE</span>
     </div>
 
-    <!-- Command list -->
-    <div class="command-list" v-if="filteredCommands.length > 0">
-      <div
-        v-for="cmd in filteredCommands"
-        :key="cmd.id"
-        class="command-item"
-        @dblclick="executeCommand(cmd)"
-        @contextmenu.prevent="showMenu($event, cmd)"
+    <main v-if="filteredRecords.length" class="record-list">
+      <article
+        v-for="record in filteredRecords"
+        :key="record.id"
+        class="record"
+        :class="{ expanded: expandedRecordId === record.id }"
+        @contextmenu.prevent="showMenu($event, record)"
       >
-        <div class="cmd-header">
-          <span class="cmd-time">{{ formatTime(cmd.timestamp) }}</span>
-          <span v-if="cmd.cwd" class="cmd-cwd">{{ cmd.cwd }}</span>
-        </div>
-        <div class="cmd-text">
-          <code>{{ cmd.command }}</code>
-        </div>
-      </div>
-    </div>
+        <button class="record-summary" @click="toggleRecord(record.id)">
+          <span class="status-dot" :class="record.status"></span>
+          <code>{{ record.command }}</code>
+          <span v-if="record.durationMs != null" class="duration">{{ formatDuration(record.durationMs) }}</span>
+          <span class="status-label">{{ statusLabel(record) }}</span>
+          <time>{{ formatTime(record.startedAt) }}</time>
+        </button>
 
-    <!-- Empty state -->
+        <div v-if="expandedRecordId === record.id" class="record-detail">
+          <div v-if="record.cwd" class="record-meta">{{ record.cwd }}</div>
+          <pre :class="{ muted: !record.output }">{{ outputLabel(record) }}</pre>
+          <div v-if="record.truncated" class="truncated">{{ t('operationHistory.outputTruncated') }}</div>
+          <nav class="record-actions" :aria-label="t('operationHistory.actions')">
+            <button @click="sendRecordToAi(record)">{{ t('operationHistory.sendToAi') }}</button>
+            <button @click="executeCommand(record)">{{ t('operationHistory.rerun') }}</button>
+            <button @click="saveAsSnapshot(record)">{{ t('operationHistory.saveRecipe') }}</button>
+            <button @click="copyRecord(record)">{{ t('common.copy') }}</button>
+            <button class="danger" @click="deleteRecord(record.id)">{{ t('workspace.delete') }}</button>
+          </nav>
+        </div>
+      </article>
+    </main>
+
     <div v-else class="empty-state">
-      <el-icon :size="36"><Clock /></el-icon>
-      <p v-if="!selectedServerId">Select a server to view its command history</p>
-      <p v-else>No command history for this server</p>
-      <p class="sub">Commands will be recorded when you type in the terminal</p>
+      <el-icon :size="34"><Clock /></el-icon>
+      <strong>{{ selectedServerId ? t('operationHistory.empty') : t('operationHistory.selectServer') }}</strong>
+      <span>{{ t('operationHistory.emptyHint') }}</span>
     </div>
 
-    <!-- Right-click context menu -->
     <div v-if="menu.visible" class="ctx-menu" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
-      <div class="ctx-item" @click="menuAct('execute')"><el-icon :size="13"><VideoPlay /></el-icon><span>{{ t('common.execute') }}</span></div>
+      <div class="ctx-item" @click="menuAct('ai')"><el-icon :size="13"><ChatDotRound /></el-icon><span>{{ t('operationHistory.sendToAi') }}</span></div>
+      <div class="ctx-item" @click="menuAct('execute')"><el-icon :size="13"><VideoPlay /></el-icon><span>{{ t('operationHistory.rerun') }}</span></div>
+      <div class="ctx-item" @click="menuAct('snapshot')"><el-icon :size="13"><DocumentCopy /></el-icon><span>{{ t('operationHistory.saveRecipe') }}</span></div>
       <div class="ctx-item" @click="menuAct('copy')"><el-icon :size="13"><CopyDocument /></el-icon><span>{{ t('common.copy') }}</span></div>
-      <div class="ctx-item" @click="menuAct('snapshot')"><el-icon :size="13"><DocumentCopy /></el-icon><span>{{ t('data.saveSnapshot') }}</span></div>
       <div class="ctx-sep"></div>
       <div class="ctx-item danger" @click="menuAct('delete')"><el-icon :size="13"><Delete /></el-icon><span>{{ t('workspace.delete') }}</span></div>
     </div>
@@ -76,285 +92,179 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, onActivated, watch } from 'vue'
+import { computed, inject, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock, Connection, Delete, VideoPlay, CopyDocument, DocumentCopy, Refresh } from '@element-plus/icons-vue'
-import { useCommandHistoryStore } from '@/stores/commandHistory'
+import { ChatDotRound, Clock, CopyDocument, Delete, DocumentCopy, Refresh, VideoPlay } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { useOperationRecordsStore } from '@/stores/operationRecords'
 import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
 import { useSshStore } from '@/stores/ssh'
 import { useLocale } from '@/composables/useLocale'
-import { ElMessage } from 'element-plus'
+import { formatOperationForAi, type OperationRecord } from '@/utils/operation-records'
 
-const cmdStore = useCommandHistoryStore()
+const operationStore = useOperationRecordsStore()
 const snapshotsStore = useWorkflowSnapshotsStore()
 const sshStore = useSshStore()
 const router = useRouter()
 const { t } = useLocale()
+const sendTerminalToAI = inject<(text: string, serverInfo?: string) => Promise<boolean>>('sendTerminalToAI')
 
 const selectedServerId = ref('')
-const menu = reactive({ visible: false, x: 0, y: 0, cmd: null as any })
+const searchQuery = ref('')
+const expandedRecordId = ref('')
+const menu = reactive({ visible: false, x: 0, y: 0, record: null as OperationRecord | null })
 
-// Active server from SSH session
 const activeServer = computed(() => {
   const session = sshStore.activeSession
-  if (!session) return null
-  return sshStore.servers.find(s => s.id === session.serverId) || null
+  return session ? sshStore.servers.find(server => server.id === session.serverId) || null : null
+})
+const existingServerIds = computed(() => new Set(sshStore.servers.map(server => server.id)))
+const visibleHistoryServers = computed(() => operationStore.historyServers.filter(server => existingServerIds.value.has(server.serverId)))
+const filteredRecords = computed(() => {
+  if (!selectedServerId.value) return []
+  const query = searchQuery.value.trim().toLowerCase()
+  return operationStore.getEntries(selectedServerId.value).filter(record => !query
+    || record.command.toLowerCase().includes(query)
+    || record.output.toLowerCase().includes(query))
 })
 
-// Only show history for servers that currently exist — prevents leaking old IPs
-const existingServerIds = computed(() => new Set(sshStore.servers.map(s => s.id)))
-
-const visibleHistoryServers = computed(() => {
-  return cmdStore.historyServers.filter(h => existingServerIds.value.has(h.serverId))
-})
-
-// Purge orphaned history + sync selection when servers change
 function syncWithServers() {
-  cmdStore.purgeOrphaned(sshStore.servers.map(s => s.id))
-  // Reset selection if selected server no longer exists
+  operationStore.purgeOrphaned(sshStore.servers.map(server => server.id))
   if (selectedServerId.value && !existingServerIds.value.has(selectedServerId.value)) {
     selectedServerId.value = visibleHistoryServers.value[0]?.serverId || ''
   }
 }
 
-// Auto-select active server on mount
+function selectPreferredServer() {
+  const activeId = sshStore.activeSession?.serverId
+  if (activeId && visibleHistoryServers.value.some(server => server.serverId === activeId)) selectedServerId.value = activeId
+  else if (!selectedServerId.value) selectedServerId.value = visibleHistoryServers.value[0]?.serverId || ''
+}
+
 onMounted(() => {
   document.addEventListener('click', hideMenu)
   syncWithServers()
-  if (activeServer.value && existingServerIds.value.has(activeServer.value.id)) {
-    selectedServerId.value = activeServer.value.id
-  } else if (visibleHistoryServers.value.length > 0) {
-    selectedServerId.value = visibleHistoryServers.value[0].serverId
-  }
+  selectPreferredServer()
 })
-
-// Watch server list changes — purge and re-sync
-watch(() => sshStore.servers.length, () => {
-  syncWithServers()
-})
-
-// Auto-refresh when returning to this view (kept alive) — shows commands just run
 onActivated(() => {
-  cmdStore.reload()
+  operationStore.reload()
   syncWithServers()
-  const activeId = sshStore.activeSession?.serverId
-  if (activeId && visibleHistoryServers.value.find(h => h.serverId === activeId)) {
-    selectedServerId.value = activeId
-  }
+  selectPreferredServer()
 })
-
-// Also watch when entries change (from purge) to keep selection valid
-watch(() => cmdStore.entries.length, () => {
-  if (selectedServerId.value && !existingServerIds.value.has(selectedServerId.value)) {
-    selectedServerId.value = visibleHistoryServers.value[0]?.serverId || ''
-  }
-})
-
 onUnmounted(() => document.removeEventListener('click', hideMenu))
+watch(() => sshStore.servers.length, () => { syncWithServers(); selectPreferredServer() })
 
-const filteredCommands = computed(() => {
-  if (!selectedServerId.value) return []
-  return cmdStore.getEntries(selectedServerId.value)
-})
-
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+function toggleRecord(id: string) {
+  expandedRecordId.value = expandedRecordId.value === id ? '' : id
 }
 
-function executeCommand(cmd: any) {
-  const session = sshStore.activeSession
-  if (session) {
-    // Push command to the active terminal (kept alive in workspace) and go see it run
-    sshStore.runInTerminal(cmd.command)
-    ElMessage.success('Command sent to terminal')
-    router.push('/')
-  } else {
-    navigator.clipboard.writeText(cmd.command)
-    ElMessage.success('No active server — copied to clipboard')
+function formatTime(timestamp: number) {
+  return new Intl.DateTimeFormat(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(timestamp)
+}
+
+function formatDuration(duration: number) {
+  if (duration < 1000) return `${duration}ms`
+  return `${(duration / 1000).toFixed(duration < 10_000 ? 1 : 0)}s`
+}
+
+function statusLabel(record: OperationRecord) {
+  return t(`operationHistory.${record.status}`)
+}
+
+function isLegacy(record: OperationRecord) {
+  return record.status === 'unknown' && record.finishedAt === undefined && !record.output
+}
+
+function outputLabel(record: OperationRecord) {
+  if (record.output) return record.output
+  return isLegacy(record) ? t('operationHistory.legacyNoOutput') : t('operationHistory.noOutput')
+}
+
+function executeCommand(record: OperationRecord) {
+  if (!sshStore.activeSession) {
+    navigator.clipboard.writeText(record.command)
+    ElMessage.success(t('operationHistory.copied'))
+    return
   }
+  sshStore.runInTerminal(record.command)
+  router.push('/')
+  ElMessage.success(t('operationHistory.sentToTerminal'))
 }
 
-function clearCurrent() {
-  if (selectedServerId.value) {
-    cmdStore.clearServer(selectedServerId.value)
-  }
+async function sendRecordToAi(record: OperationRecord) {
+  const sent = await sendTerminalToAI?.(formatOperationForAi(record), record.serverName)
+  if (sent) ElMessage.success(t('operationHistory.sentToAi'))
 }
 
-function saveAsSnapshot(cmd: { command: string; timestamp: number; serverId: string; serverName: string; cwd?: string }) {
+function saveAsSnapshot(record: OperationRecord) {
   snapshotsStore.createSnapshot({
-    title: cmd.command.slice(0, 48),
-    server: { id: cmd.serverId, name: cmd.serverName },
-    commands: [{ command: cmd.command, timestamp: cmd.timestamp }],
-    filePaths: cmd.cwd ? [cmd.cwd] : [],
+    title: record.command.slice(0, 48),
+    server: { id: record.serverId, name: record.serverName },
+    commands: [{ command: record.command, output: record.output, timestamp: record.startedAt }],
+    filePaths: record.cwd ? [record.cwd] : [],
   })
   ElMessage.success(t('data.snapshotSaved'))
 }
 
-/** 手动刷新：重载历史 + 自动选中当前活动服务器（看到刚执行的命令） */
-function handleRefresh() {
-  cmdStore.reload()
-  syncWithServers()
-  const activeId = sshStore.activeSession?.serverId
-  if (activeId && visibleHistoryServers.value.find(h => h.serverId === activeId)) {
-    selectedServerId.value = activeId
-  } else if (!selectedServerId.value && visibleHistoryServers.value.length > 0) {
-    selectedServerId.value = visibleHistoryServers.value[0].serverId
-  }
-  ElMessage.success(t('common.refresh'))
+async function copyRecord(record: OperationRecord) {
+  await navigator.clipboard.writeText([record.command, record.output].filter(Boolean).join('\n\n'))
+  ElMessage.success(t('operationHistory.copied'))
 }
 
-function onCtx(e: MouseEvent) { /* prevent browser menu */ }
+function deleteRecord(id: string) {
+  operationStore.deleteRecord(id)
+  if (expandedRecordId.value === id) expandedRecordId.value = ''
+}
 
-function showMenu(e: MouseEvent, cmd: any) {
-  menu.cmd = cmd
-  menu.x = e.clientX
-  menu.y = e.clientY
+function clearCurrent() {
+  if (selectedServerId.value) operationStore.clearServer(selectedServerId.value)
+}
+
+function handleRefresh() {
+  operationStore.reload()
+  syncWithServers()
+  selectPreferredServer()
+}
+
+function showMenu(event: MouseEvent, record: OperationRecord) {
+  event.stopPropagation()
+  menu.record = record
+  menu.x = event.clientX
+  menu.y = event.clientY
   menu.visible = true
 }
 
 function hideMenu() { menu.visible = false }
 
-function menuAct(action: string) {
-  const cmd = menu.cmd
+function menuAct(action: 'ai' | 'execute' | 'snapshot' | 'copy' | 'delete') {
+  const record = menu.record
   hideMenu()
-  if (!cmd) return
-  switch (action) {
-    case 'execute': executeCommand(cmd); break
-    case 'copy': navigator.clipboard.writeText(cmd.command).then(() => ElMessage.success('Copied')); break
-    case 'snapshot': saveAsSnapshot(cmd); break
-    case 'delete': cmdStore.deleteEntry(cmd.id); break
-  }
+  if (!record) return
+  if (action === 'ai') void sendRecordToAi(record)
+  else if (action === 'execute') executeCommand(record)
+  else if (action === 'snapshot') saveAsSnapshot(record)
+  else if (action === 'copy') void copyRecord(record)
+  else deleteRecord(record.id)
 }
 </script>
 
 <style lang="scss" scoped>
-.cmd-history-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  background-color: $color-bg-app;
-}
-
-.history-header {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 $spacing-md;
-  border-bottom: 1px solid $color-border-light;
-  flex-shrink: 0;
-  background-color: $color-bg-toolbar;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-  color: $color-text-primary;
-
-  .header-title {
-    font-size: $font-size-sm;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.server-select {
-  width: 200px;
-}
-
-.current-server-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px $spacing-md;
-  font-size: 11px;
-  font-family: $font-family-mono;
-  color: $color-text-secondary;
-  background-color: rgba(76, 175, 125, 0.06);
-  border-bottom: 1px solid rgba(76, 175, 125, 0.12);
-  flex-shrink: 0;
-
-  .live-badge {
-    font-size: 9px;
-    font-weight: 700;
-    color: $color-success;
-    background: rgba(76, 175, 125, 0.12);
-    padding: 0 5px;
-    border-radius: 2px;
-    letter-spacing: 0.5px;
-  }
-}
-
-.command-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: $spacing-sm 0;
-}
-
-.command-item {
-  padding: 6px $spacing-md;
-  cursor: pointer;
-  transition: background-color $transition-fast;
-  border-left: 2px solid transparent;
-
-  &:hover {
-    background-color: $color-bg-hover;
-    border-left-color: $color-primary;
-  }
-}
-
-.cmd-header {
-  display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-  margin-bottom: 2px;
-}
-
-.cmd-time {
-  font-size: 10px;
-  color: $color-info;
-  font-family: $font-family-mono;
-}
-
-.cmd-cwd {
-  font-size: 10px;
-  color: $color-text-placeholder;
-  font-family: $font-family-mono;
-
-  &::before { content: 'in '; }
-}
-
-.cmd-text {
-  code {
-    font-family: $font-family-mono;
-    font-size: $font-size-sm;
-    color: $color-text-primary;
-    background: transparent;
-    word-break: break-all;
-  }
-}
-
-.empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: $spacing-sm;
-  color: $color-text-secondary;
-
-  p { font-size: $font-size-md; }
-  .sub { font-size: $font-size-sm; color: $color-text-placeholder; }
-}
+.operation-history { height: 100%; display: flex; flex-direction: column; overflow: hidden; background: $color-bg-app; color: $color-text-primary }
+.history-header { min-height: 48px; padding: 7px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid $color-border-light; background: $color-bg-toolbar }
+.header-title, .header-tools { display: flex; align-items: center; gap: 8px }
+.header-title { font-size: 13px; font-weight: 650; white-space: nowrap; small { color: $color-text-placeholder; font-weight: 500 } }
+.header-tools { min-width: 0 }
+.history-search { width: min(260px, 24vw) }
+.server-select { width: min(210px, 22vw) }
+.icon-action { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; color: $color-text-secondary; background: transparent; cursor: pointer; &:hover { color: $color-text-primary; background: $color-bg-hover } &.danger:hover { color: $color-danger } }
+.current-server { height: 28px; padding: 0 16px; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid $color-border-light; color: $color-text-secondary; font-size: 11px; .live-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-success } span:last-child { margin-left: auto; color: $color-success; font-weight: 700; font-size: 9px } }
+.record-list { flex: 1; overflow: auto; padding: 8px 12px 20px }
+.record { border-bottom: 1px solid $color-border-light; &:last-child { border-bottom: 0 } &.expanded { background: $color-bg-hover } }
+.record-summary { width: 100%; min-height: 42px; padding: 7px 8px; display: grid; grid-template-columns: 8px minmax(180px, 1fr) auto auto auto; align-items: center; gap: 10px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.5 'JetBrains Mono','Cascadia Code',monospace; color: $color-text-primary } time, .duration, .status-label { color: $color-text-placeholder; font-size: 10px; white-space: nowrap } }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-text-placeholder; &.success { background: $color-success } &.failed { background: $color-danger } &.interrupted { background: $color-warning } &.running { background: $color-primary } }
+.record-detail { margin: 0 8px 9px 26px; padding: 8px 10px 9px; border-left: 2px solid $color-border; .record-meta { margin-bottom: 6px; color: $color-text-placeholder; font-size: 10px } pre { max-height: 280px; margin: 0; overflow: auto; white-space: pre-wrap; word-break: break-word; color: $color-text-secondary; font: 11px/1.65 'JetBrains Mono','Cascadia Code',monospace; &.muted { color: $color-text-placeholder; font-family: inherit } } }
+.truncated { margin-top: 6px; color: $color-warning; font-size: 10px }
+.record-actions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; button { padding: 3px 7px; border: 0; border-radius: 5px; background: transparent; color: $color-text-secondary; font-size: 11px; cursor: pointer; &:hover { color: $color-primary-light; background: $color-bg-active } &.danger:hover { color: $color-danger } } }
+.empty-state { flex: 1; display: grid; place-content: center; justify-items: center; gap: 8px; color: $color-text-placeholder; strong { color: $color-text-secondary; font-size: 13px } span { font-size: 11px } }
+@media (max-width: 760px) { .history-header { align-items: flex-start; flex-direction: column } .header-tools { width: 100% } .history-search, .server-select { flex: 1; width: auto } .record-summary { grid-template-columns: 8px minmax(120px, 1fr) auto; .duration, .status-label { display: none } } }
 </style>

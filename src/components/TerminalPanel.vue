@@ -66,7 +66,7 @@ const emit = defineEmits<{ cwdChange: [path: string] }>()
 const sshStore = useSshStore()
 const configStore = useConfigStore()
 const termSettings = useTerminalSettingsStore()
-const sendTerminalToAI = inject<(text: string, serverInfo?: string) => void>('sendTerminalToAI')
+const sendTerminalToAI = inject<(text: string, serverInfo?: string) => Promise<boolean>>('sendTerminalToAI')
 
 // ── Quick command injection (from parent WorkspaceView) ──
 // Route through frontend.input$ so it's echoed AND recorded to history (like typing).
@@ -142,7 +142,7 @@ const capture = new TerminalCommandCapture({
     try {
       const record = operationRecords.addRecord(input)
       frontend?.addOperationAction(record.id, () => {
-        sendTerminalToAI?.(formatOperationForAi(record), record.serverName)
+        void sendTerminalToAI?.(formatOperationForAi(record), record.serverName)
       })
     } catch (error) {
       console.warn('[TerminalPanel] operation record could not be saved:', error)

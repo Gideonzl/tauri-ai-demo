@@ -474,16 +474,23 @@ function injectFileContent(filePath: string, content: string, serverInfo?: strin
 /**
  * 注入终端文本到AI对话
  */
-function injectTerminalText(text: string, serverInfo?: string) {
+async function injectTerminalText(text: string, serverInfo?: string): Promise<boolean> {
+  agentStore.switchAgent('ops')
+  if (!modelStore.defaultConfig) {
+    ElMessage.warning(t('ai.pleaseConfig'))
+    return false
+  }
+  if (chatStore.isGenerating) {
+    ElMessage.warning(t('ai.generating'))
+    return false
+  }
   const header = serverInfo
     ? `${t('ai.terminalHeaderFrom')} ${serverInfo}:\n`
     : `${t('ai.terminalHeader')}:\n`
-  chatStore.addUserMessage(
-    agentStore.activeAgentId,
-    `${header}\n\`\`\`shell\n${text}\n\`\`\`\n${t('ai.analyzeOutput')}`
-  )
-  agentStore.switchAgent('ops')
-  scrollToBottom()
+  inputText.value = `${header}\n${text}\n\n${t('ai.analyzeOutput')}`
+  userScrolledUp.value = false
+  await handleSend({ bypassRemediation: true })
+  return true
 }
 
 /** Send operational evidence to the shared conversation and start analysis immediately. */
