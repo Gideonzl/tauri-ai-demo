@@ -14,6 +14,7 @@ const api = read('src/api/tauri.ts')
 const storage = read('src-tauri/src/storage/mod.rs')
 const commands = read('src-tauri/src/commands/mod.rs')
 const shellSession = read('src/sessions/SSHShellSession.ts')
+const terminalPanel = read('src/components/TerminalPanel.vue')
 const workspace = read('src/views/WorkspaceView.vue')
 const sftpTree = read('src/components/SftpTree.vue')
 const zhLocale = read('src/i18n/zh-CN.json')
@@ -82,6 +83,26 @@ assert.ok(ssh.includes('send_shell_input'), '交互终端必须通过可确认�
 assert.ok(ssh.includes('Shell write timed out'), '交互终端写入不能无限期卡住')
 assert.ok(shellSession.includes('private writeQueue: Promise<void> = Promise.resolve()'), '重连期间终端输入必须顺序发送，不能并发落入旧 PTY')
 assert.ok(shellSession.includes('this.writeQueue = this.writeQueue'), '终端输入必须串行等待上一次写入或重连完成')
+assert.ok(
+  shellSession.includes("status === 'reconnecting'"),
+  '空闲 SSH 恢复必须保留会话对象，并向终端追加重连状态而不是销毁终端',
+)
+assert.ok(
+  shellSession.includes('terminal history retained'),
+  'SSH 重连完成后必须明确提示历史已保留，不能让用户误以为输出被刷新',
+)
+assert.ok(store.includes('terminalTranscripts'), '每个 SSH 标签页必须保存临时终端记录，避免组件重建时丢失输出')
+assert.ok(store.includes('appendTerminalTranscript'), '终端输出必须持续写入所属标签页的临时记录')
+assert.ok(store.includes('terminalTranscriptFor'), '终端组件重建后必须能恢复所属标签页的历史')
+assert.ok(store.includes('terminalTranscripts.delete(sessionId)'), '只有关闭 SSH 标签页时才应移除临时终端记录')
+assert.ok(
+  terminalPanel.includes('sshStore.appendTerminalTranscript(props.session.id, data)'),
+  '实时终端输出必须进入对应标签页的历史，自动重连不能清空对话',
+)
+assert.ok(
+  terminalPanel.includes('sshStore.terminalTranscriptFor(props.session.id)'),
+  '新建终端视图必须恢复对应标签页的历史输出',
+)
 assert.ok(
   ssh.includes('Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None'),
   '空闲 SSH 终端必须同时识别 EOF 和 Close，不能向已经关闭的 PTY 写入数据',

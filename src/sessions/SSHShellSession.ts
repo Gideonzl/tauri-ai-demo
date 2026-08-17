@@ -33,6 +33,7 @@ export class SSHShellSession extends BaseSession {
   private unlistenStatus: (() => void) | null = null
   /** Serializes keystrokes while the backend restores an idle SSH transport. */
   private writeQueue: Promise<void> = Promise.resolve()
+  private reconnecting = false
 
   constructor(sessionId: string, name: string, cols = 80, rows = 24) {
     super()
@@ -62,7 +63,13 @@ export class SSHShellSession extends BaseSession {
       this.sessionId,
       (status: string, error?: string) => {
         console.log('[SSHShellSession] status event:', status, error)
-        if (status === 'disconnected' || status === 'error') {
+        if (status === 'reconnecting') {
+          this.reconnecting = true
+          this.emitOutput('\r\n\x1b[1;33m● SSH connection is restoring…\x1b[0m\r\n')
+        } else if (status === 'connected' && this.reconnecting) {
+          this.reconnecting = false
+          this.emitOutput('\x1b[1;32m● SSH reconnected — terminal history retained\x1b[0m\r\n')
+        } else if (status === 'disconnected' || status === 'error') {
           if (error) {
             this.emitOutput(`\r\n\x1b[1;31m● ${error}\x1b[0m\r\n`)
           }

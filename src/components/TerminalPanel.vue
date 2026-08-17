@@ -300,6 +300,7 @@ function wireSessionStreams(activeSession: BaseSession): void {
 
     activeSession.output$.subscribe((data: string) => {
       frontend!.write(data, () => {
+        if (props.session?.id) sshStore.appendTerminalTranscript(props.session.id, data)
         try { capture.append(data) } catch (error) {
           console.warn('[TerminalPanel] terminal output capture failed:', error)
         }
@@ -389,6 +390,10 @@ onMounted(() => {
     frontend.open(tbr.value)
     frontend.updateTheme() // Apply current theme to terminal
     frontend.applySettings({ ...termSettings.settings }) // Apply user terminal prefs
+    if (props.session?.id) {
+      const transcript = sshStore.terminalTranscriptFor(props.session.id)
+      if (transcript) frontend.write(transcript)
+    }
     createSession()
   })
 })

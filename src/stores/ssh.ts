@@ -21,6 +21,11 @@ export const useSshStore = defineStore('ssh', () => {
   const openFiles = ref<Array<{path: string; name: string; content: string; loading: boolean}>>([])
   const activeFileIndex = ref(-1)
   const ptyRequestCount = ref(0) // counter incremented when PTY shell should be opened
+  // Live terminal output belongs to the SSH tab, not to a particular xterm DOM
+  // instance. This keeps the current conversation visible if an idle SSH
+  // connection restores itself and the panel is recreated during the process.
+  const terminalTranscripts = new Map<string, string>()
+  const MAX_TERMINAL_TRANSCRIPT_CHARS = 1_500_000
 
   // Cross-view command injection — history/other views push a command that the
   // active TerminalPanel (kept alive) picks up and runs.
@@ -61,7 +66,13 @@ export const useSshStore = defineStore('ssh', () => {
   function updateSessionStatus(sessionId: string, status: SshStatus, error?: string) { const s = sessions.value.find(s => s.id === sessionId); if (s) { s.status = status; s.error = error } }
   function setRealSessionId(sessionId: string, realSessionId: string) { const s = sessions.value.find(s => s.id === sessionId); if (s) s.realSessionId = realSessionId }
   function requestPtyShell() { ptyRequestCount.value++ }
-  function closeSession(sessionId: string) { sessions.value = sessions.value.filter(s => s.id !== sessionId); if (activeSessionId.value === sessionId) activeSessionId.value = sessions.value[0]?.id || '' }
+  function appendTerminalTranscript(sessionId: string, data: string) {
+    if (!data) return
+    const next = `${terminalTranscripts.get(sessionId) || ''}${data}`
+    terminalTranscripts.set(sessionId, next.length > MAX_TERMINAL_TRANSCRIPT_CHARS ? next.slice(-MAX_TERMINAL_TRANSCRIPT_CHARS) : next)
+  }
+  function terminalTranscriptFor(sessionId: string): string { return terminalTranscripts.get(sessionId) || '' }
+  function closeSession(sessionId: string) { terminalTranscripts.delete(sessionId); sessions.value = sessions.value.filter(s => s.id !== sessionId); if (activeSessionId.value === sessionId) activeSessionId.value = sessions.value[0]?.id || '' }
   function switchSession(sessionId: string) { activeSessionId.value = sessionId }
   function reorderSessions(draggedId: string, targetId: string, placement: 'before' | 'after') { sessions.value = reorderSessionTabs(sessions.value, draggedId, targetId, placement) }
   const STORAGE_KEYS = { servers: 'ssh-servers', groups: 'ssh-groups', quickCommands: 'ssh-quick-commands' }
@@ -70,5 +81,5 @@ export const useSshStore = defineStore('ssh', () => {
   /** Clear saved profiles without closing live SSH sessions. */
   function clearLocalProfiles() { servers.value = []; groups.value = []; quickCommands.value = []; try { Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key)) } catch (e) { console.error(e) } }
   function init() { loadFromStorage(); const demoIds = new Set(['Web Server', 'DB Server', 'Dev Server', 'Staging', 'Monitor']); const hasDemo = servers.value.some(s => demoIds.has(s.name)); if (hasDemo) { servers.value = servers.value.filter(s => !demoIds.has(s.name)); groups.value = []; servers.value.forEach(s => { if (s.group && !groups.value.find(g => g.name === s.group)) groups.value.push({ id: genId(), name: s.group }) }); saveToStorage() } }
-  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, injectedCommand, injectCommandSeq, runInTerminal, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, closeSession, switchSession, reorderSessions, clearLocalProfiles, init }
+  return { servers, groups, sessions, activeSessionId, activeSession, showConnectDialog, editingServer, searchQuery, selectedGroupName, quickCommands, openFiles, activeFileIndex, ptyRequestCount, injectedCommand, injectCommandSeq, runInTerminal, filteredServers, allGroupNames, addServer, updateServer, deleteServer, addGroup, deleteGroup, renameGroup, addQuickCommand, updateQuickCommand, deleteQuickCommand, createSession, updateSessionStatus, setRealSessionId, requestPtyShell, appendTerminalTranscript, terminalTranscriptFor, closeSession, switchSession, reorderSessions, clearLocalProfiles, init }
 })
