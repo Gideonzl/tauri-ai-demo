@@ -341,7 +341,7 @@ export class XTermFrontend {
     try {
       const marker = anchor || this.createOperationAnchor()
       if (!marker) return
-      const decoration = this.terminal.registerDecoration({ marker, anchor: 'right', x: 1, width: 2 })
+      const decoration = this.terminal.registerDecoration({ marker, anchor: 'right', x: 1, width: 4 })
       if (!decoration) {
         marker.dispose()
         return
