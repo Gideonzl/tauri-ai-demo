@@ -75,7 +75,7 @@ import { ArrowDown, ArrowUp, Close, CopyDocument, DocumentCopy, Search, Select, 
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
 import { useTerminalSettingsStore } from '@/stores/terminalSettings'
-import { XTermFrontend, type TerminalSearchResult } from '@/frontends/XTermFrontend'
+import { XTermFrontend, type TerminalOperationAnchor, type TerminalSearchResult } from '@/frontends/XTermFrontend'
 import { BaseSession } from '@/sessions/BaseSession'
 import { SSHShellSession } from '@/sessions/SSHShellSession'
 import { DemoSession } from '@/sessions/DemoSession'
@@ -172,12 +172,12 @@ function insertEmoji(emoji: string) {
 let cmdBuffer = ''
 
 const capture = new TerminalCommandCapture({
-  onComplete: (input) => {
+  onComplete: (input, anchor) => {
     try {
       const record = operationRecords.addRecord(input)
       frontend?.addOperationAction(record.id, () => {
         void sendTerminalToAI?.(formatOperationForAi(record), record.serverName)
-      })
+      }, anchor as TerminalOperationAnchor | undefined)
     } catch (error) {
       console.warn('[TerminalPanel] operation record could not be saved:', error)
     }
@@ -197,7 +197,7 @@ function captureInput(data: string) {
           serverId: props.session.serverId,
           serverName: props.session.serverName || srvName.value,
           sessionId: props.session.realSessionId,
-        })
+        }, frontend?.createOperationAnchor())
       }
       cmdBuffer = ''
     } else if (ch === '\x7f' || ch === '\b') {
@@ -294,8 +294,8 @@ function wireSessionStreams(activeSession: BaseSession): void {
   // loses that first output because Subject intentionally does not replay it.
   subs = Subject.combine(
     frontend.input$.subscribe((data: string) => {
-      activeSession.sendInput(data)
       captureInput(data)
+      activeSession.sendInput(data)
     }),
 
     activeSession.output$.subscribe((data: string) => {

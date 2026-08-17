@@ -26,6 +26,8 @@ import '@xterm/xterm/css/xterm.css'
 import { Subject } from '@/sessions/Observable'
 import { createTerminalSearchOptions } from '@/utils/terminal-search'
 
+export type TerminalOperationAnchor = ReturnType<Terminal['registerMarker']>
+
 export interface TerminalSearchResult {
   resultIndex: number
   resultCount: number
@@ -329,10 +331,15 @@ export class XTermFrontend {
     }
   }
 
+  /** Capture the current command row before the shell advances to its next prompt. */
+  createOperationAnchor(): TerminalOperationAnchor {
+    return this.terminal.registerMarker(0)
+  }
+
   /** Add a non-blocking action next to a completed terminal operation. */
-  addOperationAction(recordId: string, onSendToAi: () => void): void {
+  addOperationAction(recordId: string, onSendToAi: () => void, anchor?: TerminalOperationAnchor): void {
     try {
-      const marker = this.terminal.registerMarker(0)
+      const marker = anchor || this.createOperationAnchor()
       if (!marker) return
       const decoration = this.terminal.registerDecoration({ marker, anchor: 'right', x: 1, width: 2 })
       if (!decoration) {

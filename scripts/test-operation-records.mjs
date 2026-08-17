@@ -44,17 +44,26 @@ assert.equal(JSON.parse(storage.getItem(OPERATION_RECORDS_KEY)).length, 200)
 assert.match(formatOperationForAi(base), /pwd[\s\S]*\/root/)
 
 const completed = []
+const completionAnchors = []
 let clock = 1000
-const capture = new TerminalCommandCapture({ onComplete: record => completed.push(record), now: () => clock })
+const capture = new TerminalCommandCapture({
+  onComplete: (record, anchor) => {
+    completed.push(record)
+    completionAnchors.push(anchor)
+  },
+  now: () => clock,
+})
 const context = { serverId: 's1', serverName: 'demo', sessionId: 'real-1', cwd: '/root' }
 
-capture.submit('pwd', context)
+const firstCommandAnchor = { line: 'pwd' }
+capture.submit('pwd', context, firstCommandAnchor)
 clock = 1025
 capture.append('pwd\r\n/root\r\nroot@demo:~# ')
 assert.equal(completed[0].command, 'pwd')
 assert.equal(completed[0].output, '/root')
 assert.equal(completed[0].durationMs, 25)
 assert.equal(completed[0].status, 'success')
+assert.equal(completionAnchors[0], firstCommandAnchor, 'completion must retain the command-line anchor created at submit time')
 
 capture.submit('true', context)
 capture.append('true\r\nroot@demo:~# ')

@@ -8,7 +8,7 @@ export interface TerminalCommandContext {
 }
 
 export interface TerminalCommandCaptureOptions {
-  onComplete: (record: OperationRecordInput) => void
+  onComplete: (record: OperationRecordInput, anchor?: unknown) => void
   now?: () => number
 }
 
@@ -18,6 +18,7 @@ interface ActiveCapture {
   output: string
   startedAt: number
   pendingStatus: OperationStatus | null
+  anchor?: unknown
 }
 
 const PROMPT_PATTERN = /^[^\r\n]{0,160}[$#>%]\s*$/
@@ -55,7 +56,7 @@ function cleanCompletedOutput(value: string, command: string, removePrompt: bool
 
 export class TerminalCommandCapture {
   private active: ActiveCapture | null = null
-  private readonly onComplete: (record: OperationRecordInput) => void
+  private readonly onComplete: (record: OperationRecordInput, anchor?: unknown) => void
   private readonly now: () => number
 
   constructor(options: TerminalCommandCaptureOptions) {
@@ -63,7 +64,7 @@ export class TerminalCommandCapture {
     this.now = options.now || Date.now
   }
 
-  submit(command: string, context: TerminalCommandContext): void {
+  submit(command: string, context: TerminalCommandContext, anchor?: unknown): void {
     const clean = stripTerminalControls(command).trim()
     if (!clean) return
     if (this.active) this.complete('unknown', false)
@@ -73,6 +74,7 @@ export class TerminalCommandCapture {
       output: '',
       startedAt: this.now(),
       pendingStatus: null,
+      anchor,
     }
   }
 
@@ -113,6 +115,6 @@ export class TerminalCommandCapture {
       startedAt: active.startedAt,
       finishedAt,
       durationMs: Math.max(0, finishedAt - active.startedAt),
-    })
+    }, active.anchor)
   }
 }
