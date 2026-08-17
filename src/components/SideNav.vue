@@ -13,7 +13,7 @@
         v-for="item in topItems"
         :key="item.id"
         class="nav-item"
-        :class="{ active: isActive(item) }"
+        :class="{ active: isActive(item), compact: !showLabels }"
         :title="item.label"
         @click="navigate(item)"
       >
@@ -30,7 +30,7 @@
         v-for="item in bottomItems"
         :key="item.id"
         class="nav-item"
-        :class="{ active: isActive(item) }"
+        :class="{ active: isActive(item), compact: !showLabels }"
         :title="item.label"
         @click="navigate(item)"
       >
@@ -142,6 +142,11 @@ function navigate(item: NavItem) {
   animation: fade-in-up 0.3s ease backwards;
   background: transparent;
 
+  &.compact {
+    justify-content: center;
+    padding: 0;
+  }
+
   &:hover {
     background: $color-bg-hover;
     color: $color-text-primary;
@@ -151,26 +156,30 @@ function navigate(item: NavItem) {
 
   &.active {
     color: $color-primary;
-    background: $color-bg-active;
+    background: transparent;
     border-color: transparent;
     box-shadow: none;
     &::before {
       content: '';
       position: absolute;
       left: 0;
-      top: 9px;
-      bottom: 9px;
+      top: 50%;
       width: 2px;
+      height: 22px;
       border-radius: 0 2px 2px 0;
       background: $color-primary;
-    }
-    .nav-icon-shell {
-      color: $color-primary;
-      background: transparent;
-      border-color: transparent;
-      box-shadow: none;
+      transform: translateY(-50%);
     }
   }
+}
+
+.nav-item.active .nav-icon-shell {
+  width: 36px;
+  height: 36px;
+  color: $color-primary;
+  background: $color-bg-active;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .nav-icon-shell {
