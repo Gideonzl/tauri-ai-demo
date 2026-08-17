@@ -17,6 +17,17 @@
     <span class="tbadge" :class="isReal ? 'real' : 'demo'">{{ isReal ? 'REAL' : 'DEMO' }}</span>
     <span v-if="isReal" class="tpty">PTY</span>
     <span class="tstatus">{{ status }}</span>
+    <button
+      type="button"
+      class="terminal-search-trigger"
+      :class="{ 'is-active': terminalSearchOpen }"
+      :title="t('terminal.searchPlaceholder')"
+      :aria-label="t('terminal.searchPlaceholder')"
+      @click="openTerminalSearch"
+    >
+      <el-icon><Search /></el-icon>
+      <kbd>Ctrl F</kbd>
+    </button>
   </div>
   <div v-if="terminalSearchOpen" class="terminal-search-overlay" @mousedown.stop>
     <el-input
@@ -60,7 +71,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, inject } from 'vue'
 import type { Ref } from 'vue'
-import { ArrowDown, ArrowUp, Close, CopyDocument, DocumentCopy, Select, Delete, Sunny } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, Close, CopyDocument, DocumentCopy, Search, Select, Delete, Sunny } from '@element-plus/icons-vue'
 import { useSshStore } from '@/stores/ssh'
 import { useConfigStore } from '@/stores/config'
 import { useTerminalSettingsStore } from '@/stores/terminalSettings'
@@ -470,6 +481,23 @@ onUnmounted(() => {
 .tbadge.demo { color: $color-warning }
 .tpty { color: $color-primary-light; font-size: 10px; margin-left: 4px }
 .tstatus { margin-left: auto; color: $color-text-secondary; font-size: 11px }
+.terminal-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: $border-radius-sm;
+  background: transparent;
+  color: $color-text-secondary;
+  cursor: pointer;
+  font: 600 10px/1 $font-family-mono;
+  white-space: nowrap;
+  &:hover, &:focus-visible { border-color: $color-border; background: $color-bg-hover; color: $color-text-primary; outline: none }
+  &.is-active { border-color: $color-primary; color: $color-primary-light; background: $color-bg-active }
+  kbd { padding: 0; border: 0; background: transparent; color: inherit; font: inherit }
+}
 
 .terminal-search-overlay {
   position: absolute;
@@ -506,6 +534,7 @@ onUnmounted(() => {
 @media (max-width: 520px) {
   .terminal-search-overlay { right: 10px; width: calc(100% - 20px) }
   .terminal-search-count { min-width: 32px; font-size: 10px }
+  .terminal-search-trigger kbd { display: none }
 }
 
 :deep(.xterm-operation-ai) {
