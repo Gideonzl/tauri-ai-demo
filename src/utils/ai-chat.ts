@@ -13,6 +13,18 @@
 import { useModelStore } from '@/stores/model'
 import { useLocale } from '@/composables/useLocale'
 import type { Agent, AgentMode } from '@/stores/agent'
+import { buildAgentSystemPrompt } from './agent-prompt'
+import { AgentActionStreamFilter, parseAgentResponse, type AgentAction } from './agent-response'
+import {
+  executeAgentAction,
+  type AgentActionResult,
+  type AgentCommandResult,
+  type CommandAuthorization,
+} from './agent-execution'
+import type { AgentContextSnapshot } from './agent-context'
+import { MAX_AGENT_ACTIONS, MAX_AGENT_MODEL_ROUNDS, type TroubleshootingState } from './troubleshooting-session'
+
+export type { CommandAuthorization } from './agent-execution'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -22,13 +34,6 @@ interface ChatMessage {
 /** 中止控制器，暴露给外部调用 .abort() */
 export interface StreamControl {
   abort: () => void
-}
-
-/** Result returned by the UI policy gate before a remote command can run. */
-export interface CommandAuthorization {
-  allowed: boolean
-  auditId?: string
-  denialMessage: string
 }
 
 /** 动态获取合适的 fetch 函数（Tauri → plugin-http，浏览器 → 原生） */
@@ -48,31 +53,6 @@ export interface ServerContext {
   port: number
   username: string
   status: string
-}
-
-// ============================================================
-// Tool calling helpers
-// ============================================================
-
-interface ToolCall {
-  name: string
-  command: string
-}
-
-/** 从 AI 回复中提取 <execute_command>...</execute_command> 块 */
-function parseToolCalls(content: string): ToolCall[] {
-  const calls: ToolCall[] = []
-  const regex = /<execute_command>\s*([\s\S]*?)\s*<\/execute_command>/g
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(content)) !== null) {
-    calls.push({ name: 'ssh_exec', command: match[1].trim() })
-  }
-  return calls
-}
-
-/** 移除工具调用标签，返回纯净的显示文本 */
-function stripToolCalls(content: string): string {
-  return content.replace(/<execute_command>[\s\S]*?<\/execute_command>/g, '').trim()
 }
 
 /** 判断命令是否为高危操作，用于确认弹窗的警告样式。 */
@@ -98,43 +78,43 @@ export function isDangerousCommand(command: string): boolean {
   return patterns.some((re) => re.test(c))
 }
 
-/** 把结构化执行结果格式化成给模型看的清晰反馈 —
- *  关键：空输出必须明确标注"成功、退出码 0"，绝不能让模型误判成连接断开 */
-function formatExecResult(r: { stdout: string; stderr: string; exit_code: number | null; timed_out: boolean }): string {
-  const out = (r.stdout || '').trim()
-  const err = (r.stderr || '').trim()
-  const parts: string[] = []
-  if (out) parts.push(out)
-  if (err) parts.push(`[stderr]\n${err}`)
-  let body = parts.join('\n')
-
-  if (r.timed_out) {
-    body += (body ? '\n' : '') + '[提示] 命令在超时时间内未结束（可能是持续运行的命令，如 tail -f / top），以上为已获取的部分输出。请改用带明确结束的命令（如加 head、-bn1、--no-pager）。'
-    return body
-  }
-  if (!out && !err) {
-    // 成功但无输出：明确告知，避免被当成失败/断线
-    return `[命令执行完毕，退出码 ${r.exit_code ?? 0}，无输出]`
-  }
-  if (r.exit_code != null && r.exit_code !== 0) {
-    body += `\n[退出码 ${r.exit_code} — 命令本身返回错误，请阅读上面的信息判断原因]`
-  }
-  return body
-}
-
-/** 在连接的服务器上执行命令，返回结构化后的文本反馈 */
-async function executeCommand(sessionId: string, command: string): Promise<string> {
+/** 在连接的服务器上执行命令，保留结构化状态供验证、审计和模型分析。 */
+async function executeCommand(sessionId: string, command: string): Promise<AgentCommandResult> {
+  const startedAt = Date.now()
   try {
     const isTauri = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__
     if (!isTauri) {
-      return `[Demo 模式 — 未连接真实服务器，无法执行]\n命令：${command}`
+      return {
+        stdout: '',
+        stderr: `Demo 模式未连接真实服务器，无法执行：${command}`,
+        exitCode: null,
+        timedOut: false,
+        channelError: true,
+        startedAt,
+        finishedAt: Date.now(),
+      }
     }
     const { sshExecFull } = await import('@/api/tauri')
     const result = await sshExecFull(sessionId, command)
-    return formatExecResult(result)
+    return {
+      stdout: result.stdout || '',
+      stderr: result.stderr || '',
+      exitCode: result.exit_code,
+      timedOut: result.timed_out,
+      channelError: false,
+      startedAt,
+      finishedAt: Date.now(),
+    }
   } catch (e: any) {
-    // 走到这里才是真正的通道/连接级错误
-    return `[执行错误] ${e?.message || e?.toString() || 'unknown error'}`
+    return {
+      stdout: '',
+      stderr: e?.message || e?.toString() || 'unknown error',
+      exitCode: null,
+      timedOut: false,
+      channelError: true,
+      startedAt,
+      finishedAt: Date.now(),
+    }
   }
 }
 
@@ -165,7 +145,14 @@ export async function streamChat(
   onToolStart?: (command: string) => void,
   mode?: AgentMode,
   onAuthorizeCommand?: (command: string) => Promise<CommandAuthorization>,
-  onCommandCompleted?: (command: string, result: string, authorization: CommandAuthorization) => void,
+  onCommandCompleted?: (
+    command: string,
+    result: Required<AgentCommandResult>,
+    authorization: CommandAuthorization,
+    verification: boolean,
+  ) => void,
+  contextSnapshot?: AgentContextSnapshot | null,
+  onStateChange?: (state: TroubleshootingState, error?: string) => void,
 ): Promise<StreamControl> {
   const modelStore = useModelStore()
   const config = modelStore.defaultConfig
@@ -185,65 +172,33 @@ export async function streamChat(
     }
   }
 
-  // ============================================================
-  // Build system prompt
-  // ============================================================
   const { locale } = useLocale()
-  let systemContent = agent.systemPrompt
-
-  // Language instruction
-  if (locale.value === 'zh-CN') {
-    systemContent = `IMPORTANT: You MUST respond in Chinese (Simplified Chinese / 简体中文). All your replies, explanations, code comments, and diagnostic notes must be written in Chinese. The user's preferred language is Chinese.\n\n` + systemContent
-  }
-
-  // Server context
-  if (serverContext && serverContext.status === 'connected') {
-    systemContent += `\n\n=== 当前服务器连接信息 ===\n你正在协助用户管理一台已连接的服务器：\n- 服务器名称：${serverContext.serverName}\n- 地址：${serverContext.host}:${serverContext.port}\n- 用户：${serverContext.username}\n\n当用户提到"服务器"、"当前服务器"、"这台服务器"、CPU、内存、磁盘、进程、日志或任何系统操作时，他们指的就是这台服务器。`
-  }
-
-  // Determine effective sessionId based on mode
-  // In 'qa' mode, NEVER allow command execution — force sessionId to null
-  const effectiveSessionId = (mode === 'qa') ? null : sessionId
-
-  // Tool calling instructions — only injected in 'agent' mode
-  if (effectiveSessionId && serverContext && serverContext.status === 'connected') {
-    systemContent += `\n\n=== 远程命令执行能力 ===\n你**可以直接在这台服务器上执行命令**。不需要让用户手动操作。当用户要求查看文件、检查状态、运行诊断或执行任何服务器操作时，请**直接执行**，不要只给出命令建议。
-
-**如何执行命令：** 在你希望执行命令的地方，使用以下格式：
-<execute_command>
-ls -la /root
-</execute_command>
-
-系统会自动在服务器上执行该命令，并将输出结果返回给你。你会看到命令输出，然后可以继续分析并向用户解释。
-
-**重要规则：**
-- 每个命令单独放在一个 <execute_command> 块中
-- 可以同时输出多个命令块
-- 先给出简要说明（如"我来查看一下..."），然后等待系统弹窗确认
-- 用户允许后由系统自动执行；用户拒绝后改用安全的替代方案或说明原因
-- 收到命令输出后，用自然语言解释结果
-- **永远不要**只给命令让用户自己执行 — 系统会在确认后自动执行
-- 对于危险操作（rm -rf、drop database、iptables -F 等），先警告用户并确认
-
-**如何理解执行结果（关键，务必遵守）：**
-- 结果为"[命令执行完毕，退出码 0，无输出]"表示命令**成功但本身没有输出**（如 grep 无匹配、目录为空、服务无日志），这是**正常现象**，请据此继续分析或执行下一步。**绝不能**因此说"无输出/连接断了"。
-- 结果带"[退出码 N]"（N≠0）或 stderr，说明**命令本身报错**（权限不足、路径不存在、参数错误等），请阅读错误信息、修正命令后**自己重试**，或向用户解释原因并给出替代方案。
-- 结果为"[执行错误] ..."才可能是连接/通道问题。**系统底层已内置自动重连**，前端也会自动重试一次；如果仍收到该错误，请改用更轻量、更有界的诊断命令或说明当前错误。**绝不要**因此让用户手动执行，也**绝不要**声称"无法主动重连 / 环境受限 / 连接又断了"——你完全具备重连和重试能力。
-- **禁止**输出"请把命令复制到你的终端执行后把结果贴给我""建议你手动运行以下命令"之类的话。你就是执行者，请直接执行。
-- **在任何情况下都不要**要求用户"手动执行命令并把结果贴给你" —— 你具备执行能力，遇到空输出或报错请自行重试、换命令或换思路，而不是把任务退回给用户。`
-  } else if (serverContext && serverContext.status === 'connected' && mode === 'qa') {
-    // Q&A mode with server connected — explicitly tell AI to NOT execute commands
-    systemContent += `
-
-=== 工作模式：智能问答（仅提供建议） ===
-你当前处于**智能问答模式**，**不能**直接在服务器上执行命令。你的职责是：
-- 分析用户的问题和需求
-- 提供专业的建议、方案和命令示例
-- 解释相关概念和最佳实践
-- 帮助用户理解服务器运维知识
-
-**重要：不要使用 <execute_command> 标签。** 如果你认为某些命令有用，请用 markdown 代码块展示给用户，让用户自己决定是否执行。`
-  }
+  const effectiveMode = mode || 'agent'
+  const effectiveSessionId = effectiveMode === 'qa' ? null : sessionId
+  const fallbackContext: AgentContextSnapshot | null = contextSnapshot || (serverContext
+    ? {
+        capturedAt: Date.now(),
+        host: {
+          id: serverContext.host || serverContext.serverName,
+          name: serverContext.serverName,
+          address: serverContext.host,
+          port: serverContext.port,
+          username: serverContext.username,
+          connectionStatus: serverContext.status,
+        },
+        workspace: { view: 'unknown' },
+        recentOperations: [],
+        activeIssue: null,
+        permission: { level: 'controlled' },
+      }
+    : null)
+  const systemContent = buildAgentSystemPrompt({
+    basePrompt: agent.systemPrompt,
+    locale: locale.value,
+    mode: effectiveMode,
+    context: fallbackContext,
+    canExecute: !!effectiveSessionId && serverContext?.status === 'connected',
+  })
 
   // ============================================================
   // Execute the full conversation (may include tool call loops)
@@ -254,11 +209,11 @@ ls -la /root
         systemContent,
         messages,
         onChunk,
-        onError,
         effectiveSessionId,
         onToolStart,
         onAuthorizeCommand,
         onCommandCompleted,
+        onStateChange,
         config,
         activeAbort
       )
@@ -268,6 +223,7 @@ ls -la /root
       if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
         onError('CORS/网络不可达 — 请在 Tauri 模式下运行')
       } else {
+        onStateChange?.('blocked', msg)
         onError(msg)
       }
     }
@@ -284,111 +240,82 @@ async function runConversationLoop(
   systemContent: string,
   messages: ChatMessage[],
   onChunk: (chunk: string) => void,
-  onError: (error: string) => void,
   sessionId: string | null | undefined,
   onToolStart: ((command: string) => void) | undefined,
   onAuthorizeCommand: ((command: string) => Promise<CommandAuthorization>) | undefined,
-  onCommandCompleted: ((command: string, result: string, authorization: CommandAuthorization) => void) | undefined,
+  onCommandCompleted: ((command: string, result: Required<AgentCommandResult>, authorization: CommandAuthorization, verification: boolean) => void) | undefined,
+  onStateChange: ((state: TroubleshootingState, error?: string) => void) | undefined,
   config: { apiBase: string; model: string; token: string; timeout?: number },
   abortController: AbortController
 ): Promise<void> {
-  const MAX_TOOL_ROUNDS = 20
+  let actionCount = 0
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+  for (let round = 0; round < MAX_AGENT_MODEL_ROUNDS; round++) {
+    onStateChange?.(round === 0 ? 'assessing' : 'collecting')
     const requestMessages: ChatMessage[] = [
       { role: 'system', content: systemContent },
       ...messages,
     ]
 
-    // Collect full response
-    let fullContent = ''
-    const toolCallFound = await streamSingleCall(
+    const filter = new AgentActionStreamFilter()
+    const fullContent = await streamSingleCall(
       requestMessages,
       config,
       abortController,
       (chunk) => {
-        fullContent += chunk
-        onChunk(chunk)
+        const visible = filter.push(chunk)
+        if (visible) onChunk(visible)
       }
     )
+    const tail = filter.finish()
+    if (tail) onChunk(tail)
 
     if (abortController.signal.aborted) return
+    const response = parseAgentResponse(fullContent)
 
-    // Check for tool calls
-    const toolCalls = parseToolCalls(fullContent)
-
-    if (toolCalls.length === 0) {
-      // No tools — this is the final answer
+    if (response.actions.length === 0) {
+      onStateChange?.(response.status === 'blocked' ? 'blocked' : 'resolved')
       return
     }
 
-    // Tool calls found — strip them from displayed content
-    // But we already streamed the raw content to the user...
-    // For now: the user sees the AI's "thinking" text including tool blocks.
-    // Clear the partial output and let the tool execution + final response
-    // produce the actual result.
+    messages.push({
+      role: 'assistant',
+      content: response.displayMarkdown || '正在执行命令...',
+    })
 
-    // Add the AI's response (without tool blocks) as assistant message
-    const cleanContent = stripToolCalls(fullContent)
-    if (cleanContent) {
-      messages.push({ role: 'assistant', content: cleanContent })
-    } else {
-      // AI only output a tool call with no surrounding text
-      messages.push({ role: 'assistant', content: '正在执行命令...' })
-    }
-
-    // Execute each tool call
-    for (const tc of toolCalls) {
+    for (const action of response.actions) {
       if (abortController.signal.aborted) return
-
-      if (!sessionId) {
-        messages.push({
-          role: 'user',
-          content: `[无法执行] 未连接到服务器。命令：${tc.command}`,
-        })
-        continue
+      if (actionCount >= MAX_AGENT_ACTIONS) {
+        onStateChange?.('blocked', '已达到本次任务的安全执行上限')
+        messages.push({ role: 'system', content: '已达到本次任务的安全执行上限。请总结现有证据和未完成事项，不再提出命令。' })
+        break
       }
-
-      // Every command must pass the caller's policy gate. Missing hooks deny by
-      // default so future call sites cannot accidentally bypass authorization.
-      const authorization = onAuthorizeCommand
-        ? await onAuthorizeCommand(tc.command)
-        : { allowed: false, denialMessage: '系统未配置命令权限策略，已安全阻止执行。' }
-      if (abortController.signal.aborted) return
-      if (!authorization.allowed) {
-        messages.push({
-          role: 'user',
-          content: `命令: ${tc.command}\n\n输出:\n[策略已阻止执行：${authorization.denialMessage}。请勿重复尝试同一命令，改用安全的只读方式，或向用户说明限制。]`,
-        })
-        continue
-      }
-
-      onToolStart?.(tc.command)
-
-      let result = await executeCommand(sessionId, tc.command)
-      // A "[执行错误]" is the only channel/connection-level failure. The Rust
-      // layer already self-reconnects, so a single retry almost always succeeds.
-      // Never surface this to the user as "please run it yourself".
-      if (/^\[执行错误\]/.test(result.trim())) {
-        result = await executeCommand(sessionId, tc.command)
-      }
-      onCommandCompleted?.(tc.command, result, authorization)
-
+      actionCount += 1
+      onToolStart?.(action.command)
+      const result = sessionId
+        ? await executeAgentAction(action, {
+            authorize: onAuthorizeCommand || (async () => ({
+              allowed: false,
+              denialMessage: '系统未配置命令权限策略，已安全阻止执行。',
+            })),
+            run: command => executeCommand(sessionId, command),
+            onState: state => onStateChange?.(state),
+            onCompleted: onCommandCompleted,
+          })
+        : noSessionResult(action)
       messages.push({
         role: 'user',
-        content: `命令: ${tc.command}\n\n输出:\n${result}`,
+        content: actionResultForModel(result),
       })
     }
 
-    // Continue the loop — AI will process tool results and respond
-    // Clear previous onChunk output by sending a separator
     onChunk('\n\n')
   }
 
-  // Max rounds reached — ask AI to finalize
+  onStateChange?.('blocked', '已达到模型续答轮次上限')
   messages.push({
     role: 'system',
-    content: '请根据以上所有命令执行结果，给出最终的分析和建议。',
+    content: '已达到模型续答轮次上限。请根据现有证据给出最终结论，不再提出命令。',
   })
 
   const requestMessages: ChatMessage[] = [
@@ -396,7 +323,35 @@ async function runConversationLoop(
     ...messages,
   ]
 
-  await streamSingleCall(requestMessages, config, abortController, onChunk)
+  const filter = new AgentActionStreamFilter()
+  await streamSingleCall(requestMessages, config, abortController, chunk => {
+    const visible = filter.push(chunk)
+    if (visible) onChunk(visible)
+  })
+  const tail = filter.finish()
+  if (tail) onChunk(tail)
+}
+
+function noSessionResult(action: AgentAction): AgentActionResult {
+  return {
+    action,
+    status: 'denied',
+    denialMessage: '当前没有可用的服务器会话。',
+  }
+}
+
+function actionResultForModel(result: AgentActionResult): string {
+  const primary = result.commandResult?.formatted || result.denialMessage || '[没有执行结果]'
+  const verification = result.verificationResult?.formatted
+  return [
+    `[系统行动结果 id=${result.action.id} status=${result.status}]`,
+    `命令：${result.action.command}`,
+    `结果：\n${primary}`,
+    verification
+      ? `验证命令：${result.action.verifyCommand}\n验证结果：\n${verification}`
+      : '',
+    '请基于真实结果继续分析；不要重复已经成功的命令。',
+  ].filter(Boolean).join('\n\n')
 }
 
 // ============================================================

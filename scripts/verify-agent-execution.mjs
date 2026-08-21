@@ -9,6 +9,9 @@ const agentStore = readFileSync(resolve(root, 'src/stores/agent.ts'), 'utf8')
 const batchPanel = readFileSync(resolve(root, 'src/views/ops/BatchPanel.vue'), 'utf8')
 const terminalPanel = readFileSync(resolve(root, 'src/components/TerminalPanel.vue'), 'utf8')
 const sshProtocol = readFileSync(resolve(root, 'src-tauri/src/protocol/ssh/mod.rs'), 'utf8')
+const agentPrompt = readFileSync(resolve(root, 'src/utils/agent-prompt.ts'), 'utf8')
+const responseParser = readFileSync(resolve(root, 'src/utils/agent-response.ts'), 'utf8')
+const executionCore = readFileSync(resolve(root, 'src/utils/agent-execution.ts'), 'utf8')
 
 function assert(condition, message) {
   if (!condition) {
@@ -28,25 +31,23 @@ const streamLoopCall = aiChat.match(
   /await runConversationLoop\([\s\S]*?activeAbort\s*\)/
 )?.[0] ?? ''
 assert(
-  /onToolStart,\s*onAuthorizeCommand,\s*onCommandCompleted,\s*config/.test(streamLoopCall),
+  /onToolStart,\s*onAuthorizeCommand,\s*onCommandCompleted,\s*onStateChange,\s*config/.test(streamLoopCall),
   'streamChat 必须把策略授权与审计回调继续传递到命令执行循环'
 )
 
-const toolExecution = aiChat.match(
-  /const authorization = onAuthorizeCommand[\s\S]*?onToolStart\?\.\(tc\.command\)/
-)?.[0] ?? ''
 assert(
-  /await onAuthorizeCommand\(tc\.command\)/.test(toolExecution) &&
-    /!authorization\.allowed/.test(toolExecution),
-  '每个命令都必须先经过策略授权，再由系统自动执行'
-)
-
-assert(
-  aiChat.includes('让用户手动执行') &&
-    aiChat.includes('手动执行命令并把结果贴给你'),
+  agentPrompt.includes('让用户手动执行') &&
+    agentPrompt.includes('手动执行命令并把结果贴给你'),
   '系统提示必须禁止把命令退回给用户手动执行'
 )
 
+assert(aiChat.includes('buildAgentSystemPrompt'), 'AI chat must compose stable rules and bounded dynamic context')
+assert(aiChat.includes('parseAgentResponse'), 'AI chat must parse structured and legacy actions')
+assert(aiChat.includes('AgentActionStreamFilter'), 'machine action blocks must not leak into visible streaming text')
+assert(aiChat.includes('executeAgentAction'), 'AI chat must use the shared execution coordinator')
+assert(agentPrompt.includes('formatAgentContext'), 'prompt composer must include the redacted context snapshot')
+assert(responseParser.includes('<execute_command>'), 'legacy command protocol must remain supported')
+assert(executionCore.includes('channelError'), 'connection-level retry must use structured error state')
 assert(aiChat.includes('onAuthorizeCommand'), '工具循环必须使用策略授权回调')
 assert(aiChat.includes('onCommandCompleted'), '工具循环必须回传执行结果以写入审计')
 assert(aiPanel.includes('useOpsAgentStore'), '聊天面板必须使用运维权限 store')

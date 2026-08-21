@@ -197,6 +197,7 @@ import { useOrchestrationStore } from '@/stores/orchestration'
 import { useLocale } from '@/composables/useLocale'
 import { streamChat } from '@/utils/ai-chat'
 import type { CommandAuthorization, StreamControl, ServerContext } from '@/utils/ai-chat'
+import type { AgentCommandResult } from '@/utils/agent-execution'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput, type DiagnosticCommand } from '@/utils/server-diagnostics'
@@ -684,8 +685,15 @@ async function handleConfirmCommand(command: string): Promise<CommandAuthorizati
   }
 }
 
-function handleCommandCompleted(_command: string, result: string, authorization: CommandAuthorization) {
-  if (authorization.auditId) opsAgentStore.completeAudit(authorization.auditId, result)
+function handleCommandCompleted(
+  _command: string,
+  result: string | Required<AgentCommandResult>,
+  authorization: CommandAuthorization,
+  _verification = false,
+) {
+  if (authorization.auditId) {
+    opsAgentStore.completeAudit(authorization.auditId, typeof result === 'string' ? result : result.formatted)
+  }
 }
 
 function syncRemediationToOrchestration(plan: RemediationPlan) {
