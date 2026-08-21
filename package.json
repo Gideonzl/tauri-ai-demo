@@ -8,6 +8,7 @@
     "build": "vite build",
     "test:operation-records": "node --experimental-strip-types scripts/test-operation-records.mjs",
     "test:troubleshooting-session": "node --experimental-strip-types scripts/test-troubleshooting-session.mjs",
+    "test:agent-context": "node --experimental-strip-types scripts/test-agent-context.mjs",
     "test:agent-execution": "node scripts/verify-agent-execution.mjs",
     "test:ops-permissions": "node scripts/verify-ops-permissions.mjs",
     "test:ops-remediation": "node scripts/verify-ops-remediation.mjs",
