@@ -15,6 +15,7 @@ import router from './router'
 import { useModelStore } from './stores/model'
 import { useChatStore } from './stores/chat'
 import { useScriptAutomationStore } from './stores/scriptAutomation'
+import { useTroubleshootingStore } from './stores/troubleshooting'
 import { applyTheme } from './utils/theme'
 import { initContextMenuCoordinator } from './composables/useContextMenu'
 import './assets/styles/global.scss'
@@ -58,5 +59,7 @@ const modelStore = useModelStore()
 modelStore.init()
 const chatStore = useChatStore()
 chatStore.init()
+const troubleshootingStore = useTroubleshootingStore()
+troubleshootingStore.init()
 const scriptAutomationStore = useScriptAutomationStore()
 scriptAutomationStore.init()
