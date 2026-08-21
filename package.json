@@ -12,6 +12,7 @@
     "test:agent-response": "node --experimental-strip-types scripts/test-agent-response.mjs",
     "test:agent-execution-core": "node --experimental-strip-types scripts/test-agent-execution-core.mjs",
     "test:agent-execution": "node scripts/verify-agent-execution.mjs",
+    "test:ai-agent-2": "node scripts/verify-ai-agent-2.mjs",
     "test:ops-permissions": "node scripts/verify-ops-permissions.mjs",
     "test:ops-remediation": "node scripts/verify-ops-remediation.mjs",
     "test:ops-orchestration": "node scripts/verify-ops-orchestration.mjs",

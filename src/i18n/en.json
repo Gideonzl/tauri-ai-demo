@@ -356,6 +356,17 @@
     "send": "Send",
     "stop": "Stop",
     "generating": "Generating...",
+    "taskState": {
+      "idle": "Idle",
+      "assessing": "Assessing",
+      "collecting": "Collecting evidence",
+      "awaiting_authorization": "Awaiting execution",
+      "executing": "Executing",
+      "verifying": "Verifying",
+      "resolved": "Resolved",
+      "blocked": "Blocked",
+      "cancelled": "Stopped"
+    },
     "newChat": "New Chat",
     "clear": "Clear",
     "emptyHint": "Send a message to start",

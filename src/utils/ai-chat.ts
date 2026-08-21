@@ -251,7 +251,7 @@ async function runConversationLoop(
   let actionCount = 0
 
   for (let round = 0; round < MAX_AGENT_MODEL_ROUNDS; round++) {
-    onStateChange?.(round === 0 ? 'assessing' : 'collecting')
+    onStateChange?.('assessing')
     const requestMessages: ChatMessage[] = [
       { role: 'system', content: systemContent },
       ...messages,
@@ -291,6 +291,7 @@ async function runConversationLoop(
         break
       }
       actionCount += 1
+      onStateChange?.('collecting')
       onToolStart?.(action.command)
       const result = sessionId
         ? await executeAgentAction(action, {

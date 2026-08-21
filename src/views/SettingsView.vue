@@ -268,6 +268,7 @@ import { useInspectionStore } from '@/stores/inspection'
 import { useServiceOpsStore } from '@/stores/serviceOps'
 import { useRunbookStore } from '@/stores/runbooks'
 import { useOpsAgentStore } from '@/stores/opsAgent'
+import { useTroubleshootingStore } from '@/stores/troubleshooting'
 import { clearSensitiveLocalData } from '@/api/tauri'
 import { useLocale } from '@/composables/useLocale'
 import { useContextMenu } from '@/composables/useContextMenu'
@@ -286,6 +287,7 @@ const inspectionStore = useInspectionStore()
 const serviceOpsStore = useServiceOpsStore()
 const runbookStore = useRunbookStore()
 const opsAgentStore = useOpsAgentStore()
+const troubleshootingStore = useTroubleshootingStore()
 const { locale, setLocale, t, locales } = useLocale()
 const { register, unregister } = useContextMenu()
 const activeSection = ref('')
@@ -306,7 +308,7 @@ const dataRefresh = ref(0)
 
 const DATA_CATEGORIES = [
   { id: 'connections', label: 'connections', keys: ['ssh-servers', 'ssh-groups', 'ssh-quick-commands'] },
-  { id: 'aiHistory', label: 'aiHistory', keys: ['ai-chat-conversations', 'cmd-history', 'operation-records-v1', 'workflow-snapshots'] },
+  { id: 'aiHistory', label: 'aiHistory', keys: ['ai-chat-conversations', 'cmd-history', 'operation-records-v1', 'workflow-snapshots', 'ai-troubleshooting-sessions-v1'] },
   { id: 'automation', label: 'automation', keys: ['script-automation-scripts', 'script-automation-schedules', 'script-automation-logs', 'script-automation-versions', 'script-automation-approvals'] },
   { id: 'operations', label: 'operations', keys: ['ops-alert-rules', 'ops-inspection-report', 'ops-service-reports', 'ops-custom-runbooks', 'ops-agent-permission', 'ops-agent-rules', 'ops-agent-audit', 'ops-overview-cache', 'ops-service-selection'] },
   { id: 'credentials', label: 'credentials', keys: ['ai-model-configs'] },
@@ -452,6 +454,7 @@ async function clearDataCategory(categoryId: typeof DATA_CATEGORIES[number]['id'
       commandHistoryStore.clearAll()
       operationRecordsStore.clearAll()
       snapshotsStore.clearSnapshots()
+      troubleshootingStore.clearAll()
     }
     if (category.id === 'automation') scriptStore.clearAllLocalData()
     if (category.id === 'operations') clearOperationData()
@@ -478,6 +481,7 @@ async function clearAllBusinessData() {
     commandHistoryStore.clearAll()
     operationRecordsStore.clearAll()
     snapshotsStore.clearSnapshots()
+    troubleshootingStore.clearAll()
     scriptStore.clearAllLocalData()
     clearOperationData()
     configStore.hasToken = false

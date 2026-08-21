@@ -54,8 +54,8 @@ const VALID_STATES = new Set<TroubleshootingState>([
 
 const transitions: Record<TroubleshootingState, TroubleshootingState[]> = {
   idle: ['assessing', 'cancelled'],
-  assessing: ['collecting', 'awaiting_authorization', 'blocked', 'cancelled'],
-  collecting: ['awaiting_authorization', 'executing', 'assessing', 'blocked', 'cancelled'],
+  assessing: ['collecting', 'awaiting_authorization', 'resolved', 'blocked', 'cancelled'],
+  collecting: ['awaiting_authorization', 'executing', 'assessing', 'resolved', 'blocked', 'cancelled'],
   awaiting_authorization: ['executing', 'assessing', 'blocked', 'cancelled'],
   executing: ['verifying', 'assessing', 'blocked', 'cancelled'],
   verifying: ['resolved', 'assessing', 'blocked', 'cancelled'],

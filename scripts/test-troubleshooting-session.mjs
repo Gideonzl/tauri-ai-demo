@@ -14,7 +14,8 @@ class MemoryStorage {
 }
 
 assert.equal(canTransitionTroubleshooting('idle', 'assessing'), true)
-assert.equal(canTransitionTroubleshooting('assessing', 'resolved'), false)
+assert.equal(canTransitionTroubleshooting('assessing', 'resolved'), true)
+assert.equal(canTransitionTroubleshooting('assessing', 'executing'), false)
 assert.equal(canTransitionTroubleshooting('verifying', 'resolved'), true)
 assert.equal(canTransitionTroubleshooting('blocked', 'assessing'), true)
 

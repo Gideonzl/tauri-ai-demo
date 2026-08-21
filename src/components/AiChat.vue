@@ -18,6 +18,9 @@
             <span class="assistant-address">{{ serverContext.username }}@{{ serverContext.host }}</span>
           </span>
           <span v-else class="assistant-state">{{ agentStore.activeAgent.description }}</span>
+          <span v-if="activeTask && activeTask.state !== 'idle'" class="agent-task-status">
+            {{ t(`ai.taskState.${activeTask.state}`) }}
+          </span>
         </div>
       </div>
       <div class="ai-header-actions">
@@ -186,6 +189,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAgentStore } from '@/stores/agent'
 import { useChatStore } from '@/stores/chat'
 import { useWorkflowSnapshotsStore } from '@/stores/workflowSnapshots'
@@ -194,10 +198,14 @@ import { useSshStore } from '@/stores/ssh'
 import { useOpsAgentStore } from '@/stores/opsAgent'
 import { useRemediationStore } from '@/stores/remediation'
 import { useOrchestrationStore } from '@/stores/orchestration'
+import { useTroubleshootingStore } from '@/stores/troubleshooting'
+import { useOperationRecordsStore } from '@/stores/operationRecords'
 import { useLocale } from '@/composables/useLocale'
 import { streamChat } from '@/utils/ai-chat'
 import type { CommandAuthorization, StreamControl, ServerContext } from '@/utils/ai-chat'
 import type { AgentCommandResult } from '@/utils/agent-execution'
+import { buildAgentContext, type AgentContextSnapshot, type AgentWorkspaceView } from '@/utils/agent-context'
+import type { TroubleshootingState } from '@/utils/troubleshooting-session'
 import type { Conversation } from '@/stores/chat'
 import { renderMarkdown, attachCopyButtons } from '@/utils/markdown'
 import { runDiagnostics, formatDiagnosticOutput, type DiagnosticCommand } from '@/utils/server-diagnostics'
@@ -223,6 +231,9 @@ const sshStore = useSshStore()
 const opsAgentStore = useOpsAgentStore()
 const remediationStore = useRemediationStore()
 const orchestrationStore = useOrchestrationStore()
+const troubleshootingStore = useTroubleshootingStore()
+const operationRecordsStore = useOperationRecordsStore()
+const route = useRoute()
 const { t } = useLocale()
 
 const { register, unregister } = useContextMenu()
@@ -336,6 +347,58 @@ watch(
 
 /** Active conversation (current) */
 const activeConv = computed(() => chatStore.activeConversation)
+const activeTask = computed(() => activeConv.value
+  ? troubleshootingStore.byConversation(activeConv.value.id)
+  : null)
+
+function workspaceView(): AgentWorkspaceView {
+  if (route.path.includes('script')) return 'scripts'
+  if (route.path.includes('history')) return 'history'
+  if (route.path.includes('sftp') || route.path.includes('file')) return 'files'
+  if (route.path.includes('ops')) return 'ops'
+  return 'terminal'
+}
+
+function ensureTroubleshootingTask(summary: string) {
+  if (agentStore.activeAgentId !== 'ops' || agentStore.activeMode !== 'agent' || !activeConv.value) return null
+  return troubleshootingStore.startOrResume({
+    conversationId: activeConv.value.id,
+    hostId: activeHost.value.id,
+    hostName: activeHost.value.name,
+    summary: summary.slice(0, 500),
+  })
+}
+
+function currentAgentContext(): AgentContextSnapshot {
+  const host = serverContext.value && sshStore.activeSession
+    ? {
+        id: sshStore.activeSession.serverId,
+        name: serverContext.value.serverName,
+        address: serverContext.value.host,
+        port: serverContext.value.port,
+        username: serverContext.value.username,
+        connectionStatus: serverContext.value.status,
+      }
+    : null
+  const hostOperations = host ? operationRecordsStore.getEntries(host.id) : []
+  return buildAgentContext({
+    host,
+    workspace: {
+      view: workspaceView(),
+      cwd: hostOperations.find(record => record.cwd)?.cwd,
+    },
+    operations: hostOperations,
+    activeIssue: activeTask.value,
+    permissionLevel: opsAgentStore.permissionLevel,
+  })
+}
+
+function handleTroubleshootingState(state: TroubleshootingState, error?: string) {
+  if (!activeConv.value || !activeTask.value) return
+  const accepted = troubleshootingStore.setState(activeConv.value.id, state, error)
+  if (!accepted) return
+  if (state === 'executing') troubleshootingStore.incrementAction(activeConv.value.id)
+}
 
 /** All non-empty conversations, sorted by last update (decoupled from agent) */
 const agentConversations = computed(() => {
@@ -371,6 +434,7 @@ function handleDeleteConv(id: string) {
     { type: 'warning', confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel') }
   ).then(() => {
     chatStore.deleteConversation(id)
+    troubleshootingStore.deleteByConversation(id)
     ElMessage.success(t('ai.convDeleted'))
   }).catch(() => {})
 }
@@ -391,6 +455,9 @@ function handleRenameConv() {
 
 /** Create a new chat */
 function handleNewChat() {
+  if (activeConv.value && activeTask.value) {
+    troubleshootingStore.setState(activeConv.value.id, 'cancelled')
+  }
   if (currentStream) {
     currentStream.abort()
     currentStream = null
@@ -586,6 +653,7 @@ async function handleSend(options: { bypassRemediation?: boolean; scriptAssist?:
   }
 
   chatStore.addUserMessage(agentStore.activeAgentId, text)
+  ensureTroubleshootingTask(text)
   inputText.value = ''
   userScrolledUp.value = false
   scrollToBottom()
@@ -613,6 +681,7 @@ async function handleSend(options: { bypassRemediation?: boolean; scriptAssist?:
     (error) => {
       chatStore.finishStreaming(agentStore.activeAgentId)
       currentStream = null
+      handleTroubleshootingState('blocked', error)
       ElMessage.error(error)
     },
     serverContext.value,
@@ -621,6 +690,8 @@ async function handleSend(options: { bypassRemediation?: boolean; scriptAssist?:
     agentStore.activeMode,
     handleConfirmCommand,
     handleCommandCompleted,
+    currentAgentContext(),
+    handleTroubleshootingState,
   )
 }
 
@@ -628,6 +699,9 @@ function handleStop() {
   if (currentStream) {
     currentStream.abort()
     currentStream = null
+  }
+  if (activeConv.value && activeTask.value) {
+    troubleshootingStore.setState(activeConv.value.id, 'cancelled')
   }
   chatStore.finishStreaming(agentStore.activeAgentId)
 }
@@ -686,13 +760,34 @@ async function handleConfirmCommand(command: string): Promise<CommandAuthorizati
 }
 
 function handleCommandCompleted(
-  _command: string,
+  command: string,
   result: string | Required<AgentCommandResult>,
   authorization: CommandAuthorization,
   _verification = false,
 ) {
   if (authorization.auditId) {
     opsAgentStore.completeAudit(authorization.auditId, typeof result === 'string' ? result : result.formatted)
+  }
+  if (typeof result === 'string' || !activeHost.value.id) return
+  const record = operationRecordsStore.addRecord({
+    source: 'ai',
+    serverId: activeHost.value.id,
+    serverName: activeHost.value.name,
+    sessionId: sshStore.activeSession?.realSessionId,
+    command,
+    output: result.stdout,
+    stderr: result.stderr,
+    exitCode: result.exitCode,
+    timedOut: result.timedOut,
+    status: result.channelError || result.timedOut || (result.exitCode !== null && result.exitCode !== 0)
+      ? 'failed'
+      : 'success',
+    startedAt: result.startedAt,
+    finishedAt: result.finishedAt,
+    durationMs: result.finishedAt - result.startedAt,
+  })
+  if (activeConv.value && activeTask.value) {
+    troubleshootingStore.addEvidence(activeConv.value.id, record.id)
   }
 }
 
@@ -748,25 +843,44 @@ function formatDiagnosticResult(result: SshExecResult): string {
   return `${parts.join('\n')}${result.exit_code && result.exit_code !== 0 ? `\n[退出码 ${result.exit_code}]` : ''}`
 }
 
+function normalizeSshResult(result: SshExecResult, startedAt: number, finishedAt: number): Required<AgentCommandResult> {
+  return {
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+    exitCode: result.exit_code ?? null,
+    timedOut: Boolean(result.timed_out),
+    channelError: false,
+    startedAt,
+    finishedAt,
+    formatted: formatDiagnosticResult(result),
+  }
+}
+
 async function runAuthorizedDiagnostic(item: DiagnosticCommand): Promise<string> {
   const sessionId = sshStore.activeSession?.realSessionId
   if (!sessionId) return '[策略已阻止] 当前没有可用的 SSH 会话。'
   const authorization = await handleConfirmCommand(item.command)
   if (!authorization.allowed) return `[策略已阻止] ${authorization.denialMessage}`
 
-  let output: string
+  const startedAt = Date.now()
+  let commandResult: Required<AgentCommandResult>
   try {
     let result = await sshExecFull(sessionId, item.command)
-    output = formatDiagnosticResult(result)
-    if (/^\[执行错误\]/.test(output)) {
+    commandResult = normalizeSshResult(result, startedAt, Date.now())
+    if (!result.stdout && !result.stderr && result.exit_code == null && !result.timed_out) {
       result = await sshExecFull(sessionId, item.command)
-      output = formatDiagnosticResult(result)
+      commandResult = normalizeSshResult(result, startedAt, Date.now())
     }
   } catch (error: any) {
-    output = `[执行错误] ${error?.message || String(error)}`
+    const message = error?.message || String(error)
+    commandResult = {
+      stdout: '', stderr: '', exitCode: null, timedOut: false,
+      channelError: true, startedAt, finishedAt: Date.now(),
+      formatted: `[执行错误] ${message}`,
+    }
   }
-  handleCommandCompleted(item.command, output, authorization)
-  return output
+  handleCommandCompleted(item.command, commandResult, authorization)
+  return commandResult.formatted
 }
 
 async function collectRemediationEvidence(): Promise<string> {
@@ -791,6 +905,9 @@ async function handleStartRemediation(issueText = inputText.value.trim()) {
 
   const prompt = issueText || messages.value[messages.value.length - 1]?.content || '请对当前服务器执行保守自愈检查'
   chatStore.addUserMessage(agentStore.activeAgentId, prompt)
+  ensureTroubleshootingTask(prompt)
+  handleTroubleshootingState('assessing')
+  handleTroubleshootingState('collecting')
   chatStore.addUserMessage(agentStore.activeAgentId, t('ai.remediationCollecting'))
   scrollToBottom()
 
@@ -804,6 +921,7 @@ async function handleStartRemediation(issueText = inputText.value.trim()) {
 
   remediationStore.setPlan(plan)
   syncRemediationToOrchestration(plan)
+  handleTroubleshootingState('awaiting_authorization')
   ElMessage.success(t('ai.remediationCreated'))
   scrollToBottom()
 }
@@ -811,6 +929,7 @@ async function handleStartRemediation(issueText = inputText.value.trim()) {
 function handleStopRemediation() {
   remediationStore.stopPlan()
   orchestrationStore.stopTask()
+  handleTroubleshootingState('cancelled')
   ElMessage.warning(t('ai.remediationStopped'))
 }
 
@@ -821,6 +940,7 @@ async function runRemediationCommand(step: RemediationStep, command: string, ver
     remediationStore.appendStepOutput(step.id, t('ai.remediationNoSession'), verification)
     orchestrationStore.setStepStatus(step.id, 'failed')
     orchestrationStore.appendStepOutput(step.id, t('ai.remediationNoSession'), verification)
+    handleTroubleshootingState('blocked', t('ai.remediationNoSession'))
     return false
   }
 
@@ -830,6 +950,7 @@ async function runRemediationCommand(step: RemediationStep, command: string, ver
     remediationStore.appendStepOutput(step.id, authorization.denialMessage, verification)
     orchestrationStore.setStepStatus(step.id, 'skipped')
     orchestrationStore.appendStepOutput(step.id, authorization.denialMessage, verification)
+    handleTroubleshootingState('blocked', authorization.denialMessage)
     return false
   }
   if (authorization.auditId && !verification) remediationStore.setStepAudit(step.id, authorization.auditId)
@@ -838,22 +959,34 @@ async function runRemediationCommand(step: RemediationStep, command: string, ver
     if (orchStep) orchStep.auditId = authorization.auditId
   }
 
-  let output = ''
+  handleTroubleshootingState(verification ? 'verifying' : 'executing')
+  const startedAt = Date.now()
+  let commandResult: Required<AgentCommandResult>
   try {
     let result = await sshExecFull(sessionId, command)
-    output = formatDiagnosticResult(result)
-    if (/^\[执行错误\]/.test(output.trim())) {
+    commandResult = normalizeSshResult(result, startedAt, Date.now())
+    if (!result.stdout && !result.stderr && result.exit_code == null && !result.timed_out) {
       result = await sshExecFull(sessionId, command)
-      output = formatDiagnosticResult(result)
+      commandResult = normalizeSshResult(result, startedAt, Date.now())
     }
   } catch (error: any) {
-    output = `[执行错误] ${error?.message || String(error)}`
+    const message = error?.message || String(error)
+    commandResult = {
+      stdout: '', stderr: '', exitCode: null, timedOut: false,
+      channelError: true, startedAt, finishedAt: Date.now(),
+      formatted: `[执行错误] ${message}`,
+    }
   }
 
-  handleCommandCompleted(command, output, authorization)
+  const output = commandResult.formatted
+  handleCommandCompleted(command, commandResult, authorization, verification)
   remediationStore.appendStepOutput(step.id, output, verification)
   orchestrationStore.appendStepOutput(step.id, output, verification)
-  return !/^\[执行错误\]/.test(output.trim()) && !/\[退出码 [1-9]/.test(output)
+  const succeeded = !commandResult.channelError
+    && !commandResult.timedOut
+    && (commandResult.exitCode == null || commandResult.exitCode === 0)
+  if (!succeeded) handleTroubleshootingState('blocked', output)
+  return succeeded
 }
 
 async function executeRemediationPlan() {
@@ -862,8 +995,11 @@ async function executeRemediationPlan() {
 
   remediationStore.setPlanStatus('running')
   mirrorRemediationPlanStatus('running')
-  for (const step of plan.steps) {
+  let planFailed = false
+  for (const [stepIndex, step] of plan.steps.entries()) {
     if (remediationStore.currentPlan?.status === 'stopped') return
+    if (stepIndex > 0) handleTroubleshootingState('assessing')
+    handleTroubleshootingState('awaiting_authorization')
     remediationStore.setStepStatus(step.id, 'waiting_approval')
     orchestrationStore.setStepStatus(step.id, 'waiting_approval')
 
@@ -871,6 +1007,7 @@ async function executeRemediationPlan() {
     orchestrationStore.setStepStatus(step.id, 'running')
     const executed = await runRemediationCommand(step, step.command)
     if (!executed) {
+      planFailed = true
       remediationStore.setStepStatus(step.id, step.status === 'skipped' ? 'skipped' : 'failed')
       orchestrationStore.setStepStatus(step.id, step.status === 'skipped' ? 'skipped' : 'failed')
       if (shouldStopAfterStep(step)) {
@@ -885,6 +1022,7 @@ async function executeRemediationPlan() {
     remediationStore.setStepStatus(step.id, 'verifying')
     orchestrationStore.setStepStatus(step.id, 'verifying')
     const verified = await runRemediationCommand(step, step.verifyCommand, true)
+    if (!verified) planFailed = true
     remediationStore.setStepStatus(step.id, verified ? 'completed' : 'failed')
     orchestrationStore.setStepStatus(step.id, verified ? 'completed' : 'failed')
     if (!verified && shouldStopAfterStep(step)) {
@@ -895,9 +1033,11 @@ async function executeRemediationPlan() {
     }
   }
 
-  remediationStore.setPlanStatus('completed')
-  mirrorRemediationPlanStatus('completed')
-  ElMessage.success(t('ai.remediationCompleted'))
+  remediationStore.setPlanStatus(planFailed ? 'failed' : 'completed')
+  mirrorRemediationPlanStatus(planFailed ? 'failed' : 'completed')
+  handleTroubleshootingState(planFailed ? 'blocked' : 'resolved', planFailed ? t('ai.remediationFailed') : undefined)
+  if (planFailed) ElMessage.error(t('ai.remediationFailed'))
+  else ElMessage.success(t('ai.remediationCompleted'))
 }
 
 async function handleQuickAnalysis(prompt: string) {
@@ -915,6 +1055,7 @@ async function handleQuickAnalysis(prompt: string) {
     if (groupId) {
       // Inject a placeholder message while running diagnostics
       chatStore.addUserMessage(agentStore.activeAgentId, t('ai.runningDiagnostics'))
+      ensureTroubleshootingTask(prompt)
       scrollToBottom()
 
       try {
@@ -956,13 +1097,20 @@ async function handleQuickAnalysis(prompt: string) {
         chatMessages,
         (chunk) => { chatStore.appendStreamingContent(chunk); scrollToBottom() },
         () => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null },
-        (error) => { chatStore.finishStreaming(agentStore.activeAgentId); currentStream = null; ElMessage.error(error) },
+        (error) => {
+          chatStore.finishStreaming(agentStore.activeAgentId)
+          currentStream = null
+          handleTroubleshootingState('blocked', error)
+          ElMessage.error(error)
+        },
         serverContext.value,
         sshStore.activeSession?.realSessionId || null,
         (cmd: string) => chatStore.appendStreamingContent(`\n\n> \`${cmd}\`\n\n`),
         agentStore.activeMode,
         handleConfirmCommand,
         handleCommandCompleted,
+        currentAgentContext(),
+        handleTroubleshootingState,
       )
       return
     }
@@ -1018,6 +1166,7 @@ onUnmounted(() => { unregister(hideMsgMenu); document.removeEventListener('click
 .agent-select :deep(.el-select__selected-item),
 .agent-select :deep(.el-input__inner) { color: $color-text-primary !important; font-weight: 650; }
 .assistant-state { display: flex; align-items: center; gap: 4px; max-width: 170px; color: $color-text-regular; font-size: 10px; white-space: nowrap; overflow: hidden; }
+.agent-task-status { flex: 0 0 auto; color: $color-text-secondary; font-size: 10px; white-space: nowrap; }
 .assistant-address { overflow: hidden; text-overflow: ellipsis; }
 .ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: $color-success; flex-shrink: 0; }
 .ai-header-actions {

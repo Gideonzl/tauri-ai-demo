@@ -356,6 +356,17 @@
     "send": "发送",
     "stop": "停止",
     "generating": "生成中...",
+    "taskState": {
+      "idle": "空闲",
+      "assessing": "分析中",
+      "collecting": "采集证据",
+      "awaiting_authorization": "等待执行",
+      "executing": "执行中",
+      "verifying": "验证中",
+      "resolved": "已完成",
+      "blocked": "已受阻",
+      "cancelled": "已停止"
+    },
     "newChat": "新建对话",
     "clear": "清空",
     "emptyHint": "发送消息开始对话",
