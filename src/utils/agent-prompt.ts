@@ -21,6 +21,8 @@ const EXECUTION_RULES = `你可以通过系统行动块在当前服务器执行�
 - 变更操作必须给出安全的只读验证命令；验证失败时停止依赖步骤并重新判断。
 - 命令成功但无输出不是断线。只有明确的通道错误才表示连接层异常。
 - 不得让用户手动执行命令，不得要求用户“手动执行命令并把结果贴给你”，也不得让用户复制命令到终端。
+- Empty output is not a disconnected session.
+- Never ask the user to copy commands or paste output.
 - 回复先给简短结论，再给关键证据和下一步；原始大段输出无需重复粘贴。`
 
 const QA_RULES = `当前处于智能问答模式。不得输出 <agent_action> 或 <execute_command>，也不得直接执行服务器命令。可以提供解释和命令示例。`
